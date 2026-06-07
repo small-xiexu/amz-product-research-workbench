@@ -12,6 +12,7 @@ from xml.sax.saxutils import escape as xml_escape
 def render_markdown(package: dict) -> str:
     meta = package.get("metadata", {})
     market = package.get("market_analysis", {})
+    competitors = package.get("competitor_pool", {})
     profit = package.get("profit_reference", {})
     status = package.get("status_card", {})
     voc = package.get("voc_analysis", {})
@@ -26,12 +27,20 @@ def render_markdown(package: dict) -> str:
         "## 市场扫描",
         f"- 市场规模：{market.get('market_size', '待填')}",
         f"- 价格带：{market.get('price_band', '待填')}",
-        "",
-        "## 利润参考",
-        f"- 基础 FBA 毛利：{profit.get('base_fba_gross_profit', '待填')}",
-        f"- 扣广告和退货后的 FBA 毛利：{profit.get('post_ads_returns_gross_profit', '待填')}",
+        f"- 品牌集中度：{market.get('brand_concentration', '待填')}",
+        f"- 卖家结构：{market.get('seller_concentration', '待填')}",
+        f"- 新品机会：{market.get('new_listing_ratio', '待填')}",
         "",
     ]
+    lines.extend(_competitor_markdown_lines(competitors))
+    lines.extend(
+        [
+            "## 利润参考",
+            f"- 基础 FBA 毛利：{profit.get('base_fba_gross_profit', '待填')}",
+            f"- 扣广告和退货后的 FBA 毛利：{profit.get('post_ads_returns_gross_profit', '待填')}",
+            "",
+        ]
+    )
     if voc:
         lines.extend(_voc_markdown_lines(voc))
     return "\n".join(lines)
@@ -259,7 +268,7 @@ def _table_rows(data: object, headers: list[str]) -> list[list[object]]:
 
 
 def _competitor_rows(competitors: dict) -> list[list[object]]:
-    rows: list[list[object]] = [["分组", "ASIN", "标题", "价格", "BSR", "上架时间", "备注"]]
+    rows: list[list[object]] = [["分组", "ASIN", "品牌", "标题", "价格", "月销量", "月销售额", "销量占比", "BSR", "评分", "评分数", "上架时间", "上架天数", "备注"]]
     groups = [
         ("top10", "Top10 标杆组"),
         ("recent_winners", "近半年放量新品组"),
@@ -272,16 +281,74 @@ def _competitor_rows(competitors: dict) -> list[list[object]]:
                     [
                         label,
                         item.get("asin"),
+                        item.get("brand"),
                         item.get("title"),
                         item.get("price"),
+                        item.get("monthly_units"),
+                        item.get("monthly_revenue_usd"),
+                        item.get("units_share"),
                         item.get("bsr"),
+                        item.get("rating"),
+                        item.get("rating_count"),
                         item.get("listing_date"),
+                        item.get("listing_days"),
                         item.get("note"),
                     ]
                 )
     if len(rows) == 1:
-        rows.append(["待填", "", "", "", "", "", ""])
+        rows.append(["待填"] + [""] * (len(rows[0]) - 1))
     return rows
+
+
+def _competitor_markdown_lines(competitors: dict) -> list[str]:
+    if not competitors:
+        return []
+    groups = [
+        ("top10", "Top10 标杆组"),
+        ("recent_winners", "近半年放量新品组"),
+        ("structure_supplement", "结构补充组"),
+    ]
+    lines = ["## 竞品池", ""]
+    has_any = False
+    for key, label in groups:
+        items = competitors.get(key, [])
+        if not items:
+            continue
+        has_any = True
+        lines.append(f"### {label}")
+        for item in items[:5]:
+            lines.append(
+                "- "
+                + " / ".join(
+                    part
+                    for part in [
+                        str(item.get("asin", "")),
+                        str(item.get("brand", "")),
+                        _compact_title(item.get("title")),
+                        f"${_format_number(item.get('price'))}" if item.get("price") not in (None, "") else "",
+                        f"月销量 {_format_number(item.get('monthly_units'))}" if item.get("monthly_units") not in (None, "") else "",
+                        str(item.get("note", "")),
+                    ]
+                    if part
+                )
+            )
+        lines.append("")
+    return lines if has_any else []
+
+
+def _compact_title(value: object, limit: int = 72) -> str:
+    text = str(value or "").strip()
+    return text[:limit] + ("..." if len(text) > limit else "")
+
+
+def _format_number(value: object) -> str:
+    if isinstance(value, (int, float)):
+        if abs(value) >= 1000:
+            return f"{value:,.0f}"
+        if value == int(value):
+            return str(int(value))
+        return f"{value:.2f}"
+    return str(value)
 
 
 def _display_value(value: object) -> str:

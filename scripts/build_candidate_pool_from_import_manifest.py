@@ -118,6 +118,114 @@ def top_record(records: list[dict[str, Any]], field: str) -> dict[str, Any]:
     return best
 
 
+def product_from_concentration(record: dict[str, Any], note: str = "") -> dict[str, Any]:
+    return {
+        "asin": record.get("ASIN"),
+        "title": record.get("商品标题"),
+        "brand": record.get("品牌"),
+        "seller": record.get("卖家"),
+        "fulfillment": record.get("配送方式"),
+        "price": to_float(record.get("价格($)")),
+        "monthly_units": to_float(record.get("月销量")),
+        "monthly_revenue_usd": to_float(record.get("月销售额($)")),
+        "units_share": to_float(record.get("月销量占比")),
+        "revenue_share": to_float(record.get("月销售额占比")),
+        "rating": to_float(record.get("星级")),
+        "rating_count": to_int(record.get("评分数")),
+        "review_count": to_int(record.get("评论数")),
+        "listing_date": record.get("上架时间"),
+        "note": note,
+    }
+
+
+def product_from_search_result(record: dict[str, Any], note: str = "") -> dict[str, Any]:
+    return {
+        "asin": record.get("ASIN"),
+        "title": record.get("商品标题"),
+        "brand": record.get("品牌"),
+        "seller": record.get("Buybox卖家"),
+        "seller_location": record.get("卖家所属地"),
+        "fulfillment": record.get("配送方式"),
+        "price": to_float(record.get("价格($)")),
+        "monthly_units": to_float(record.get("月销量")),
+        "monthly_revenue_usd": to_float(record.get("月销售额($)")),
+        "rating": to_float(record.get("评分")),
+        "rating_count": to_int(record.get("评分数")),
+        "bsr": to_int(record.get("小类BSR")),
+        "category": record.get("小类目"),
+        "listing_date": record.get("上架时间"),
+        "listing_days": to_int(record.get("上架天数")),
+        "parent_asin": record.get("父ASIN"),
+        "variant_count": to_int(record.get("变体数")),
+        "lqs": to_int(record.get("LQS")),
+        "has_a_plus": record.get("A+页面"),
+        "has_video": record.get("视频介绍"),
+        "weight": record.get("商品重量（单位换算）") or record.get("商品重量"),
+        "size": record.get("商品尺寸（单位换算）") or record.get("商品尺寸"),
+        "package_weight": record.get("包装重量（单位换算）") or record.get("包装重量"),
+        "package_size": record.get("包装尺寸（单位换算）") or record.get("包装尺寸"),
+        "url": record.get("商品详情页链接"),
+        "note": note,
+    }
+
+
+def top_products(product_concentration: list[dict[str, Any]], limit: int = 10) -> list[dict[str, Any]]:
+    return [
+        product_from_concentration(record, "Top 商品集中度")
+        for record in product_concentration[:limit]
+        if record.get("ASIN")
+    ]
+
+
+def recent_winners(search_records: list[dict[str, Any]], limit: int = 10) -> list[dict[str, Any]]:
+    recent = [
+        record
+        for record in search_records
+        if record.get("ASIN") and (to_int(record.get("上架天数")) or 999999) <= 180 and (to_float(record.get("月销量")) or 0) > 0
+    ]
+    recent.sort(key=lambda item: (to_float(item.get("月销量")) or 0, to_float(item.get("月销售额($)")) or 0), reverse=True)
+    result = []
+    seen: set[str] = set()
+    for record in recent:
+        asin = str(record.get("ASIN") or "")
+        if not asin or asin in seen:
+            continue
+        seen.add(asin)
+        result.append(product_from_search_result(record, "近半年上架且有销量"))
+        if len(result) >= limit:
+            break
+    return result
+
+
+def structure_supplements(search_records: list[dict[str, Any]], limit: int = 8) -> list[dict[str, Any]]:
+    candidates: list[tuple[str, dict[str, Any]]] = []
+    priced = [record for record in search_records if record.get("ASIN") and to_float(record.get("价格($)")) is not None]
+    rated = [record for record in search_records if record.get("ASIN") and to_float(record.get("评分")) is not None]
+    reviewed = [record for record in search_records if record.get("ASIN") and to_int(record.get("评分数")) is not None]
+    if priced:
+        candidates.append(("低价结构样本", min(priced, key=lambda item: to_float(item.get("价格($)")) or 0)))
+        candidates.append(("高价结构样本", max(priced, key=lambda item: to_float(item.get("价格($)")) or 0)))
+    if rated:
+        candidates.append(("高评分结构样本", max(rated, key=lambda item: to_float(item.get("评分")) or 0)))
+        low_rated = [record for record in rated if (to_float(record.get("评分")) or 0) < 4]
+        if low_rated:
+            candidates.append(("低评分风险样本", min(low_rated, key=lambda item: to_float(item.get("评分")) or 0)))
+    if reviewed:
+        candidates.append(("高评论门槛样本", max(reviewed, key=lambda item: to_int(item.get("评分数")) or 0)))
+
+    seen: set[str] = set()
+    result = []
+    for note, record in candidates:
+        asin = str(record.get("ASIN") or "")
+        if not asin or asin in seen:
+            continue
+        seen.add(asin)
+        result.append(product_from_search_result(record, note))
+        if len(result) >= limit:
+            break
+    return result
+
+
 def extract_seed_keyword(manifest: dict[str, Any]) -> str:
     search_file = file_entry(manifest, "seller_sprite_search_results")
     if search_file:
@@ -200,6 +308,11 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
             "top_seller_location": top_location.get("卖家所属地"),
             "top_seller_location_units_share": to_float(top_location.get("销量占比")),
             "search_result_rows": len(search_records),
+        },
+        "competitor_candidates": {
+            "top10": top_products(product_concentration),
+            "recent_winners": recent_winners(search_records),
+            "structure_supplement": structure_supplements(search_records),
         },
         "new_listing_opportunity": {
             "new_listing_count_6m": to_int(new_products.get("样本商品数")),

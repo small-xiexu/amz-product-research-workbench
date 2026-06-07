@@ -23,6 +23,7 @@ def build_research_package(
     source_brief = candidate_pool.get("source_brief", {})
     competition = candidate.get("competition_structure", {})
     profit_space = candidate.get("preliminary_profit_space", {})
+    competitor_candidates = candidate.get("competitor_candidates", {})
     status = candidate.get("status", "观察")
     voc_analysis = _build_voc_analysis(voc_package)
     voc_review_sources = _build_review_sources(voc_package)
@@ -67,20 +68,21 @@ def build_research_package(
             "voc_evidence": _collect_voc_evidence(voc_package),
         },
         "market_analysis": {
-            "market_size": candidate.get("demand_evidence", {}).get("top100_signal", "待填"),
-            "price_band": competition.get("price_band", profit_space.get("price_band", "待填")),
-            "brand_concentration": competition.get("brand_concentration", "待填"),
-            "seller_concentration": competition.get("seller_concentration", "待填"),
-            "new_listing_ratio": candidate.get("new_listing_opportunity", {}).get("signal", "待填"),
+            "market_size": _market_size_text(candidate),
+            "price_band": _price_band_text(candidate),
+            "brand_concentration": _brand_concentration_text(candidate),
+            "seller_concentration": _seller_concentration_text(candidate),
+            "new_listing_ratio": _new_listing_text(candidate),
+            "return_rate": _return_rate_text(candidate),
         },
         "keyword_analysis": {
             "search_signal": candidate.get("demand_evidence", {}).get("search_signal", "待填"),
             "trend_signal": candidate.get("demand_evidence", {}).get("trend_signal", "待填"),
         },
         "competitor_pool": {
-            "top10": [],
-            "recent_winners": candidate.get("new_listing_opportunity", {}).get("recent_asins", []),
-            "structure_supplement": [],
+            "top10": _competitor_items(competitor_candidates.get("top10", [])),
+            "recent_winners": _competitor_items(competitor_candidates.get("recent_winners", [])),
+            "structure_supplement": _competitor_items(competitor_candidates.get("structure_supplement", [])),
         },
         "profit_reference": {
             "base_fba_gross_profit": "待补",
@@ -165,6 +167,128 @@ def _build_review_sources(voc_package: dict[str, Any] | None) -> dict[str, Any]:
         "summary": voc_package.get("summary", {}),
         "ai_report_reference": voc_package.get("ai_report_reference", {}),
     }
+
+
+def _market_size_text(candidate: dict[str, Any]) -> str:
+    demand = candidate.get("demand_evidence", {})
+    competition = candidate.get("competition_structure", {})
+    parts = []
+    if competition.get("sample_product_count") is not None:
+        parts.append(f"样本商品数 {_fmt_number(competition.get('sample_product_count'))}")
+    if demand.get("market_avg_monthly_units") is not None:
+        parts.append(f"市场月均销量 {_fmt_number(demand.get('market_avg_monthly_units'))}")
+    if demand.get("market_avg_monthly_revenue_usd") is not None:
+        parts.append(f"市场月均销售额 ${_fmt_number(demand.get('market_avg_monthly_revenue_usd'))}")
+    if competition.get("top10_avg_monthly_units") is not None:
+        parts.append(f"Top10 月均销量 {_fmt_number(competition.get('top10_avg_monthly_units'))}")
+    return "；".join(parts) if parts else "待填"
+
+
+def _price_band_text(candidate: dict[str, Any]) -> str:
+    demand = candidate.get("demand_evidence", {})
+    profit = candidate.get("preliminary_profit_space", {})
+    parts = []
+    if profit.get("top_price_band_by_units"):
+        parts.append(f"销量集中价格带 {profit.get('top_price_band_by_units')} 美元")
+    if profit.get("top_price_band_units_share") is not None:
+        parts.append(f"该价格带销量占比 {_fmt_percent(profit.get('top_price_band_units_share'))}")
+    if demand.get("market_avg_price_usd") is not None:
+        parts.append(f"市场平均价 ${_fmt_number(demand.get('market_avg_price_usd'))}")
+    return "；".join(parts) if parts else "待填"
+
+
+def _brand_concentration_text(candidate: dict[str, Any]) -> str:
+    competition = candidate.get("competition_structure", {})
+    top_brand = competition.get("top_brand")
+    top_share = competition.get("top_brand_units_share")
+    top10_share = competition.get("top10_product_units_share")
+    parts = []
+    if top_brand:
+        parts.append(f"头部品牌 {top_brand} 销量占比 {_fmt_percent(top_share)}")
+    if top10_share is not None:
+        parts.append(f"Top10 商品销量占比 {_fmt_percent(top10_share)}")
+    return "；".join(parts) if parts else "待填"
+
+
+def _seller_concentration_text(candidate: dict[str, Any]) -> str:
+    competition = candidate.get("competition_structure", {})
+    location = competition.get("top_seller_location")
+    share = competition.get("top_seller_location_units_share")
+    if location:
+        return f"主要卖家所在地 {location}，销量占比 {_fmt_percent(share)}"
+    return "待填"
+
+
+def _new_listing_text(candidate: dict[str, Any]) -> str:
+    new_listing = candidate.get("new_listing_opportunity", {})
+    parts = []
+    if new_listing.get("new_listing_count_6m") is not None:
+        parts.append(f"近半年新品 {new_listing.get('new_listing_count_6m')} 个")
+    if new_listing.get("new_listing_avg_monthly_units") is not None:
+        parts.append(f"近半年新品月均销量 {_fmt_number(new_listing.get('new_listing_avg_monthly_units'))}")
+    if new_listing.get("recent_6m_units_share") is not None:
+        parts.append(f"近半年新品销量占比 {_fmt_percent(new_listing.get('recent_6m_units_share'))}")
+    return "；".join(parts) if parts else "待填"
+
+
+def _return_rate_text(candidate: dict[str, Any]) -> str:
+    return_risk = candidate.get("return_risk", {})
+    market_rate = return_risk.get("market_return_rate")
+    category_rate = return_risk.get("category_return_rate")
+    if market_rate is None and category_rate is None:
+        return "待填"
+    return f"市场退货率 {_fmt_percent(market_rate)}；类目退货率 {_fmt_percent(category_rate)}"
+
+
+def _competitor_items(items: Any) -> list[dict[str, Any]]:
+    if not isinstance(items, list):
+        return []
+    result = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        result.append(
+            {
+                "asin": item.get("asin"),
+                "title": item.get("title"),
+                "brand": item.get("brand"),
+                "seller": item.get("seller"),
+                "price": item.get("price"),
+                "monthly_units": item.get("monthly_units"),
+                "monthly_revenue_usd": item.get("monthly_revenue_usd"),
+                "units_share": item.get("units_share"),
+                "bsr": item.get("bsr"),
+                "rating": item.get("rating"),
+                "rating_count": item.get("rating_count"),
+                "listing_date": item.get("listing_date"),
+                "listing_days": item.get("listing_days"),
+                "note": item.get("note"),
+                "url": item.get("url"),
+            }
+        )
+    return result
+
+
+def _fmt_number(value: Any) -> str:
+    if value is None:
+        return "待填"
+    if isinstance(value, (int, float)):
+        if abs(value) >= 1000:
+            return f"{value:,.0f}"
+        if value == int(value):
+            return str(int(value))
+        return f"{value:.2f}"
+    return str(value)
+
+
+def _fmt_percent(value: Any) -> str:
+    if value is None:
+        return "待填"
+    if isinstance(value, (int, float)):
+        percent_value = value * 100 if -1 <= value <= 1 else value
+        return f"{percent_value:.2f}%"
+    text = str(value)
+    return text if "%" in text else text + "%"
 
 
 def _build_voc_analysis(voc_package: dict[str, Any] | None) -> dict[str, Any]:
