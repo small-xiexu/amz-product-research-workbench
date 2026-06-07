@@ -16,6 +16,7 @@ imports/
 # Runtime/cache files
 node_modules/
 .venv/
+.idea/
 __pycache__/
 *.pyc
 

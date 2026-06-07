@@ -32,6 +32,7 @@
 | `docs/V1范围冻结.md` | 冻结第一版要做什么、不做什么、输出什么 |
 | `docs/字段来源表.md` | 每个字段来自手动导出、API/MCP、手填、系统计算还是人工复核 |
 | `docs/卖家精灵手动导出数据清单.md` | 没有 API/MCP 时，AI 指挥用户从卖家精灵导出哪些数据 |
+| `docs/自有评论插件对接方案.md` | 自有评论插件 Excel/HTML 导出如何接入选品系统 |
 | `docs/静态报告Mock.md` | 报告、摘要、看板的静态样式骨架 |
 | `docs/亚马逊选品全流程产品路线图.md` | 产品目标、阶段规划、V0-V5 演进路线 |
 | `docs/亚马逊运营选品自查工具速读版.md` | 快速理解项目方向和 V1 边界 |
@@ -75,6 +76,42 @@ python3 scripts/build_candidate_pool_from_import_manifest.py \
   /tmp/manual_export_candidate_pool.json
 ```
 
+生成候选品池预审输出：
+
+```bash
+python3 scripts/build_candidate_pool_precheck.py \
+  /tmp/manual_export_candidate_pool.json \
+  /tmp/manual_export_precheck
+```
+
+输出：
+
+- `/tmp/manual_export_precheck/candidate_pool.json`
+- `/tmp/manual_export_precheck/precheck_report.md`
+- `/tmp/manual_export_precheck/precheck_summary.md`
+- `/tmp/manual_export_precheck/precheck_dashboard.html`
+- `/tmp/manual_export_precheck/precheck_data.xlsx`
+
+## 自有评论插件导入
+
+重点候选进入深挖后，读取自有评论插件导出的 Excel，并可附带 HTML AI 报告作为辅助参考。
+
+```bash
+python3 scripts/build_review_voc_from_plugin_export.py \
+  /tmp/review_voc_hands_free_leashes \
+  /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07.xlsx \
+  /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07-report.html \
+  --candidate-id cand-dog-running-leash \
+  --candidate-name "Hands Free Leashes"
+```
+
+输出：
+
+- `/tmp/review_voc_hands_free_leashes/review_voc_package.json`
+- `/tmp/review_voc_hands_free_leashes/voc_report.md`
+- `/tmp/review_voc_hands_free_leashes/voc_summary.md`
+- `/tmp/review_voc_hands_free_leashes/voc_evidence.xlsx`
+
 ## 当前阶段
 
 项目处于 V1 骨架阶段，先完成 `候选品发现 Skill + 本地报告生成器`，不直接做完整应用。
@@ -86,6 +123,8 @@ python3 scripts/build_candidate_pool_from_import_manifest.py \
 3. 制作静态报告 mock。
 4. 搭建 Skill 和 references 骨架。
 5. 搭建最小本地报告生成器。
+6. 打通卖家精灵手动导出数据到候选品池。
+7. 新增候选品池预审输出，用于判断是否进入正式深挖。
 
 ## 暂不包含
 
