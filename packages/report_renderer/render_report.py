@@ -14,6 +14,7 @@ def render_markdown(package: dict) -> str:
     market = package.get("market_analysis", {})
     profit = package.get("profit_reference", {})
     status = package.get("status_card", {})
+    voc = package.get("voc_analysis", {})
 
     lines = [
         f"# {meta.get('seed_keyword_or_category', '未命名品类')} 调研报告",
@@ -31,11 +32,15 @@ def render_markdown(package: dict) -> str:
         f"- 扣广告和退货后的 FBA 毛利：{profit.get('post_ads_returns_gross_profit', '待填')}",
         "",
     ]
+    if voc:
+        lines.extend(_voc_markdown_lines(voc))
     return "\n".join(lines)
 
 
 def render_summary(package: dict) -> str:
     status = package.get("status_card", {})
+    voc = package.get("voc_analysis", {})
+    first_pain = _first_finding_name(voc.get("pain_points", [])) if voc else "待填"
     return "\n".join(
         [
             "# 摘要",
@@ -43,6 +48,7 @@ def render_summary(package: dict) -> str:
             f"- 状态：{status.get('status', '待填')}",
             f"- 原因：{status.get('reason', '待填')}",
             f"- 下一步：{status.get('next_step', '待填')}",
+            f"- 评论首要痛点：{first_pain}",
         ]
     )
 
@@ -51,11 +57,15 @@ def render_dashboard(package: dict) -> str:
     meta = package.get("metadata", {})
     market = package.get("market_analysis", {})
     profit = package.get("profit_reference", {})
+    voc = package.get("voc_analysis", {})
     title = escape(str(meta.get("seed_keyword_or_category", "调研看板")))
     site = escape(str(meta.get("site", "待填")))
     market_size = escape(str(market.get("market_size", "待填")))
     price_band = escape(str(market.get("price_band", "待填")))
     base_profit = escape(str(profit.get("base_fba_gross_profit", "待填")))
+    voc_summary = voc.get("summary", {}) if voc else {}
+    review_count = escape(str(voc_summary.get("review_count", "待填") if voc else "未接入"))
+    first_pain = escape(str(_first_finding_name(voc.get("pain_points", [])) if voc else "未接入"))
 
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -67,6 +77,8 @@ def render_dashboard(package: dict) -> str:
     <li>市场规模：{market_size}</li>
     <li>价格带：{price_band}</li>
     <li>基础 FBA 毛利：{base_profit}</li>
+    <li>评论数：{review_count}</li>
+    <li>评论首要痛点：{first_pain}</li>
   </ul>
 </body>
 </html>"""
@@ -128,11 +140,93 @@ def _build_workbook_sheets(package: dict) -> list[tuple[str, list[list[object]]]
         ("竞品池", _competitor_rows(competitors)),
         ("利润测算输入", _dict_rows(operator_inputs)),
         ("利润参考结果", _dict_rows(profit)),
+        ("评论VOC", _voc_summary_rows(package.get("voc_analysis", {}))),
+        ("VOC证据", _voc_evidence_rows(package.get("normalized_tables", {}).get("voc_evidence", []))),
         ("退货风险", _dict_rows(return_risk)),
         ("知产初筛", _dict_rows(ip_screening)),
         ("合规认证预判", _dict_rows(compliance)),
         ("状态卡", _dict_rows(status)),
     ]
+
+
+def _voc_markdown_lines(voc: dict) -> list[str]:
+    summary = voc.get("summary", {})
+    lines = [
+        "## 评论 VOC",
+        f"- 评论数：{summary.get('review_count', '待填')}",
+        f"- ASIN 数：{summary.get('asin_count', '待填')}",
+        f"- 低分评论数：{summary.get('low_rating_count', '待填')}",
+        "",
+        "### 主要痛点",
+    ]
+    for finding in voc.get("pain_points", [])[:5]:
+        lines.append(f"- {finding.get('name', '待填')}：{finding.get('review_count', '待填')} 条，等级 {finding.get('severity', '待填')}")
+        for evidence in finding.get("evidence", [])[:3]:
+            lines.append(
+                f"  - `{evidence.get('review_id', '待填')}` / {evidence.get('asin', '待填')} / "
+                f"{evidence.get('rating', '待填')}星：{evidence.get('snippet', '待填')}"
+            )
+    lines.extend(["", "### 主要亮点"])
+    for finding in voc.get("highlights", [])[:5]:
+        lines.append(f"- {finding.get('name', '待填')}：{finding.get('review_count', '待填')} 条")
+    lines.extend(["", "### 改品机会"])
+    for item in voc.get("opportunity_hypotheses", [])[:5]:
+        evidence_ids = ", ".join(item.get("evidence_review_ids", [])[:5])
+        lines.append(f"- {item.get('name', '待填')}：{item.get('hypothesis', '待填')}（证据：{evidence_ids}）")
+    lines.append("")
+    return lines
+
+
+def _first_finding_name(findings: list[dict]) -> str:
+    if not findings:
+        return "待填"
+    return str(findings[0].get("name", "待填"))
+
+
+def _voc_summary_rows(voc: dict) -> list[list[object]]:
+    rows: list[list[object]] = [["字段", "值"]]
+    if not voc:
+        rows.append(["状态", "未接入"])
+        return rows
+    summary = voc.get("summary", {})
+    rows.extend(
+        [
+            ["评论数", summary.get("review_count")],
+            ["ASIN数", summary.get("asin_count")],
+            ["站点数", summary.get("site_count")],
+            ["低分评论数", summary.get("low_rating_count")],
+            ["含图片/视频评论数", summary.get("media_review_count")],
+            ["首要痛点", _first_finding_name(voc.get("pain_points", []))],
+            ["首要亮点", _first_finding_name(voc.get("highlights", []))],
+            ["证据规则", voc.get("evidence_policy")],
+        ]
+    )
+    return rows
+
+
+def _voc_evidence_rows(evidence_rows: object) -> list[list[object]]:
+    rows: list[list[object]] = [["类型", "主题", "评论数", "等级", "评论ID", "ASIN", "站点", "评分", "日期", "证据片段", "链接"]]
+    if isinstance(evidence_rows, list):
+        for item in evidence_rows:
+            if isinstance(item, dict):
+                rows.append(
+                    [
+                        item.get("finding_type"),
+                        item.get("finding_name"),
+                        item.get("review_count"),
+                        item.get("severity"),
+                        item.get("review_id"),
+                        item.get("asin"),
+                        item.get("site"),
+                        item.get("rating"),
+                        item.get("review_date"),
+                        item.get("snippet"),
+                        item.get("url"),
+                    ]
+                )
+    if len(rows) == 1:
+        rows.append(["未接入", "", "", "", "", "", "", "", "", "", ""])
+    return rows
 
 
 def _source_rows(meta: dict) -> list[list[object]]:

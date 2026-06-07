@@ -112,6 +112,16 @@ python3 scripts/build_review_voc_from_plugin_export.py \
 - `/tmp/review_voc_hands_free_leashes/voc_summary.md`
 - `/tmp/review_voc_hands_free_leashes/voc_evidence.xlsx`
 
+合并进重点候选深挖数据包：
+
+```bash
+python3 scripts/build_research_package_from_candidate.py \
+  /tmp/manual_export_candidate_pool.json \
+  /tmp/manual_export_research_package.json \
+  cand-dog-running-leash \
+  --voc-package /tmp/review_voc_hands_free_leashes/review_voc_package.json
+```
+
 ## 当前阶段
 
 项目处于 V1 骨架阶段，先完成 `候选品发现 Skill + 本地报告生成器`，不直接做完整应用。
