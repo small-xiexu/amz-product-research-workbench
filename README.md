@@ -8,7 +8,7 @@
 
 ## 当前目标
 
-- V1 数据源按卖家精灵 MCP 设计，当前代码先跑通本地样例数据包和报告生成。
+- V1 数据源优先按卖家精灵手动导出/导入设计；API/MCP 作为后续自动化增强，当前代码先跑通本地样例数据包和报告生成。
 - 下一步要把入口从 `research_package` 前移到 `selection_brief`，先生成候选品池。
 - 生成选品报告三件套：主报告、摘要、HTML 看板。
 - 保留 Excel 数据底表和可追溯证据链。
@@ -19,6 +19,7 @@
 
 | 文档 | 用途 |
 |---|---|
+| `docs/plans/V1选品系统实施计划.md` | 唯一进度台账，下次恢复任务先看这里 |
 | `docs/选品系统方向锚点.md` | 项目方向主锚点，防止偏成“录入产品做报告” |
 | `skills/seller-sprite-product-research/SKILL.md` | Skill 主入口，定义流程、规则、输入输出 |
 | `skills/seller-sprite-product-research/references/` | 工具映射、数据包结构、决策规则、输出结构 |
@@ -28,7 +29,8 @@
 | `scripts/` | 本地生成和验证脚本 |
 | `examples/` | 最小输入样例和 mock 数据包 |
 | `docs/V1范围冻结.md` | 冻结第一版要做什么、不做什么、输出什么 |
-| `docs/字段来源表.md` | 每个字段来自 MCP、手填、系统计算还是人工复核 |
+| `docs/字段来源表.md` | 每个字段来自手动导出、API/MCP、手填、系统计算还是人工复核 |
+| `docs/卖家精灵手动导出数据清单.md` | 没有 API/MCP 时，AI 指挥用户从卖家精灵导出哪些数据 |
 | `docs/静态报告Mock.md` | 报告、摘要、看板的静态样式骨架 |
 | `docs/亚马逊选品全流程产品路线图.md` | 产品目标、阶段规划、V0-V5 演进路线 |
 | `docs/亚马逊运营选品自查工具速读版.md` | 快速理解项目方向和 V1 边界 |
@@ -65,6 +67,6 @@ python3 scripts/build_mock_report.py examples/minimal_research_package.json /tmp
 ## 暂不包含
 
 - 不包含完整应用代码。
-- 不包含卖家精灵 MCP 调用实现。
+- 不包含卖家精灵 API/MCP 调用实现。
 - 不包含自有评论插件源码。
 - 不包含历史调研数据、备份文件和临时输出。

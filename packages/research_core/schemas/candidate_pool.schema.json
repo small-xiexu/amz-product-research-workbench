@@ -1,0 +1,147 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/candidate_pool.schema.json",
+  "title": "CandidatePool",
+  "type": "object",
+  "required": ["metadata", "source_brief", "candidates"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["pool_id", "site", "generated_at", "discovery_mode"],
+      "properties": {
+        "pool_id": { "type": "string" },
+        "site": { "type": "string" },
+        "generated_at": { "type": "string" },
+        "discovery_mode": {
+          "type": "string",
+          "enum": ["mock", "manual_export", "api", "mcp", "imported", "mixed"]
+        },
+        "data_sources": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "source_brief": {
+      "type": "object",
+      "properties": {
+        "brief_id": { "type": "string" },
+        "site": { "type": "string" },
+        "search_scope": { "type": "object" },
+        "exclusion_rules": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "preference_rules": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "total_candidates": { "type": "integer" },
+        "continue_count": { "type": "integer" },
+        "trial_count": { "type": "integer" },
+        "watch_count": { "type": "integer" },
+        "drop_count": { "type": "integer" },
+        "key_gaps": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["candidate_id", "name", "candidate_type", "status", "reason", "missing_data"],
+        "properties": {
+          "candidate_id": { "type": "string" },
+          "name": { "type": "string" },
+          "candidate_type": {
+            "type": "string",
+            "description": "Product direction, keyword direction, scenario direction, or subcategory direction."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["继续看", "试做", "观察", "先放弃"]
+          },
+          "reason": { "type": "string" },
+          "appearance_reason": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "demand_evidence": {
+            "type": "object",
+            "properties": {
+              "search_signal": { "type": ["string", "number"] },
+              "trend_signal": { "type": ["string", "number"] },
+              "top100_signal": { "type": ["string", "number"] },
+              "source_refs": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "confidence": { "type": "string" }
+            },
+            "additionalProperties": true
+          },
+          "competition_structure": {
+            "type": "object",
+            "properties": {
+              "price_band": { "type": "string" },
+              "brand_concentration": { "type": ["string", "number"] },
+              "seller_concentration": { "type": ["string", "number"] },
+              "review_threshold": { "type": ["string", "number"] },
+              "notes": { "type": "string" }
+            },
+            "additionalProperties": true
+          },
+          "new_listing_opportunity": {
+            "type": "object",
+            "properties": {
+              "signal": { "type": "string" },
+              "recent_asins": {
+                "type": "array",
+                "items": { "type": "object" }
+              },
+              "threshold_note": { "type": "string" }
+            },
+            "additionalProperties": true
+          },
+          "preliminary_profit_space": {
+            "type": "object",
+            "description": "Early proxy only. Formal profit review happens after a candidate enters continue/trial.",
+            "properties": {
+              "price_band": { "type": "string" },
+              "size_weight_assumption": { "type": "string" },
+              "fee_pressure": { "type": "string" },
+              "confidence": { "type": "string" }
+            },
+            "additionalProperties": true
+          },
+          "risk_flags": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "return_risk": { "type": "object", "additionalProperties": true },
+          "ip_compliance_risk": { "type": "object", "additionalProperties": true },
+          "data_quality": { "type": "object", "additionalProperties": true },
+          "missing_data": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "next_step": { "type": "string" },
+          "source_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,34 @@
+{
+  "brief_id": "brief-us-discovery-20260607-001",
+  "site": "US",
+  "created_at": "2026-06-07T00:00:00Z",
+  "search_scope": {
+    "free_text": "想找美国站适合小团队切入的新品方向，优先轻小、非强认证、有一定溢价空间。",
+    "categories": ["户外", "家居"],
+    "keywords": [],
+    "scenarios": ["露营", "家庭收纳", "应急备用"]
+  },
+  "exclusion_rules": ["儿童用品", "医疗/治疗宣称", "强认证", "侵权高风险", "大件/太抛", "易碎"],
+  "preference_rules": {
+    "price_band": "10-30 USD 优先，10 USD 以下只展示不硬排除",
+    "size_weight": "轻小优先",
+    "seasonality": "非强季节优先",
+    "competition": "避免头部品牌高度垄断",
+    "new_listing_opportunity": "近半年新品有一定销量优先",
+    "return_rate": "优先接近类目平均，倾向低于 10%"
+  },
+  "supply_chain_advantages": ["塑料件", "五金小件", "户外配件"],
+  "operator_hypotheses": [
+    "希望找到能通过搭配、新卖点或规格组合做出溢价的方向",
+    "不希望一开始就进入高退货率或强认证品类"
+  ],
+  "product_flags": ["带电/电池谨慎", "食品接触谨慎"],
+  "risk_tolerance": {
+    "compliance": "强认证优先排除",
+    "ip": "外观/功能侵权高风险优先排除",
+    "return_rate": "高于类目平均时标高风险",
+    "seasonality": "不接受纯强季节品"
+  },
+  "deferred_inputs": ["purchase_cost", "fba_fee", "actual_weight_g", "volume_weight_g", "inbound_placement_fee"],
+  "notes": "这是选品入口样例，不代表已经选定具体产品。"
+}

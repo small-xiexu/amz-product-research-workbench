@@ -4,7 +4,7 @@
     "seed_keyword_or_category": "outdoor camping lantern",
     "product_shape": "户外露营灯，给露营/应急用户使用",
     "generated_at": "2026-06-07T00:00:00Z",
-    "data_sources": ["seller-sprite-mcp", "operator-input"]
+    "data_sources": ["seller-sprite-export", "operator-input"]
   },
   "constraints": {
     "exclusion_rules": ["儿童", "医疗", "强认证", "侵权"]

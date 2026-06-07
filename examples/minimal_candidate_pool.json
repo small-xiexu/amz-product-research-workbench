@@ -1,0 +1,168 @@
+{
+  "metadata": {
+    "pool_id": "pool-us-discovery-20260607-001",
+    "site": "US",
+    "generated_at": "2026-06-07T00:00:00Z",
+    "discovery_mode": "mock",
+    "data_sources": ["operator-input", "mock"]
+  },
+  "source_brief": {
+    "brief_id": "brief-us-discovery-20260607-001",
+    "site": "US",
+    "search_scope": {
+      "free_text": "想找美国站适合小团队切入的新品方向，优先轻小、非强认证、有一定溢价空间。",
+      "categories": ["户外", "家居"],
+      "scenarios": ["露营", "家庭收纳", "应急备用"]
+    },
+    "exclusion_rules": ["儿童用品", "医疗/治疗宣称", "强认证", "侵权高风险", "大件/太抛", "易碎"],
+    "preference_rules": {
+      "price_band": "10-30 USD 优先",
+      "size_weight": "轻小优先"
+    }
+  },
+  "summary": {
+    "total_candidates": 3,
+    "continue_count": 1,
+    "trial_count": 0,
+    "watch_count": 1,
+    "drop_count": 1,
+    "key_gaps": ["缺真实 Top100 数据", "缺类目退货率", "缺知产/合规初筛"]
+  },
+  "candidates": [
+    {
+      "candidate_id": "cand-wall-organizer-hooks",
+      "name": "轻量墙面收纳挂钩/轨道配件",
+      "candidate_type": "product_direction",
+      "status": "继续看",
+      "reason": "符合轻小、非强认证、家居收纳场景，适合进入真实数据验证。",
+      "appearance_reason": ["匹配家居收纳方向", "初步不触发强认证", "有组合规格和场景化溢价空间"],
+      "demand_evidence": {
+        "search_signal": "待用卖家精灵导出数据验证",
+        "trend_signal": "待用卖家精灵导出数据/Google Trends 验证",
+        "top100_signal": "待用 Top100 验证",
+        "source_refs": ["mock"],
+        "confidence": "低"
+      },
+      "competition_structure": {
+        "price_band": "待填",
+        "brand_concentration": "待填",
+        "seller_concentration": "待填",
+        "review_threshold": "待填",
+        "notes": "需要验证是否低价内卷。"
+      },
+      "new_listing_opportunity": {
+        "signal": "待验证",
+        "recent_asins": [],
+        "threshold_note": "真实数据阶段优先看近半年上架且 BSR 前100或月销量达到 Top100 中位数20%的 ASIN。"
+      },
+      "preliminary_profit_space": {
+        "price_band": "10-30 USD 假设",
+        "size_weight_assumption": "轻小假设",
+        "fee_pressure": "低到中，待 FBA 和头程复核",
+        "confidence": "低"
+      },
+      "risk_flags": ["同质化待验证", "低价内卷待验证"],
+      "return_risk": {
+        "level": "待确认",
+        "source": "待卖家精灵类目退货率"
+      },
+      "ip_compliance_risk": {
+        "level": "待确认",
+        "notes": "需检查外观/结构专利和商标词。"
+      },
+      "data_quality": {
+        "completeness": "mock only",
+        "variant_policy": "真实数据阶段需标记多 SKU/变体口径"
+      },
+      "missing_data": ["Top100", "关键词搜索量", "类目退货率", "竞品池", "知产/合规初筛"],
+      "next_step": "导入卖家精灵手动导出数据后验证市场规模和竞品结构；API/MCP 后续增强。",
+      "source_refs": ["mock:candidate_pool"]
+    },
+    {
+      "candidate_id": "cand-camping-lantern-accessory",
+      "name": "露营灯周边/应急照明配件",
+      "candidate_type": "scenario_direction",
+      "status": "观察",
+      "reason": "匹配户外和应急场景，但可能触发带电/电池风险，先观察。",
+      "appearance_reason": ["匹配户外露营场景", "可能有应急备用需求"],
+      "demand_evidence": {
+        "search_signal": "待用卖家精灵导出数据验证",
+        "trend_signal": "可能季节性，待验证",
+        "top100_signal": "待用 Top100 验证",
+        "source_refs": ["mock"],
+        "confidence": "低"
+      },
+      "competition_structure": {
+        "price_band": "待填",
+        "notes": "需要区分主灯、配件、收纳、防水等不同市场边界。"
+      },
+      "new_listing_opportunity": {
+        "signal": "待验证",
+        "recent_asins": []
+      },
+      "preliminary_profit_space": {
+        "price_band": "10 USD 以上假设",
+        "size_weight_assumption": "轻小到中等，待确认",
+        "fee_pressure": "中，带电/电池可能增加合规和物流复杂度",
+        "confidence": "低"
+      },
+      "risk_flags": ["带电/电池风险", "季节性待验证", "合规待确认"],
+      "return_risk": {
+        "level": "待确认",
+        "source": "待卖家精灵类目退货率"
+      },
+      "ip_compliance_risk": {
+        "level": "中",
+        "notes": "带电或含电池时需前置合规复核。"
+      },
+      "data_quality": {
+        "completeness": "mock only"
+      },
+      "missing_data": ["是否带电/电池", "Top100", "关键词趋势", "CPC", "合规材料"],
+      "next_step": "先用卖家精灵手动导出数据判断是否有非带电配件切入点；API/MCP 后续增强。",
+      "source_refs": ["mock:candidate_pool"]
+    },
+    {
+      "candidate_id": "cand-magnetic-window-cleaner",
+      "name": "高空玻璃磁吸清洁器",
+      "candidate_type": "product_direction",
+      "status": "先放弃",
+      "reason": "运营反馈存在长期结构性硬伤，需求虽大但核心掉落问题难彻底解决。",
+      "appearance_reason": ["清洁场景需求可能存在", "但结构性硬伤已知"],
+      "demand_evidence": {
+        "search_signal": "待验证",
+        "trend_signal": "待验证",
+        "top100_signal": "待验证",
+        "source_refs": ["operator-qa"],
+        "confidence": "中"
+      },
+      "competition_structure": {
+        "notes": "即使市场有需求，也需要先验证结构性问题是否可改。"
+      },
+      "new_listing_opportunity": {
+        "signal": "不优先验证",
+        "recent_asins": []
+      },
+      "preliminary_profit_space": {
+        "price_band": "不进入利润复核",
+        "size_weight_assumption": "待确认",
+        "fee_pressure": "不评估",
+        "confidence": "中"
+      },
+      "risk_flags": ["结构性硬伤", "高退货风险", "安全风险"],
+      "return_risk": {
+        "level": "高",
+        "source": "operator-qa"
+      },
+      "ip_compliance_risk": {
+        "level": "待确认"
+      },
+      "data_quality": {
+        "completeness": "operator signal only"
+      },
+      "missing_data": ["明确改品方案", "退货率", "评论痛点证据"],
+      "next_step": "暂不推荐进入深挖，除非运营提供明确改品方案。",
+      "source_refs": ["operator-qa:structural_issue"]
+    }
+  ]
+}
