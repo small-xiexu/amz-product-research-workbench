@@ -2,11 +2,14 @@
 
 亚马逊选品全流程工作台方案。
 
-当前阶段先沉淀产品路线、业务流程和技术方案，不直接开发完整应用。后续按 `Skill + 本地报告生成器 -> 轻量网页工作台 -> 完整选品应用` 演进。
+当前方向：输入模糊选品意图，系统主动发现候选品，再逐层筛选、深挖、生成报告和看板。不是让运营先找好产品、填完成本，再让系统写报告。
+
+当前阶段先沉淀产品路线、业务流程和技术方案，不直接开发完整应用。后续按 `候选品发现 Skill + 本地报告生成器 -> 轻量网页工作台 -> 完整选品应用` 演进。
 
 ## 当前目标
 
 - V1 数据源按卖家精灵 MCP 设计，当前代码先跑通本地样例数据包和报告生成。
+- 下一步要把入口从 `research_package` 前移到 `selection_brief`，先生成候选品池。
 - 生成选品报告三件套：主报告、摘要、HTML 看板。
 - 保留 Excel 数据底表和可追溯证据链。
 - 利润、退货、知产、合规等关键判断保留人工复核。
@@ -16,6 +19,7 @@
 
 | 文档 | 用途 |
 |---|---|
+| `docs/选品系统方向锚点.md` | 项目方向主锚点，防止偏成“录入产品做报告” |
 | `skills/seller-sprite-product-research/SKILL.md` | Skill 主入口，定义流程、规则、输入输出 |
 | `skills/seller-sprite-product-research/references/` | 工具映射、数据包结构、决策规则、输出结构 |
 | `skills/seller-sprite-product-research/agents/` | 数据管道和洞察职责拆分 |
@@ -48,7 +52,7 @@ python3 scripts/build_mock_report.py examples/minimal_research_package.json /tmp
 
 ## 当前阶段
 
-项目处于 V1 骨架阶段，先完成 `Skill + 本地报告生成器`，不直接做完整应用。
+项目处于 V1 骨架阶段，先完成 `候选品发现 Skill + 本地报告生成器`，不直接做完整应用。
 
 最近步骤：
 
