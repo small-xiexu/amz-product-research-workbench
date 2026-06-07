@@ -1,0 +1,21 @@
+.DS_Store
+*.zip
+
+backups/
+tmp/
+output/
+outputs/
+
+# Local review plugin lives in this workspace but is not part of this repository.
+亚马逊评论下载/
+
+# Runtime/cache files
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+# Local secrets/config
+.env
+.env.*
+*.local
