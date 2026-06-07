@@ -1,0 +1,78 @@
+{
+  "metadata": {
+    "manifest_id": "manifest-example-manual-export",
+    "task_name": "美国站宠物牵引绳样例",
+    "site": "US",
+    "generated_at": "2026-06-07T00:00:00Z",
+    "source_folder": "卖家精灵导出样例_美国站_宠物牵引绳_20260607",
+    "notes": "Raw export files stay outside git."
+  },
+  "files": [
+    {
+      "file_id": "file_001",
+      "file_name": "Search(hands-free-dog-leash)-53-US-20260607.xlsx",
+      "relative_path": "Search(hands-free-dog-leash)-53-US-20260607.xlsx",
+      "source_type": "seller_sprite_search_results",
+      "source_tool": "卖家精灵搜索结果/产品调研导出",
+      "data_role": "product_candidates",
+      "parse_status": "parsed",
+      "warnings": [],
+      "sheets": [
+        {
+          "sheet_name": "US",
+          "rows": 54,
+          "cols": 70,
+          "header_row": 1,
+          "detected_role": "product_candidates",
+          "headers": ["ASIN", "商品标题", "品牌", "类目路径", "月销量", "月销售额($)", "价格($)", "评分数", "评分", "上架时间"],
+          "required_fields": ["ASIN", "商品标题", "品牌", "类目路径", "月销量", "月销售额($)", "价格($)", "评分数", "评分", "上架时间"],
+          "missing_required_fields": [],
+          "optional_fields": ["父ASIN", "小类BSR", "FBA($)", "毛利率", "卖家所属地"]
+        }
+      ]
+    },
+    {
+      "file_id": "file_002",
+      "file_name": "US-Market-Hands_Free_Leashes-Last-30-days-190202.xlsx",
+      "relative_path": "US-Market-Hands_Free_Leashes-Last-30-days-190202.xlsx",
+      "source_type": "seller_sprite_market_analysis",
+      "source_tool": "卖家精灵市场分析导出",
+      "data_role": "market_analysis",
+      "parse_status": "parsed",
+      "warnings": [],
+      "sheets": []
+    },
+    {
+      "file_id": "file_003",
+      "file_name": "ReverseASIN-US-B08LY86B2K-Last-30-days.xlsx",
+      "relative_path": "ReverseASIN-US-B08LY86B2K-Last-30-days.xlsx",
+      "source_type": "seller_sprite_reverse_asin_keywords",
+      "source_tool": "卖家精灵关键词反查导出",
+      "data_role": "keyword_reverse",
+      "parse_status": "parsed",
+      "warnings": [],
+      "sheets": []
+    },
+    {
+      "file_id": "file_004",
+      "file_name": "亚马逊卖家后台导出的ABA关键词整理.xlsx",
+      "relative_path": "亚马逊卖家后台导出的ABA关键词整理.xlsx",
+      "source_type": "amazon_aba_keywords",
+      "source_tool": "Amazon Brand Analytics 导出",
+      "data_role": "aba_keywords",
+      "parse_status": "parsed",
+      "warnings": [],
+      "sheets": []
+    }
+  ],
+  "data_quality": {
+    "available_source_types": [
+      "amazon_aba_keywords",
+      "seller_sprite_market_analysis",
+      "seller_sprite_reverse_asin_keywords",
+      "seller_sprite_search_results"
+    ],
+    "missing_source_types": [],
+    "warnings": []
+  }
+}

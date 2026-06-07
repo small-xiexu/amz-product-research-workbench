@@ -28,6 +28,7 @@
 | `packages/report_renderer/` | 主报告、摘要、HTML 看板渲染 |
 | `scripts/` | 本地生成和验证脚本 |
 | `examples/` | 最小输入样例和 mock 数据包 |
+| `requirements.txt` | 本地脚本依赖，当前主要用于读取 Excel |
 | `docs/V1范围冻结.md` | 冻结第一版要做什么、不做什么、输出什么 |
 | `docs/字段来源表.md` | 每个字段来自手动导出、API/MCP、手填、系统计算还是人工复核 |
 | `docs/卖家精灵手动导出数据清单.md` | 没有 API/MCP 时，AI 指挥用户从卖家精灵导出哪些数据 |
@@ -51,6 +52,28 @@ python3 scripts/build_mock_report.py examples/minimal_research_package.json /tmp
 - `/tmp/research_workbench_mock/report.md`
 - `/tmp/research_workbench_mock/summary.md`
 - `/tmp/research_workbench_mock/dashboard.html`
+
+## 手动导出数据盘点
+
+卖家精灵 API/MCP 额外付费前，V1 优先读取运营手动导出的 Excel/CSV。
+
+```bash
+python3 scripts/inspect_manual_exports.py \
+  卖家精灵导出样例_美国站_宠物牵引绳_20260607 \
+  /tmp/manual_export_manifest.json \
+  --site US \
+  --task-name 美国站宠物牵引绳样例
+```
+
+脚本会识别搜索结果、市场分析、关键词反查、ABA 关键词等文件，并输出字段缺失检查。
+
+继续生成候选品池：
+
+```bash
+python3 scripts/build_candidate_pool_from_import_manifest.py \
+  /tmp/manual_export_manifest.json \
+  /tmp/manual_export_candidate_pool.json
+```
 
 ## 当前阶段
 

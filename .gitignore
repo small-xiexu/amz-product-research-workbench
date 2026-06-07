@@ -9,6 +9,10 @@ outputs/
 # Local review plugin lives in this workspace but is not part of this repository.
 亚马逊评论下载/
 
+# Local SellerSprite/manual export samples are input data, not repository source.
+卖家精灵导出样例_*/
+imports/
+
 # Runtime/cache files
 node_modules/
 .venv/
