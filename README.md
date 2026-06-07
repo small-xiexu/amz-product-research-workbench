@@ -16,6 +16,9 @@
 
 | 文档 | 用途 |
 |---|---|
+| `skills/seller-sprite-product-research/SKILL.md` | Skill 主入口，定义流程、规则、输入输出 |
+| `skills/seller-sprite-product-research/references/` | 工具映射、数据包结构、决策规则、输出结构 |
+| `skills/seller-sprite-product-research/agents/` | 数据管道和洞察职责拆分 |
 | `docs/V1范围冻结.md` | 冻结第一版要做什么、不做什么、输出什么 |
 | `docs/字段来源表.md` | 每个字段来自 MCP、手填、系统计算还是人工复核 |
 | `docs/静态报告Mock.md` | 报告、摘要、看板的静态样式骨架 |
@@ -34,6 +37,7 @@
 1. 冻结 V1 范围。
 2. 整理字段来源表。
 3. 制作静态报告 mock。
+4. 搭建 Skill 和 references 骨架。
 
 ## 暂不包含
 
