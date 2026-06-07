@@ -1,0 +1,61 @@
+{
+  "metadata": {
+    "site": "US",
+    "seed_keyword_or_category": "outdoor camping lantern",
+    "product_shape": "户外露营灯，给露营/应急用户使用",
+    "generated_at": "2026-06-07T00:00:00Z",
+    "data_sources": ["seller-sprite-mcp", "operator-input"]
+  },
+  "constraints": {
+    "exclusion_rules": ["儿童", "医疗", "强认证", "侵权"]
+  },
+  "operator_inputs": {
+    "purchase_cost": 7.8,
+    "exchange_rate": 7.2,
+    "fba_fee": 4.1,
+    "storage_fee": 0.45,
+    "inbound_placement_fee": 0.3,
+    "ad_rate_assumption": 0.2,
+    "return_rate_assumption": 0.05
+  },
+  "market_analysis": {
+    "market_size": "待填",
+    "price_band": "10 美金以上",
+    "brand_concentration": "待填",
+    "seller_concentration": "待填",
+    "new_listing_ratio": "待填"
+  },
+  "competitor_pool": {
+    "top10": [],
+    "recent_winners": [],
+    "structure_supplement": []
+  },
+  "profit_reference": {
+    "base_fba_gross_profit": 3.12,
+    "base_fba_margin": 0.18,
+    "post_ads_returns_gross_profit": 1.42,
+    "post_ads_returns_margin": 0.08
+  },
+  "return_risk": {
+    "source": "卖家精灵类目退货率",
+    "level": "中"
+  },
+  "status_card": {
+    "status": "观察",
+    "reason": "市场有机会，但关键数据仍待确认",
+    "next_step": "补全市场和竞品数据后再决定是否深挖"
+  },
+  "report_summary": {
+    "bullets": [
+      "市场有需求",
+      "利润参考可接受",
+      "风险需要复核"
+    ]
+  },
+  "dashboard_views": {
+    "cards": []
+  },
+  "excel_sheets": {
+    "data_source": "data.xlsx"
+  }
+}

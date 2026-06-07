@@ -1,0 +1,149 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/research_package.schema.json",
+  "title": "ResearchPackage",
+  "type": "object",
+  "required": ["metadata", "constraints", "operator_inputs", "market_analysis", "competitor_pool", "profit_reference", "return_risk", "status_card", "report_summary", "dashboard_views", "excel_sheets"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["site", "seed_keyword_or_category", "product_shape", "generated_at"],
+      "properties": {
+        "site": { "type": "string" },
+        "seed_keyword_or_category": { "type": "string" },
+        "product_shape": { "type": "string" },
+        "generated_at": { "type": "string" },
+        "data_sources": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "constraints": {
+      "type": "object",
+      "properties": {
+        "exclusion_rules": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "operator_inputs": {
+      "type": "object",
+      "properties": {
+        "target_price_range": { "type": "string" },
+        "purchase_cost": { "type": "number" },
+        "exchange_rate": { "type": "number" },
+        "fba_fee": { "type": "number" },
+        "storage_fee": { "type": "number" },
+        "inbound_placement_fee": { "type": "number" },
+        "ad_rate_assumption": { "type": "number" },
+        "return_rate_assumption": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "product_flags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "raw_sources": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "normalized_tables": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "market_analysis": {
+      "type": "object",
+      "required": ["market_size", "price_band", "brand_concentration", "seller_concentration", "new_listing_ratio"],
+      "properties": {
+        "market_size": { "type": ["number", "string"] },
+        "price_band": { "type": "string" },
+        "brand_concentration": { "type": ["number", "string"] },
+        "seller_concentration": { "type": ["number", "string"] },
+        "new_listing_ratio": { "type": ["number", "string"] }
+      },
+      "additionalProperties": true
+    },
+    "keyword_analysis": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "competitor_pool": {
+      "type": "object",
+      "properties": {
+        "top10": { "type": "array", "items": { "type": "object" } },
+        "recent_winners": { "type": "array", "items": { "type": "object" } },
+        "structure_supplement": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": true
+    },
+    "profit_reference": {
+      "type": "object",
+      "properties": {
+        "base_fba_gross_profit": { "type": ["number", "string"] },
+        "base_fba_margin": { "type": ["number", "string"] },
+        "post_ads_returns_gross_profit": { "type": ["number", "string"] },
+        "post_ads_returns_margin": { "type": ["number", "string"] }
+      },
+      "additionalProperties": true
+    },
+    "return_risk": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "ip_screening": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "compliance_screening": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "review_sources": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "voc_analysis": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "opportunity_hypotheses": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "status_card": {
+      "type": "object",
+      "required": ["status", "reason"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["继续看", "试做", "观察", "先放弃"]
+        },
+        "reason": { "type": "string" },
+        "next_step": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "report_summary": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "dashboard_views": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "workspace_views": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "excel_sheets": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -6,7 +6,7 @@
 
 ## 当前目标
 
-- 用卖家精灵 MCP 作为 V1 主数据源。
+- V1 数据源按卖家精灵 MCP 设计，当前代码先跑通本地样例数据包和报告生成。
 - 生成选品报告三件套：主报告、摘要、HTML 看板。
 - 保留 Excel 数据底表和可追溯证据链。
 - 利润、退货、知产、合规等关键判断保留人工复核。
@@ -19,6 +19,10 @@
 | `skills/seller-sprite-product-research/SKILL.md` | Skill 主入口，定义流程、规则、输入输出 |
 | `skills/seller-sprite-product-research/references/` | 工具映射、数据包结构、决策规则、输出结构 |
 | `skills/seller-sprite-product-research/agents/` | 数据管道和洞察职责拆分 |
+| `packages/research_core/` | 统一数据结构、利润规则、状态规则 |
+| `packages/report_renderer/` | 主报告、摘要、HTML 看板渲染 |
+| `scripts/` | 本地生成和验证脚本 |
+| `examples/` | 最小输入样例和 mock 数据包 |
 | `docs/V1范围冻结.md` | 冻结第一版要做什么、不做什么、输出什么 |
 | `docs/字段来源表.md` | 每个字段来自 MCP、手填、系统计算还是人工复核 |
 | `docs/静态报告Mock.md` | 报告、摘要、看板的静态样式骨架 |
@@ -28,16 +32,31 @@
 | `docs/亚马逊运营选品自查工具技术方案.md` | 技术架构、目录规划、数据包、版本和验收 |
 | `docs/知产与合规检索入口库.md` | 知产、商标、合规早期筛查入口 |
 
+## 本地验证
+
+```bash
+python3 scripts/build_mock_report.py examples/minimal_research_package.json /tmp/research_workbench_mock
+```
+
+输出：
+
+- `/tmp/research_workbench_mock/research_package.json`
+- `/tmp/research_workbench_mock/data.xlsx`
+- `/tmp/research_workbench_mock/report.md`
+- `/tmp/research_workbench_mock/summary.md`
+- `/tmp/research_workbench_mock/dashboard.html`
+
 ## 当前阶段
 
-项目处于方案设计阶段。
+项目处于 V1 骨架阶段，先完成 `Skill + 本地报告生成器`，不直接做完整应用。
 
-最近三步：
+最近步骤：
 
 1. 冻结 V1 范围。
 2. 整理字段来源表。
 3. 制作静态报告 mock。
 4. 搭建 Skill 和 references 骨架。
+5. 搭建最小本地报告生成器。
 
 ## 暂不包含
 
