@@ -29,6 +29,7 @@ def build_research_package(
     voc_review_sources = _build_review_sources(voc_package)
     voc_opportunities = _build_voc_opportunities(voc_package, candidate.get("candidate_id"))
     voc_summary_line = _voc_summary_line(voc_package)
+    decision_review = _build_decision_review(candidate, voc_package)
 
     package = {
         "metadata": {
@@ -107,13 +108,14 @@ def build_research_package(
         "status_card": {
             "status": status,
             "reason": _append_sentence(candidate.get("reason", "待补"), voc_summary_line),
-            "next_step": candidate.get("next_step", "待补"),
+            "next_step": _status_next_step(decision_review, candidate),
         },
+        "decision_review": decision_review,
         "report_summary": {
             "bullets": [
                 candidate.get("reason", "待补"),
                 f"当前状态：{status}",
-                "正式结论需要补齐 Top100、竞品池、退货率、知产/合规和利润复核。",
+                "正式结论需要补齐利润、知产/合规和供应链复核。",
             ] + ([voc_summary_line] if voc_summary_line else [])
         },
         "dashboard_views": {
@@ -167,6 +169,163 @@ def _build_review_sources(voc_package: dict[str, Any] | None) -> dict[str, Any]:
         "summary": voc_package.get("summary", {}),
         "ai_report_reference": voc_package.get("ai_report_reference", {}),
     }
+
+
+def _build_decision_review(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> dict[str, Any]:
+    return {
+        "status_explanation": _status_explanation(candidate, voc_package),
+        "facts": _decision_facts(candidate, voc_package),
+        "inferences": _decision_inferences(candidate, voc_package),
+        "missing_inputs": _decision_missing_inputs(candidate, voc_package),
+        "action_items": _decision_action_items(candidate, voc_package),
+        "risk_matrix": _decision_risk_matrix(candidate, voc_package),
+    }
+
+
+def _status_explanation(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> str:
+    status = candidate.get("status", "观察")
+    if status in ("继续看", "试做"):
+        base = "当前可以继续深挖，但不能直接进入打样或采购决策。"
+    elif status == "观察":
+        base = "当前需要先补关键缺口，再判断是否进入深挖。"
+    else:
+        base = "当前不建议进入深挖，除非出现新的证据或明确改品方案。"
+    first_pain = _first_pain_name(voc_package)
+    if first_pain:
+        return f"{base} 评论 VOC 首要痛点为「{first_pain}」，需要在供应链和 Listing 方案中优先验证。"
+    return base
+
+
+def _decision_facts(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> list[str]:
+    facts = [
+        f"市场规模：{_market_size_text(candidate)}",
+        f"价格带：{_price_band_text(candidate)}",
+        f"竞争结构：{_brand_concentration_text(candidate)}",
+        f"新品机会：{_new_listing_text(candidate)}",
+        f"退货率：{_return_rate_text(candidate)}",
+    ]
+    if voc_package:
+        summary = voc_package.get("summary", {})
+        facts.append(
+            f"评论 VOC：已接入 {summary.get('review_count', 0)} 条评论，覆盖 {summary.get('asin_count', 0)} 个 ASIN，低分评论 {summary.get('low_rating_count', 0)} 条。"
+        )
+    return [item for item in facts if item and "待填" not in item]
+
+
+def _decision_inferences(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> list[str]:
+    competition = candidate.get("competition_structure", {})
+    new_listing = candidate.get("new_listing_opportunity", {})
+    return_risk = candidate.get("return_risk", {})
+    inferences = []
+    top10_share = competition.get("top10_product_units_share")
+    if isinstance(top10_share, (int, float)) and top10_share >= 0.5:
+        inferences.append("Top10 商品销量占比较高，进入时需要明确差异化，不适合只做同款低价。")
+    top_brand_share = competition.get("top_brand_units_share")
+    if isinstance(top_brand_share, (int, float)) and top_brand_share >= 0.3:
+        inferences.append("头部品牌存在明显领先，需评估品牌壁垒和内容门槛。")
+    if new_listing.get("new_listing_count_6m"):
+        inferences.append("近半年仍有新品获得销量，说明并非完全封闭市场，但要验证新品增长是否来自广告或低价。")
+    market_return = return_risk.get("market_return_rate")
+    category_return = return_risk.get("category_return_rate")
+    if isinstance(market_return, (int, float)) and isinstance(category_return, (int, float)) and market_return > category_return:
+        inferences.append("市场退货率高于同类目平均，产品硬伤和预期落差需要前置复核。")
+    first_pain = _first_pain_name(voc_package)
+    if first_pain:
+        inferences.append(f"评论首要痛点为「{first_pain}」，改品方案必须能解释这个问题如何被缓解。")
+    return inferences or ["当前数据能支持继续看，但还不足以形成进入结论。"]
+
+
+def _decision_missing_inputs(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> list[str]:
+    missing = list(candidate.get("missing_data", []))
+    if voc_package:
+        missing = [item for item in missing if "评论" not in item and "VOC" not in item]
+    for item in ["建议售价", "采购价", "FBA费用", "头程费用", "入库配置费", "商标/专利复核", "合规认证复核"]:
+        if item not in missing:
+            missing.append(item)
+    return missing
+
+
+def _decision_action_items(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> list[str]:
+    actions = [
+        "补利润复核字段：建议售价、采购价、FBA费用、头程、入库配置费。",
+        "基于 Top10 标杆组核对主卖点、价格带、图片/A+、评论门槛和变体口径。",
+        "基于近半年新品组判断新品放量原因：广告、低价、功能差异还是类目自然增长。",
+        "做商标/专利/合规初筛，只保留待复核结论，不写最终法律判断。",
+    ]
+    first_pain = _first_pain_name(voc_package)
+    if first_pain:
+        actions.insert(2, f"把「{first_pain}」作为供应商问询和样品测试的第一优先级。")
+    if candidate.get("return_risk", {}).get("level") in ("中", "高"):
+        actions.append("结合评论痛点和卖家精灵退货率，判断退货是否来自可改问题。")
+    return actions
+
+
+def _decision_risk_matrix(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> list[dict[str, str]]:
+    competition = candidate.get("competition_structure", {})
+    return_risk = candidate.get("return_risk", {})
+    ip_risk = candidate.get("ip_compliance_risk", {})
+    top10_share = competition.get("top10_product_units_share")
+    first_pain = _first_pain_name(voc_package)
+    return [
+        {
+            "dimension": "市场容量",
+            "level": "中",
+            "basis": _market_size_text(candidate),
+            "next_check": "继续用 Top100 和关键词数据确认需求稳定性。",
+        },
+        {
+            "dimension": "竞争集中度",
+            "level": "高" if isinstance(top10_share, (int, float)) and top10_share >= 0.5 else "中",
+            "basis": _brand_concentration_text(candidate),
+            "next_check": "确认头部是否靠品牌、广告、低价或历史评论门槛领先。",
+        },
+        {
+            "dimension": "新品机会",
+            "level": "中",
+            "basis": _new_listing_text(candidate),
+            "next_check": "拆解近半年新品是否真实放量，以及是否可复制。",
+        },
+        {
+            "dimension": "评论/VOC",
+            "level": "高" if first_pain else "待补",
+            "basis": f"首要痛点：{first_pain}" if first_pain else "未接入评论 VOC",
+            "next_check": "把高频差评转成供应商测试项和 Listing 避坑项。",
+        },
+        {
+            "dimension": "退货风险",
+            "level": str(return_risk.get("level", "待确认")),
+            "basis": _return_rate_text(candidate),
+            "next_check": "判断退货来自产品硬伤、误购、质量波动还是使用门槛。",
+        },
+        {
+            "dimension": "利润不确定性",
+            "level": "待补",
+            "basis": "采购价、FBA、头程和入库配置费仍未补齐。",
+            "next_check": "按内部口径补字段后再算毛利率。",
+        },
+        {
+            "dimension": "知产/合规",
+            "level": str(ip_risk.get("level", "待确认")),
+            "basis": str(ip_risk.get("notes", "待复核")),
+            "next_check": "做商标、外观/结构专利和品类合规入口初筛。",
+        },
+    ]
+
+
+def _status_next_step(decision_review: dict[str, Any], candidate: dict[str, Any]) -> str:
+    action_items = decision_review.get("action_items", [])
+    if action_items:
+        return str(action_items[0])
+    return str(candidate.get("next_step", "待补"))
+
+
+def _first_pain_name(voc_package: dict[str, Any] | None) -> str:
+    if not voc_package:
+        return ""
+    pain_points = voc_package.get("pain_points", [])
+    if not pain_points:
+        return ""
+    return str(pain_points[0].get("name", ""))
 
 
 def _market_size_text(candidate: dict[str, Any]) -> str:

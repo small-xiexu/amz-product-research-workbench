@@ -16,6 +16,7 @@ def render_markdown(package: dict) -> str:
     profit = package.get("profit_reference", {})
     status = package.get("status_card", {})
     voc = package.get("voc_analysis", {})
+    decision = package.get("decision_review", {})
 
     lines = [
         f"# {meta.get('seed_keyword_or_category', '未命名品类')} 调研报告",
@@ -24,14 +25,19 @@ def render_markdown(package: dict) -> str:
         f"- 状态：{status.get('status', '待填')}",
         f"- 理由：{status.get('reason', '待填')}",
         "",
-        "## 市场扫描",
-        f"- 市场规模：{market.get('market_size', '待填')}",
-        f"- 价格带：{market.get('price_band', '待填')}",
-        f"- 品牌集中度：{market.get('brand_concentration', '待填')}",
-        f"- 卖家结构：{market.get('seller_concentration', '待填')}",
-        f"- 新品机会：{market.get('new_listing_ratio', '待填')}",
-        "",
     ]
+    lines.extend(_decision_markdown_lines(decision))
+    lines.extend(
+        [
+            "## 市场扫描",
+            f"- 市场规模：{market.get('market_size', '待填')}",
+            f"- 价格带：{market.get('price_band', '待填')}",
+            f"- 品牌集中度：{market.get('brand_concentration', '待填')}",
+            f"- 卖家结构：{market.get('seller_concentration', '待填')}",
+            f"- 新品机会：{market.get('new_listing_ratio', '待填')}",
+            "",
+        ]
+    )
     lines.extend(_competitor_markdown_lines(competitors))
     lines.extend(
         [
@@ -49,7 +55,9 @@ def render_markdown(package: dict) -> str:
 def render_summary(package: dict) -> str:
     status = package.get("status_card", {})
     voc = package.get("voc_analysis", {})
+    decision = package.get("decision_review", {})
     first_pain = _first_finding_name(voc.get("pain_points", [])) if voc else "待填"
+    first_action = (decision.get("action_items") or ["待填"])[0] if isinstance(decision, dict) else "待填"
     return "\n".join(
         [
             "# 摘要",
@@ -58,6 +66,7 @@ def render_summary(package: dict) -> str:
             f"- 原因：{status.get('reason', '待填')}",
             f"- 下一步：{status.get('next_step', '待填')}",
             f"- 评论首要痛点：{first_pain}",
+            f"- 第一动作：{first_action}",
         ]
     )
 
@@ -123,6 +132,7 @@ def _build_workbook_sheets(package: dict) -> list[tuple[str, list[list[object]]]
     ip_screening = package.get("ip_screening", {})
     compliance = package.get("compliance_screening", {})
     status = package.get("status_card", {})
+    decision = package.get("decision_review", {})
 
     return [
         ("数据来源说明", _source_rows(meta)),
@@ -149,6 +159,8 @@ def _build_workbook_sheets(package: dict) -> list[tuple[str, list[list[object]]]
         ("竞品池", _competitor_rows(competitors)),
         ("利润测算输入", _dict_rows(operator_inputs)),
         ("利润参考结果", _dict_rows(profit)),
+        ("决策检查", _decision_rows(decision)),
+        ("风险矩阵", _risk_matrix_rows(decision.get("risk_matrix", []) if isinstance(decision, dict) else [])),
         ("评论VOC", _voc_summary_rows(package.get("voc_analysis", {}))),
         ("VOC证据", _voc_evidence_rows(package.get("normalized_tables", {}).get("voc_evidence", []))),
         ("退货风险", _dict_rows(return_risk)),
@@ -156,6 +168,69 @@ def _build_workbook_sheets(package: dict) -> list[tuple[str, list[list[object]]]
         ("合规认证预判", _dict_rows(compliance)),
         ("状态卡", _dict_rows(status)),
     ]
+
+
+def _decision_markdown_lines(decision: dict) -> list[str]:
+    if not decision:
+        return []
+    lines = ["## 决策检查", ""]
+    if decision.get("status_explanation"):
+        lines.extend(["### 状态解释", f"- {decision.get('status_explanation')}", ""])
+    for title, key in (
+        ("事实", "facts"),
+        ("推断", "inferences"),
+        ("待补", "missing_inputs"),
+        ("建议动作", "action_items"),
+    ):
+        values = decision.get(key, [])
+        if not values:
+            continue
+        lines.append(f"### {title}")
+        for item in values[:8]:
+            lines.append(f"- {item}")
+        lines.append("")
+    risks = decision.get("risk_matrix", [])
+    if risks:
+        lines.append("### 风险矩阵")
+        for item in risks:
+            basis = _trim_sentence_end(item.get("basis", "待填"))
+            lines.append(
+                f"- {item.get('dimension', '待填')}：{item.get('level', '待填')}。"
+                f"依据：{basis}；下一步：{item.get('next_check', '待填')}"
+            )
+        lines.append("")
+    return lines
+
+
+def _decision_rows(decision: dict) -> list[list[object]]:
+    rows: list[list[object]] = [["模块", "内容"]]
+    if not decision:
+        rows.append(["状态", "未生成"])
+        return rows
+    if decision.get("status_explanation"):
+        rows.append(["状态解释", decision.get("status_explanation")])
+    for label, key in (
+        ("事实", "facts"),
+        ("推断", "inferences"),
+        ("待补", "missing_inputs"),
+        ("建议动作", "action_items"),
+    ):
+        for item in decision.get(key, []):
+            rows.append([label, item])
+    return rows
+
+
+def _risk_matrix_rows(risks: list[dict]) -> list[list[object]]:
+    rows: list[list[object]] = [["维度", "等级", "依据", "下一步"]]
+    for item in risks:
+        rows.append([item.get("dimension"), item.get("level"), item.get("basis"), item.get("next_check")])
+    if len(rows) == 1:
+        rows.append(["未生成", "", "", ""])
+    return rows
+
+
+def _trim_sentence_end(value: object) -> str:
+    return str(value).rstrip("。；; ")
 
 
 def _voc_markdown_lines(voc: dict) -> list[str]:

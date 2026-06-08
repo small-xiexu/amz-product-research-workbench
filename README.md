@@ -9,11 +9,11 @@
 ## 当前目标
 
 - V1 数据源优先按卖家精灵手动导出/导入设计；API/MCP 作为后续自动化增强，当前代码先跑通本地样例数据包和报告生成。
-- 下一步要把入口从 `research_package` 前移到 `selection_brief`，先生成候选品池。
-- 生成选品报告三件套：主报告、摘要、HTML 看板。
+- 当前已跑通 `卖家精灵导出文件夹 -> 候选品池 -> 可选评论 VOC -> 深挖报告`。
+- 生成选品报告四件套：主报告、摘要、HTML 看板、Excel 数据底表。
 - 保留 Excel 数据底表和可追溯证据链。
 - 利润、退货、知产、合规等关键判断保留人工复核。
-- V2 后接入自有评论插件，做 VOC、改品机会和图片/A+方向深挖。
+- 自有评论插件已通过 Excel/HTML 文件导入方式接入重点候选深挖。
 
 ## 文档索引
 
@@ -41,6 +41,32 @@
 | `docs/知产与合规检索入口库.md` | 知产、商标、合规早期筛查入口 |
 
 ## 本地验证
+
+优先使用一键完整流程：
+
+```bash
+python3 scripts/run_research_workflow.py \
+  卖家精灵导出样例_美国站_宠物牵引绳_20260607 \
+  /tmp/research_workbench_workflow \
+  --site US \
+  --task-name 美国站宠物牵引绳样例 \
+  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07.xlsx \
+  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07-report.html
+```
+
+输出：
+
+- `/tmp/research_workbench_workflow/import_manifest.json`
+- `/tmp/research_workbench_workflow/candidate_pool.json`
+- `/tmp/research_workbench_workflow/review_voc/review_voc_package.json`
+- `/tmp/research_workbench_workflow/research_package.json`
+- `/tmp/research_workbench_workflow/final_report/report.md`
+- `/tmp/research_workbench_workflow/final_report/summary.md`
+- `/tmp/research_workbench_workflow/final_report/dashboard.html`
+- `/tmp/research_workbench_workflow/final_report/data.xlsx`
+- `/tmp/research_workbench_workflow/workflow_summary.md`
+
+只验证报告渲染器时使用最小 mock：
 
 ```bash
 python3 scripts/build_mock_report.py examples/minimal_research_package.json /tmp/research_workbench_mock
@@ -135,6 +161,9 @@ python3 scripts/build_research_package_from_candidate.py \
 5. 搭建最小本地报告生成器。
 6. 打通卖家精灵手动导出数据到候选品池。
 7. 新增候选品池预审输出，用于判断是否进入正式深挖。
+8. 接入自有评论插件 Excel/HTML 导出。
+9. 将评论 VOC 合并进重点候选深挖报告。
+10. 补充决策检查、风险矩阵和一键完整流程脚本。
 
 ## 暂不包含
 
