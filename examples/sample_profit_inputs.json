@@ -1,0 +1,16 @@
+{
+  "sale_price": 19.99,
+  "purchase_cost_cny": 28,
+  "exchange_rate": 7.2,
+  "fba_fee": 4.35,
+  "first_leg_shipping_cny": 6.5,
+  "actual_weight_g": 420,
+  "volume_weight_g": 520,
+  "first_leg_channel": "US_MATSON",
+  "inbound_placement_fee_cny": 2.2,
+  "commission_rate": 0.15,
+  "storage_fee_rate": 0.03,
+  "ad_rate": 0.2,
+  "return_rate": 0.06,
+  "operator_notes": "演示用样例，不代表真实选品结论。"
+}

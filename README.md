@@ -9,7 +9,7 @@
 ## 当前目标
 
 - V1 数据源优先按卖家精灵手动导出/导入设计；API/MCP 作为后续自动化增强，当前代码先跑通本地样例数据包和报告生成。
-- 当前已跑通 `卖家精灵导出文件夹 -> 候选品池 -> 可选评论 VOC -> 深挖报告`。
+- 当前已跑通 `卖家精灵导出文件夹 -> 候选品池 -> 可选评论 VOC -> 利润复核模板 -> 知产/合规初筛模板 -> 深挖报告`。
 - 生成选品报告四件套：主报告、摘要、HTML 看板、Excel 数据底表。
 - 保留 Excel 数据底表和可追溯证据链。
 - 利润、退货、知产、合规等关键判断保留人工复核。
@@ -60,11 +60,75 @@ python3 scripts/run_research_workflow.py \
 - `/tmp/research_workbench_workflow/candidate_pool.json`
 - `/tmp/research_workbench_workflow/review_voc/review_voc_package.json`
 - `/tmp/research_workbench_workflow/research_package.json`
+- `/tmp/research_workbench_workflow/profit_review_template.xlsx`
+- `/tmp/research_workbench_workflow/ip_compliance_review_template.xlsx`
 - `/tmp/research_workbench_workflow/final_report/report.md`
 - `/tmp/research_workbench_workflow/final_report/summary.md`
 - `/tmp/research_workbench_workflow/final_report/dashboard.html`
 - `/tmp/research_workbench_workflow/final_report/data.xlsx`
 - `/tmp/research_workbench_workflow/workflow_summary.md`
+
+利润模板填好并保存后，再回填生成带利润测算的报告。`--profit-template` 传入的是已填写保存后的模板路径，可以是原模板直接填写保存，也可以另存为一份：
+
+```bash
+python3 scripts/run_research_workflow.py \
+  卖家精灵导出样例_美国站_宠物牵引绳_20260607 \
+  /tmp/research_workbench_workflow_with_profit \
+  --site US \
+  --task-name 美国站宠物牵引绳样例 \
+  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07.xlsx \
+  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07-report.html \
+  --profit-template /tmp/research_workbench_workflow/filled_profit_review_template.xlsx
+```
+
+知产/合规模板填好并保存后，再回填生成带初筛结果的报告。`--ip-compliance-template` 传入的是已填写保存后的模板路径：
+
+```bash
+python3 scripts/run_research_workflow.py \
+  卖家精灵导出样例_美国站_宠物牵引绳_20260607 \
+  /tmp/research_workbench_workflow_with_ip_compliance \
+  --site US \
+  --task-name 美国站宠物牵引绳样例 \
+  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07.xlsx \
+  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07-report.html \
+  --ip-compliance-template /tmp/research_workbench_workflow/filled_ip_compliance_review_template.xlsx
+```
+
+利润和知产/合规可以同时回填：
+
+```bash
+python3 scripts/run_research_workflow.py \
+  卖家精灵导出样例_美国站_宠物牵引绳_20260607 \
+  /tmp/research_workbench_workflow_full \
+  --site US \
+  --task-name 美国站宠物牵引绳样例 \
+  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07.xlsx \
+  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07-report.html \
+  --profit-template /tmp/research_workbench_workflow/filled_profit_review_template.xlsx \
+  --ip-compliance-template /tmp/research_workbench_workflow/filled_ip_compliance_review_template.xlsx
+```
+
+也可以分开执行：
+
+```bash
+python3 scripts/build_profit_template.py \
+  /tmp/research_workbench_workflow/research_package.json \
+  /tmp/profit_review_template.xlsx
+
+python3 scripts/apply_profit_review.py \
+  /tmp/research_workbench_workflow/research_package.json \
+  /tmp/filled_profit_review_template.xlsx \
+  /tmp/research_package_with_profit.json
+
+python3 scripts/build_ip_compliance_template.py \
+  /tmp/research_workbench_workflow/research_package.json \
+  /tmp/ip_compliance_review_template.xlsx
+
+python3 scripts/apply_ip_compliance_review.py \
+  /tmp/research_workbench_workflow/research_package.json \
+  /tmp/filled_ip_compliance_review_template.xlsx \
+  /tmp/research_package_with_ip_compliance.json
+```
 
 只验证报告渲染器时使用最小 mock：
 
@@ -164,6 +228,8 @@ python3 scripts/build_research_package_from_candidate.py \
 8. 接入自有评论插件 Excel/HTML 导出。
 9. 将评论 VOC 合并进重点候选深挖报告。
 10. 补充决策检查、风险矩阵和一键完整流程脚本。
+11. 新增利润复核模板和回填计算。
+12. 新增知产/合规初筛模板和人工回填闭环。
 
 ## 暂不包含
 

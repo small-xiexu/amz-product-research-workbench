@@ -17,6 +17,9 @@ def render_markdown(package: dict) -> str:
     status = package.get("status_card", {})
     voc = package.get("voc_analysis", {})
     decision = package.get("decision_review", {})
+    ip_screening = package.get("ip_screening", {})
+    compliance = package.get("compliance_screening", {})
+    ip_compliance_review = package.get("ip_compliance_review", {})
 
     lines = [
         f"# {meta.get('seed_keyword_or_category', '未命名品类')} 调研报告",
@@ -43,10 +46,14 @@ def render_markdown(package: dict) -> str:
         [
             "## 利润参考",
             f"- 基础 FBA 毛利：{profit.get('base_fba_gross_profit', '待填')}",
+            f"- 基础 FBA 毛利率：{_format_percent_or_text(profit.get('base_fba_margin', '待填'))}",
             f"- 扣广告和退货后的 FBA 毛利：{profit.get('post_ads_returns_gross_profit', '待填')}",
+            f"- 扣广告和退货后的 FBA 毛利率：{_format_percent_or_text(profit.get('post_ads_returns_margin', '待填'))}",
             "",
         ]
     )
+    lines.extend(_profit_breakdown_markdown_lines(profit))
+    lines.extend(_ip_compliance_markdown_lines(ip_screening, compliance, ip_compliance_review))
     if voc:
         lines.extend(_voc_markdown_lines(voc))
     return "\n".join(lines)
@@ -131,6 +138,7 @@ def _build_workbook_sheets(package: dict) -> list[tuple[str, list[list[object]]]
     return_risk = package.get("return_risk", {})
     ip_screening = package.get("ip_screening", {})
     compliance = package.get("compliance_screening", {})
+    ip_compliance_review = package.get("ip_compliance_review", {})
     status = package.get("status_card", {})
     decision = package.get("decision_review", {})
 
@@ -159,13 +167,15 @@ def _build_workbook_sheets(package: dict) -> list[tuple[str, list[list[object]]]
         ("竞品池", _competitor_rows(competitors)),
         ("利润测算输入", _dict_rows(operator_inputs)),
         ("利润参考结果", _dict_rows(profit)),
+        ("利润成本拆分", _profit_breakdown_rows(profit)),
         ("决策检查", _decision_rows(decision)),
         ("风险矩阵", _risk_matrix_rows(decision.get("risk_matrix", []) if isinstance(decision, dict) else [])),
         ("评论VOC", _voc_summary_rows(package.get("voc_analysis", {}))),
         ("VOC证据", _voc_evidence_rows(package.get("normalized_tables", {}).get("voc_evidence", []))),
         ("退货风险", _dict_rows(return_risk)),
-        ("知产初筛", _dict_rows(ip_screening)),
-        ("合规认证预判", _dict_rows(compliance)),
+        ("知产合规复核", _dict_rows(ip_compliance_review)),
+        ("知产初筛", _ip_screening_rows(ip_screening)),
+        ("合规认证预判", _compliance_screening_rows(compliance)),
         ("状态卡", _dict_rows(status)),
     ]
 
@@ -200,6 +210,174 @@ def _decision_markdown_lines(decision: dict) -> list[str]:
             )
         lines.append("")
     return lines
+
+
+def _profit_breakdown_markdown_lines(profit: dict) -> list[str]:
+    breakdown = profit.get("cost_breakdown", {}) if isinstance(profit, dict) else {}
+    if not breakdown:
+        return []
+    labels = {
+        "sale_price": "建议售价",
+        "purchase_cost": "采购价",
+        "first_leg_shipping": "头程费用",
+        "fba_fee": "FBA费用",
+        "commission": "佣金",
+        "storage_fee": "仓储费",
+        "inbound_placement_fee": "入库配置费",
+        "ad_cost": "广告费",
+        "return_loss": "退款损失",
+    }
+    lines = ["### 利润成本拆分"]
+    for key, label in labels.items():
+        if key in breakdown:
+            lines.append(f"- {label}：{breakdown.get(key)}")
+    if profit.get("notes"):
+        lines.append(f"- 说明：{profit.get('notes')}")
+    lines.append("")
+    return lines
+
+
+def _profit_breakdown_rows(profit: dict) -> list[list[object]]:
+    rows: list[list[object]] = [["项目", "值"]]
+    if not profit:
+        rows.append(["状态", "未生成"])
+        return rows
+    breakdown = profit.get("cost_breakdown", {})
+    for key, label in (
+        ("sale_price", "建议售价"),
+        ("purchase_cost", "采购价"),
+        ("first_leg_shipping", "头程费用"),
+        ("fba_fee", "FBA费用"),
+        ("commission", "佣金"),
+        ("storage_fee", "仓储费"),
+        ("inbound_placement_fee", "入库配置费"),
+        ("ad_cost", "广告费"),
+        ("return_loss", "退款损失"),
+    ):
+        if isinstance(breakdown, dict) and key in breakdown:
+            rows.append([label, breakdown.get(key)])
+    for key, value in (profit.get("rate_assumptions", {}) if isinstance(profit, dict) else {}).items():
+        rows.append([key, value])
+    if len(rows) == 1:
+        rows.append(["状态", profit.get("status", "未计算")])
+    return rows
+
+
+def _ip_compliance_markdown_lines(ip_screening: dict, compliance: dict, review: dict) -> list[str]:
+    if not ip_screening and not compliance and not review:
+        return []
+    lines = ["## 知产/合规初筛", ""]
+    if review:
+        missing = review.get("missing_fields", [])
+        pending = review.get("pending_fields", [])
+        lines.extend(
+            [
+                f"- 总状态：{review.get('status', '待补')}",
+                f"- 整体风险：{review.get('overall_level', '待复核')}",
+                f"- 下一步：{review.get('next_step', '待复核')}",
+            ]
+        )
+        if missing:
+            lines.append(f"- 待补字段：{'、'.join(str(item) for item in missing[:8])}")
+        if pending:
+            lines.append(f"- 待复核项：{'、'.join(str(item) for item in pending[:8])}")
+        lines.append("")
+    if ip_screening:
+        lines.extend(
+            [
+                "### 知产初筛",
+                f"- 状态：{ip_screening.get('status', '待补')}",
+                f"- 风险等级：{ip_screening.get('level', ip_screening.get('overall_level', '待复核'))}",
+                f"- 摘要：{ip_screening.get('summary', ip_screening.get('notes', '待复核'))}",
+                f"- 边界：{ip_screening.get('boundary', '仅为早期初筛，不替代专业结论。')}",
+                "",
+            ]
+        )
+    if compliance:
+        lines.extend(
+            [
+                "### 合规认证预判",
+                f"- 状态：{compliance.get('status', '待补')}",
+                f"- 风险等级：{compliance.get('level', compliance.get('overall_level', '待复核'))}",
+                f"- 摘要：{compliance.get('summary', compliance.get('notes', '待复核'))}",
+                f"- 边界：{compliance.get('boundary', '仅为可能材料和待复核项，不替代专业结论。')}",
+                "",
+            ]
+        )
+    return lines
+
+
+def _ip_screening_rows(ip_screening: dict) -> list[list[object]]:
+    rows: list[list[object]] = [
+        ["字段", "值"],
+        ["状态", ip_screening.get("status", "未生成")],
+        ["风险等级", ip_screening.get("level", "")],
+        ["整体风险", ip_screening.get("overall_level", "")],
+        ["摘要", ip_screening.get("summary", "")],
+        ["边界", ip_screening.get("boundary", "")],
+        [],
+        ["风险类型", "触发原因", "检索入口", "检索网址", "建议关键词", "结果", "证据链接", "证据说明", "下一步"],
+    ]
+    for item in ip_screening.get("rows", []):
+        if isinstance(item, dict):
+            rows.append(
+                [
+                    item.get("risk_type"),
+                    item.get("trigger_reason"),
+                    item.get("search_entry"),
+                    item.get("search_url"),
+                    item.get("suggested_keywords"),
+                    item.get("result"),
+                    item.get("evidence_link"),
+                    item.get("evidence_note"),
+                    item.get("next_step"),
+                ]
+            )
+    if len(rows) == 8:
+        rows.append(["未生成", "", "", "", "", "", "", "", ""])
+    return rows
+
+
+def _compliance_screening_rows(compliance: dict) -> list[list[object]]:
+    rows: list[list[object]] = [
+        ["字段", "值"],
+        ["状态", compliance.get("status", "未生成")],
+        ["风险等级", compliance.get("level", "")],
+        ["整体风险", compliance.get("overall_level", "")],
+        ["摘要", compliance.get("summary", "")],
+        ["边界", compliance.get("boundary", "")],
+        [],
+        ["产品属性字段", "属性值"],
+    ]
+    product_flags = compliance.get("product_flags", {})
+    if isinstance(product_flags, dict) and product_flags:
+        for key, value in product_flags.items():
+            rows.append([key, value])
+    else:
+        rows.append(["未填写", ""])
+    rows.extend(
+        [
+            [],
+            ["触发字段", "产品属性", "美国可能材料", "欧盟/英国可能材料", "早期状态", "推荐入口", "结果", "证据链接", "证据说明", "下一步"],
+        ]
+    )
+    for item in compliance.get("rows", []):
+        if isinstance(item, dict):
+            rows.append(
+                [
+                    item.get("trigger_field"),
+                    item.get("product_attribute"),
+                    item.get("us_possible_materials"),
+                    item.get("eu_uk_possible_materials"),
+                    item.get("early_status"),
+                    item.get("recommended_entries"),
+                    item.get("result"),
+                    item.get("evidence_link"),
+                    item.get("evidence_note"),
+                    item.get("next_step"),
+                ]
+            )
+    return rows
 
 
 def _decision_rows(decision: dict) -> list[list[object]]:
@@ -423,6 +601,12 @@ def _format_number(value: object) -> str:
         if value == int(value):
             return str(int(value))
         return f"{value:.2f}"
+    return str(value)
+
+
+def _format_percent_or_text(value: object) -> str:
+    if isinstance(value, (int, float)):
+        return f"{value * 100:.2f}%"
     return str(value)
 
 

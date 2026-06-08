@@ -29,15 +29,20 @@ class ProfitInputs:
     first_leg_channel: str | None = None
     commission_rate: float = DEFAULT_COMMISSION_RATE
     storage_fee: float | None = None
+    storage_fee_rate: float = DEFAULT_STORAGE_FEE_RATE
     ad_rate: float = DEFAULT_AD_RATE
     return_rate: float = 0.0
 
 
-def calc_storage_fee(sale_price: float, storage_fee: float | None = None) -> float:
+def calc_storage_fee(
+    sale_price: float,
+    storage_fee: float | None = None,
+    storage_fee_rate: float = DEFAULT_STORAGE_FEE_RATE,
+) -> float:
     """Early simplified storage estimate: sale price * 3% unless manually provided."""
     if storage_fee is not None:
         return storage_fee
-    return sale_price * DEFAULT_STORAGE_FEE_RATE
+    return sale_price * storage_fee_rate
 
 
 def calc_billable_weight_g(actual_weight_g: float, volume_weight_g: float) -> float:
@@ -62,14 +67,32 @@ def calc_first_leg_shipping_by_channel(
 
 def calc_base_fba_gross_profit(inputs: ProfitInputs) -> float:
     """Base FBA gross profit before ads and returns."""
+    return calc_profit_breakdown(inputs)["base_fba_gross_profit"]
+
+
+def calc_post_ads_returns_gross_profit(inputs: ProfitInputs) -> float:
+    """Gross profit after ad and return assumptions."""
+    return calc_profit_breakdown(inputs)["post_ads_returns_gross_profit"]
+
+
+def calc_margin(profit: float, sale_price: float) -> float:
+    if sale_price == 0:
+        return 0.0
+    return profit / sale_price
+
+
+def calc_profit_breakdown(inputs: ProfitInputs) -> dict[str, float]:
+    """Return full cost/profit breakdown in the same currency as sale_price."""
     first_leg_shipping = _resolve_first_leg_shipping(inputs)
     inbound_placement_fee = _required_number(
         inputs.inbound_placement_fee,
         "inbound_placement_fee is required. Mark as pending instead of defaulting to 0.",
     )
-    storage_fee = calc_storage_fee(inputs.sale_price, inputs.storage_fee)
+    storage_fee = calc_storage_fee(inputs.sale_price, inputs.storage_fee, inputs.storage_fee_rate)
     commission = inputs.sale_price * inputs.commission_rate
-    return (
+    ad_cost = inputs.sale_price * inputs.ad_rate
+    return_loss = inputs.sale_price * inputs.return_rate
+    base_profit = (
         inputs.sale_price
         - inputs.purchase_cost
         - first_leg_shipping
@@ -78,20 +101,22 @@ def calc_base_fba_gross_profit(inputs: ProfitInputs) -> float:
         - storage_fee
         - inbound_placement_fee
     )
-
-
-def calc_post_ads_returns_gross_profit(inputs: ProfitInputs) -> float:
-    """Gross profit after ad and return assumptions."""
-    base = calc_base_fba_gross_profit(inputs)
-    ad_cost = inputs.sale_price * inputs.ad_rate
-    return_loss = inputs.sale_price * inputs.return_rate
-    return base - ad_cost - return_loss
-
-
-def calc_margin(profit: float, sale_price: float) -> float:
-    if sale_price == 0:
-        return 0.0
-    return profit / sale_price
+    post_ads_returns_profit = base_profit - ad_cost - return_loss
+    return {
+        "sale_price": inputs.sale_price,
+        "purchase_cost": inputs.purchase_cost,
+        "first_leg_shipping": first_leg_shipping,
+        "fba_fee": inputs.fba_fee,
+        "commission": commission,
+        "storage_fee": storage_fee,
+        "inbound_placement_fee": inbound_placement_fee,
+        "ad_cost": ad_cost,
+        "return_loss": return_loss,
+        "base_fba_gross_profit": base_profit,
+        "base_fba_margin": calc_margin(base_profit, inputs.sale_price),
+        "post_ads_returns_gross_profit": post_ads_returns_profit,
+        "post_ads_returns_margin": calc_margin(post_ads_returns_profit, inputs.sale_price),
+    }
 
 
 def _resolve_first_leg_shipping(inputs: ProfitInputs) -> float:
