@@ -24,6 +24,7 @@ def build_research_package(
     competition = candidate.get("competition_structure", {})
     profit_space = candidate.get("preliminary_profit_space", {})
     competitor_candidates = candidate.get("competitor_candidates", {})
+    market_structure = candidate.get("market_structure", {})
     status = candidate.get("status", "观察")
     voc_analysis = _build_voc_analysis(voc_package)
     voc_review_sources = _build_review_sources(voc_package)
@@ -66,8 +67,11 @@ def build_research_package(
         },
         "normalized_tables": {
             "candidate": candidate,
+            "top100": candidate.get("top_products", []),
+            "top_product_tags": market_structure.get("tagged_products", []),
             "voc_evidence": _collect_voc_evidence(voc_package),
         },
+        "market_structure": market_structure,
         "market_analysis": {
             "market_size": _market_size_text(candidate),
             "price_band": _price_band_text(candidate),
@@ -209,6 +213,9 @@ def _decision_facts(candidate: dict[str, Any], voc_package: dict[str, Any] | Non
         facts.append(
             f"评论 VOC：已接入 {summary.get('review_count', 0)} 条评论，覆盖 {summary.get('asin_count', 0)} 个 ASIN，低分评论 {summary.get('low_rating_count', 0)} 条。"
         )
+    market_structure_summary = _market_structure_summary_line(candidate)
+    if market_structure_summary:
+        facts.append(market_structure_summary)
     return [item for item in facts if item and "待填" not in item]
 
 
@@ -232,6 +239,12 @@ def _decision_inferences(candidate: dict[str, Any], voc_package: dict[str, Any] 
     first_pain = _first_pain_name(voc_package)
     if first_pain:
         inferences.append(f"评论首要痛点为「{first_pain}」，改品方案必须能解释这个问题如何被缓解。")
+    market_structure = candidate.get("market_structure", {})
+    dominant_structure = market_structure.get("summary", {}).get("dominant_structure")
+    if dominant_structure:
+        inferences.append(f"商品属性结构显示：{dominant_structure}。这只是结构线索，不能单独当作进入结论。")
+    for clue in market_structure.get("summary", {}).get("opportunity_clues", [])[:2]:
+        inferences.append(f"属性交叉线索：{clue}")
     return inferences or ["当前数据能支持继续看，但还不足以形成进入结论。"]
 
 
@@ -242,6 +255,13 @@ def _decision_missing_inputs(candidate: dict[str, Any], voc_package: dict[str, A
     for item in ["建议售价", "采购价", "FBA费用", "头程费用", "入库配置费", "商标/专利复核", "合规认证复核"]:
         if item not in missing:
             missing.append(item)
+    quality = candidate.get("market_structure", {}).get("data_quality", {})
+    expected_count = quality.get("expected_count")
+    actual_count = quality.get("actual_count")
+    if isinstance(expected_count, int) and isinstance(actual_count, int) and actual_count < expected_count:
+        top100_gap = f"完整 Top{expected_count} 商品明细（当前 {actual_count} 条）"
+        if top100_gap not in missing:
+            missing.append(top100_gap)
     return missing
 
 
@@ -266,6 +286,7 @@ def _decision_risk_matrix(candidate: dict[str, Any], voc_package: dict[str, Any]
     ip_risk = candidate.get("ip_compliance_risk", {})
     top10_share = competition.get("top10_product_units_share")
     first_pain = _first_pain_name(voc_package)
+    data_quality = candidate.get("market_structure", {}).get("data_quality", {})
     return [
         {
             "dimension": "市场容量",
@@ -309,6 +330,12 @@ def _decision_risk_matrix(candidate: dict[str, Any], voc_package: dict[str, Any]
             "basis": str(ip_risk.get("notes", "待复核")),
             "next_check": "做商标、外观/结构专利和品类合规入口初筛。",
         },
+        {
+            "dimension": "数据质量",
+            "level": str(data_quality.get("level", "待确认")),
+            "basis": _market_structure_summary_line(candidate) or "Top 商品明细待补",
+            "next_check": str(data_quality.get("next_check", "补齐 Top100 明细，并抽查属性标签。")),
+        },
     ]
 
 
@@ -337,7 +364,7 @@ def _market_size_text(candidate: dict[str, Any]) -> str:
     if demand.get("market_avg_monthly_units") is not None:
         parts.append(f"市场月均销量 {_fmt_number(demand.get('market_avg_monthly_units'))}")
     if demand.get("market_avg_monthly_revenue_usd") is not None:
-        parts.append(f"市场月均销售额 ${_fmt_number(demand.get('market_avg_monthly_revenue_usd'))}")
+        parts.append(f"市场月均销售额 USD {_fmt_number(demand.get('market_avg_monthly_revenue_usd'))}")
     if competition.get("top10_avg_monthly_units") is not None:
         parts.append(f"Top10 月均销量 {_fmt_number(competition.get('top10_avg_monthly_units'))}")
     return "；".join(parts) if parts else "待填"
@@ -348,11 +375,11 @@ def _price_band_text(candidate: dict[str, Any]) -> str:
     profit = candidate.get("preliminary_profit_space", {})
     parts = []
     if profit.get("top_price_band_by_units"):
-        parts.append(f"销量集中价格带 {profit.get('top_price_band_by_units')} 美元")
+        parts.append(f"销量集中价格带 {profit.get('top_price_band_by_units')} USD")
     if profit.get("top_price_band_units_share") is not None:
         parts.append(f"该价格带销量占比 {_fmt_percent(profit.get('top_price_band_units_share'))}")
     if demand.get("market_avg_price_usd") is not None:
-        parts.append(f"市场平均价 ${_fmt_number(demand.get('market_avg_price_usd'))}")
+        parts.append(f"市场平均价 USD {_fmt_number(demand.get('market_avg_price_usd'))}")
     return "；".join(parts) if parts else "待填"
 
 
@@ -397,6 +424,14 @@ def _return_rate_text(candidate: dict[str, Any]) -> str:
     if market_rate is None and category_rate is None:
         return "待填"
     return f"市场退货率 {_fmt_percent(market_rate)}；类目退货率 {_fmt_percent(category_rate)}"
+
+
+def _market_structure_summary_line(candidate: dict[str, Any]) -> str:
+    market_structure = candidate.get("market_structure", {})
+    summary = market_structure.get("summary", {}) if isinstance(market_structure, dict) else {}
+    if summary.get("quality_summary"):
+        return f"数据质量：{summary.get('quality_summary')}"
+    return ""
 
 
 def _competitor_items(items: Any) -> list[dict[str, Any]]:

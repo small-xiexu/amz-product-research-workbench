@@ -6,9 +6,16 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from packages.research_core.rules.market_structure_rules import build_market_structure_analysis
 
 try:
     from openpyxl import load_workbook
@@ -177,6 +184,18 @@ def top_products(product_concentration: list[dict[str, Any]], limit: int = 10) -
     ]
 
 
+def top_products_from_search_results(search_records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result = []
+    seen: set[str] = set()
+    for record in search_records:
+        asin = str(record.get("ASIN") or "").strip()
+        if not asin or asin in seen:
+            continue
+        seen.add(asin)
+        result.append(product_from_search_result(record, "卖家精灵搜索结果明细"))
+    return result
+
+
 def recent_winners(search_records: list[dict[str, Any]], limit: int = 10) -> list[dict[str, Any]]:
     recent = [
         record
@@ -269,6 +288,8 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
     return_level = "待确认"
     if market_return_rate is not None and category_return_rate is not None:
         return_level = "中" if market_return_rate > category_return_rate else "低"
+    top_product_rows = top_products_from_search_results(search_records)
+    market_structure = build_market_structure_analysis(top_product_rows, expected_count=100)
 
     source_refs = [
         f"manual_export:{item['file_name']}"
@@ -314,6 +335,8 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
             "recent_winners": recent_winners(search_records),
             "structure_supplement": structure_supplements(search_records),
         },
+        "top_products": top_product_rows,
+        "market_structure": market_structure,
         "new_listing_opportunity": {
             "new_listing_count_6m": to_int(new_products.get("样本商品数")),
             "new_listing_avg_monthly_units": to_float(new_products.get("月均销量")),
@@ -345,6 +368,7 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
             "source": "manual_export",
             "source_types": manifest.get("data_quality", {}).get("available_source_types", []),
             "missing_source_types": manifest.get("data_quality", {}).get("missing_source_types", []),
+            "top_product_quality": market_structure.get("data_quality", {}),
         },
         "missing_data": [
             "采购价",

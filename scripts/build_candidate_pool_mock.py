@@ -103,7 +103,7 @@ def _base_candidate(candidate_id: str, name: str, status: str, reason: str) -> d
             "variant_policy": "真实数据阶段需标记多 SKU/变体口径",
         },
         "missing_data": ["Top100", "关键词搜索量", "类目退货率", "竞品池", "知产/合规初筛"],
-        "next_step": "导入卖家精灵手动导出数据后验证；API/MCP 后续增强。",
+        "next_step": "导入卖家精灵手动导出数据后验证；MCP 后续增强。",
         "source_refs": ["mock:candidate_pool"],
     }
 
@@ -151,7 +151,7 @@ def _camping_accessory_candidate(risk_text: str) -> dict[str, Any]:
     candidate["risk_flags"] = risk_flags
     candidate["ip_compliance_risk"] = {"level": "中", "notes": "带电或含电池时需前置合规复核。"}
     candidate["missing_data"] = ["是否带电/电池", "Top100", "关键词趋势", "CPC", "合规材料"]
-    candidate["next_step"] = "先用卖家精灵手动导出数据判断是否有非带电、轻小配件切入点；API/MCP 后续增强。"
+    candidate["next_step"] = "先用卖家精灵手动导出数据判断是否有非带电、轻小配件切入点；MCP 后续增强。"
     return candidate
 
 

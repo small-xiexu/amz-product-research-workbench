@@ -40,7 +40,7 @@
 | `constraints` | 禁区、排除规则、目标边界 |
 | `operator_inputs` | 售价、采购价、汇率、FBA、仓储、广告、退货等手填项 |
 | `product_flags` | 带电、电池、无线、儿童、食品接触等属性 |
-| `raw_sources` | 卖家精灵导出文件索引、API/MCP 原始返回索引 |
+| `raw_sources` | 卖家精灵导出文件索引、MCP 原始返回索引 |
 | `normalized_tables` | 清洗后的标准表 |
 | `market_analysis` | 市场规模、价格带、集中度、新品占比、趋势 |
 | `keyword_analysis` | 关键词层级、趋势、CPC 参考 |

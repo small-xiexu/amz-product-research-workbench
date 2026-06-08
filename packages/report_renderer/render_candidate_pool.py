@@ -391,9 +391,9 @@ def _evidence_lines(candidate: dict[str, Any]) -> list[str]:
     if demand.get("market_avg_monthly_units") is not None:
         lines.append(f"市场月均销量：{_number(demand.get('market_avg_monthly_units'))}")
     if demand.get("market_avg_monthly_revenue_usd") is not None:
-        lines.append(f"市场月均销售额：${_number(demand.get('market_avg_monthly_revenue_usd'))}")
+        lines.append(f"市场月均销售额：USD {_number(demand.get('market_avg_monthly_revenue_usd'))}")
     if demand.get("market_avg_price_usd") is not None:
-        lines.append(f"市场平均价：${_number(demand.get('market_avg_price_usd'))}")
+        lines.append(f"市场平均价：USD {_number(demand.get('market_avg_price_usd'))}")
     if demand.get("top_keyword"):
         keyword_line = f"核心流量词：{demand.get('top_keyword')}"
         if demand.get("top_keyword_monthly_searches") is not None:

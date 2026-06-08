@@ -13,7 +13,7 @@
 
 ## 当前状态
 
-先放最小可用版本，不接 API/MCP、不做网页。当前包含：
+先放最小可用版本，不接 MCP、不做网页。当前包含：
 
 - `render_report.py`：从 `research_package` 生成正式报告骨架。
 - `render_candidate_pool.py`：从 `candidate_pool` 生成预审报告、摘要、HTML 看板和 Excel 底表。

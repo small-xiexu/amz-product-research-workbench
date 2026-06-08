@@ -75,6 +75,7 @@ def read_profit_inputs(path: Path) -> dict[str, Any]:
 
 def apply_profit_review(package: dict[str, Any], raw_inputs: dict[str, Any]) -> dict[str, Any]:
     result = json.loads(json.dumps(package, ensure_ascii=False))
+    currency_code = site_currency_code(result.get("metadata", {}).get("site"))
     normalized = normalize_profit_inputs(raw_inputs, result)
     missing = validate_profit_inputs(normalized)
     result["operator_inputs"] = {
@@ -82,11 +83,13 @@ def apply_profit_review(package: dict[str, Any], raw_inputs: dict[str, Any]) -> 
         **normalized,
     }
     result["profit_reference"] = build_profit_reference(normalized, missing)
+    result["profit_reference"]["currency_code"] = currency_code
     result["profit_review"] = {
         "status": "待补" if missing else "已计算",
         "missing_fields": missing,
         "input_source": "profit_template",
-        "currency_note": "售价、FBA 和结果为站点币种；采购价、头程、入库配置费按人民币输入后用汇率换算。",
+        "currency_code": currency_code,
+        "currency_note": f"售价、FBA 和结果为 {currency_code}；采购价、头程、入库配置费按人民币输入后用汇率换算。",
     }
     result["decision_review"] = update_decision_review(result.get("decision_review", {}), missing, result["profit_reference"])
     result["status_card"] = update_status_card(result.get("status_card", {}), missing)
@@ -186,6 +189,7 @@ def update_decision_review(decision: dict[str, Any], missing: list[str], profit_
     facts = list(updated.get("facts", []))
     inferences = list(updated.get("inferences", []))
     action_items = list(updated.get("action_items", []))
+    currency_code = profit_reference.get("currency_code", "USD")
     missing_inputs = [item for item in updated.get("missing_inputs", []) if item not in {"建议售价", "采购价", "FBA费用", "头程费用", "入库配置费"}]
     if missing:
         missing_inputs.extend(item for item in missing if item not in missing_inputs)
@@ -193,9 +197,9 @@ def update_decision_review(decision: dict[str, Any], missing: list[str], profit_
     else:
         facts.append(
             "利润复核：基础 FBA 毛利 "
-            f"{profit_reference.get('base_fba_gross_profit')}，毛利率 {format_rate(profit_reference.get('base_fba_margin'))}；"
+            f"{format_money(profit_reference.get('base_fba_gross_profit'), currency_code)}，毛利率 {format_rate(profit_reference.get('base_fba_margin'))}；"
             "扣广告和退货后 FBA 毛利 "
-            f"{profit_reference.get('post_ads_returns_gross_profit')}，毛利率 {format_rate(profit_reference.get('post_ads_returns_margin'))}。"
+            f"{format_money(profit_reference.get('post_ads_returns_gross_profit'), currency_code)}，毛利率 {format_rate(profit_reference.get('post_ads_returns_margin'))}。"
         )
         action_items = replace_profit_action(action_items, "结合利润复核结果，继续复核知产/合规和供应链打样可行性。")
         post_margin = profit_reference.get("post_ads_returns_margin")
@@ -229,6 +233,7 @@ def update_profit_risk(risks: list[dict[str, Any]], missing: list[str], profit_r
 
 
 def profit_risk_item(missing: list[str], profit_reference: dict[str, Any]) -> dict[str, str]:
+    currency_code = profit_reference.get("currency_code", "USD")
     if missing:
         return {
             "dimension": "利润不确定性",
@@ -242,7 +247,8 @@ def profit_risk_item(missing: list[str], profit_reference: dict[str, Any]) -> di
         "dimension": "利润不确定性",
         "level": level,
         "basis": (
-            f"基础 FBA 毛利 {profit_reference.get('base_fba_gross_profit')}，"
+            f"基础 FBA 毛利 {format_money(profit_reference.get('base_fba_gross_profit'), currency_code)}，"
+            f"扣广告和退货后毛利 {format_money(profit_reference.get('post_ads_returns_gross_profit'), currency_code)}，"
             f"扣广告和退货后毛利率 {format_rate(profit_reference.get('post_ads_returns_margin'))}"
         ),
         "next_check": "用亚马逊后台/收入计算器和供应链报价做最终复核。",
@@ -334,6 +340,39 @@ def round_rate(value: float) -> float:
 def format_rate(value: Any) -> str:
     if isinstance(value, (int, float)):
         return f"{value * 100:.2f}%"
+    return str(value)
+
+
+def site_currency_code(site: Any) -> str:
+    text = compact_text(site).upper()
+    mapping = {
+        "US": "USD",
+        "CA": "CAD",
+        "UK": "GBP",
+        "EU": "EUR",
+        "DE": "EUR",
+        "FR": "EUR",
+        "IT": "EUR",
+        "ES": "EUR",
+        "JP": "JPY",
+        "AU": "AUD",
+        "MX": "MXN",
+        "USD": "USD",
+        "CAD": "CAD",
+        "GBP": "GBP",
+        "EUR": "EUR",
+        "JPY": "JPY",
+        "AUD": "AUD",
+        "MXN": "MXN",
+    }
+    return mapping.get(text, text or "USD")
+
+
+def format_money(value: Any, currency_code: str) -> str:
+    if isinstance(value, (int, float)):
+        formatted = f"{abs(value):,.2f}" if abs(value) >= 1000 else f"{abs(value):.2f}"
+        sign = "-" if value < 0 else ""
+        return f"{currency_code} {sign}{formatted}"
     return str(value)
 
 
