@@ -188,7 +188,7 @@ def render_profit_template(package: dict[str, Any], output_path: Path) -> None:
 
 
 def profit_input_rows(package: dict[str, Any]) -> list[list[Any]]:
-    rows: list[list[Any]] = [["field", "label", "value", "currency", "required", "default", "note"]]
+    rows: list[list[Any]] = [["field", "label", "value", "填写口径", "是否必填", "default", "note"]]
     return_rate = default_return_rate(package)
     for item in INPUT_ROWS:
         default = item["default"]

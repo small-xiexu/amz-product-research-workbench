@@ -47,6 +47,10 @@ SHEET_RULES: dict[str, dict[str, list[str]]] = {
         "required": ["搜索频率排名", "搜索词", "点击量最高的商品 #1：ASIN", "点击量最高的商品 #1：点击份额", "点击量最高的商品 #1：转化份额"],
         "optional": ["点击量最高的品牌 #1", "点击量最高的类别 #1", "报告日期"],
     },
+    "aba_keyword_trend": {
+        "required": ["关键词", "月搜索量", "现排名", "历史排名", "月变化量", "月变化率"],
+        "optional": ["关键词翻译", "PPC价格", "建议竞价范围", "展示量", "点击量", "SPR"],
+    },
     "market_overview": {
         "required": ["样品分类", "样本商品数", "月均销量", "月均销售额($)", "平均价格($)", "平均评分数", "平均星级"],
         "optional": ["商品首次上架时间", "商品最新上架时间"],
@@ -168,6 +172,8 @@ def detect_header(rows: list[tuple[Any, ...]]) -> tuple[int, list[str]]:
 
 
 def detect_sheet_role(sheet_name: str, headers: list[str]) -> str:
+    if sheet_name.startswith("ABAKeyword"):
+        return "aba_keyword_trend"
     if sheet_name in SHEET_NAME_ROLES:
         return SHEET_NAME_ROLES[sheet_name]
     header_set = set(headers)
@@ -177,7 +183,28 @@ def detect_sheet_role(sheet_name: str, headers: list[str]) -> str:
         return "reverse_asin_keywords"
     if {"搜索频率排名", "搜索词", "点击量最高的商品 #1：ASIN"}.issubset(header_set):
         return "aba_keywords"
+    if {"关键词", "月搜索量", "现排名", "历史排名", "月变化量"}.issubset(header_set):
+        return "aba_keyword_trend"
     return "notes" if len(headers) <= 1 else "unknown"
+
+
+def effective_bounds(worksheet: Any, max_scan_rows: int = 5000) -> tuple[int, int, bool]:
+    max_row = 0
+    max_col = 0
+    truncated = False
+    for row_index, row in enumerate(worksheet.iter_rows(values_only=True), start=1):
+        if row_index > max_scan_rows:
+            truncated = True
+            break
+        last_col = 0
+        for col_index in range(len(row), 0, -1):
+            if clean_cell(row[col_index - 1]) not in (None, ""):
+                last_col = col_index
+                break
+        if last_col:
+            max_row = row_index
+            max_col = max(max_col, last_col)
+    return max_row, max_col, truncated
 
 
 def detect_file_type(sheet_roles: list[str], suffix: str, file_name: str) -> tuple[str, str]:
@@ -192,7 +219,7 @@ def detect_file_type(sheet_roles: list[str], suffix: str, file_name: str) -> tup
         return "seller_sprite_search_results", "product_candidates"
     if "reverse_asin_keywords" in role_set:
         return "seller_sprite_reverse_asin_keywords", "keyword_reverse"
-    if "aba_keywords" in role_set:
+    if "aba_keywords" in role_set or "aba_keyword_trend" in role_set or file_name.startswith("ABAKeywordTrend"):
         return "amazon_aba_keywords", "aba_keywords"
     return "unknown", "unknown"
 
@@ -215,11 +242,15 @@ def inspect_xlsx(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
         header_row, headers = detect_header(rows)
         role = detect_sheet_role(worksheet.title, headers)
         required, optional, missing = sheet_quality(role, headers)
+        effective_rows, effective_cols, effective_truncated = effective_bounds(worksheet)
         sample_rows = [trim_empty_tail(clean_row(row)) for row in rows[header_row : min(header_row + 3, len(rows))]]
         sheet = {
             "sheet_name": worksheet.title,
             "rows": int(worksheet.max_row or 0),
             "cols": int(worksheet.max_column or 0),
+            "effective_rows": effective_rows,
+            "effective_cols": effective_cols,
+            "effective_scan_truncated": effective_truncated,
             "header_row": header_row,
             "detected_role": role,
             "headers": headers,
@@ -230,6 +261,10 @@ def inspect_xlsx(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
         }
         if missing and role not in {"notes", "unknown"}:
             warnings.append(f"{worksheet.title} 缺少必需字段: {', '.join(missing)}")
+        if effective_cols and worksheet.max_column and worksheet.max_column > max(effective_cols + 100, effective_cols * 5):
+            warnings.append(
+                f"{worksheet.title} 可能存在空格式列污染：Excel 报告 {worksheet.max_column} 列，实际有效约 {effective_cols} 列。"
+            )
         sheets.append(sheet)
     return sheets, warnings
 

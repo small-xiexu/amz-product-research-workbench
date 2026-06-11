@@ -14,25 +14,27 @@ from xml.sax.saxutils import escape as xml_escape
 
 DASHBOARD_STYLE = """
 :root {
-  --bg: #f4eee6;
-  --panel: #fffdf8;
-  --panel-soft: #faf5ed;
-  --panel-dark: #eef3f7;
-  --panel-darker: #dfe8ef;
-  --text: #202833;
+  --bg: #f3f0ea;
+  --panel: #fffefa;
+  --panel-soft: #f7f3eb;
+  --panel-dark: #eef4f2;
+  --panel-darker: #e5eeeb;
+  --text: #1f2933;
   --muted: #6e7480;
   --line: rgba(32, 40, 51, 0.10);
   --line-soft: rgba(32, 40, 51, 0.06);
-  --accent: #d77443;
-  --accent-soft: #f0b37d;
-  --accent-2: #3f7480;
-  --accent-3: #7d8d52;
-  --shadow: 0 24px 60px rgba(28, 37, 49, 0.08);
+  --accent: #c57445;
+  --accent-soft: #e7a56f;
+  --accent-2: #52727b;
+  --accent-3: #66764f;
+  --shadow: 0 18px 44px rgba(28, 37, 49, 0.07);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {
-  background: linear-gradient(180deg, #f3ede4 0%, #f8f5ef 100%);
+  background:
+    radial-gradient(circle at top left, rgba(197, 116, 69, 0.10), transparent 34rem),
+    linear-gradient(180deg, #f6f1e9 0%, #f8f5ef 100%);
   color: var(--text);
   font-family: Inter, "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
   letter-spacing: 0;
@@ -41,20 +43,20 @@ a { color: inherit; text-decoration: none; }
 .page {
   max-width: 1540px;
   margin: 0 auto;
-  padding: 24px 24px 40px;
+  padding: 24px 24px 44px;
 }
 .hero {
   display: grid;
-  grid-template-columns: 1.2fr 0.92fr;
-  gap: 20px;
+  grid-template-columns: minmax(0, 1.16fr) minmax(360px, 0.84fr);
+  gap: 16px;
   align-items: stretch;
 }
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 28px;
+  border-radius: 8px;
   box-shadow: var(--shadow);
-  padding: 28px;
+  padding: 26px;
 }
 .panel-dark {
   background: linear-gradient(160deg, var(--panel-dark) 0%, var(--panel-darker) 100%);
@@ -76,7 +78,7 @@ a { color: inherit; text-decoration: none; }
   gap: 4px;
 }
 .title-en {
-  font-size: 50px;
+  font-size: 46px;
   line-height: 1.04;
   letter-spacing: 0;
 }
@@ -145,7 +147,7 @@ a { color: inherit; text-decoration: none; }
 }
 .status-value {
   margin: 12px 0 10px;
-  font-size: 44px;
+  font-size: 42px;
   line-height: 1;
   font-weight: 800;
   color: var(--text);
@@ -159,7 +161,7 @@ a { color: inherit; text-decoration: none; }
 .status-note {
   margin-top: 16px;
   padding: 14px 16px;
-  border-radius: 18px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.78);
   border: 1px solid rgba(32, 40, 51, 0.08);
   font-size: 13px;
@@ -173,13 +175,47 @@ a { color: inherit; text-decoration: none; }
 }
 .status-bullet {
   padding: 12px 14px;
-  border-radius: 16px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.78);
   border: 1px solid rgba(32, 40, 51, 0.08);
   font-size: 13px;
   line-height: 1.55;
   color: var(--text);
   overflow-wrap: anywhere;
+}
+.summary-strip {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.summary-item {
+  min-height: 112px;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--panel-soft);
+  border: 1px solid var(--line-soft);
+}
+.summary-label {
+  font-size: 12px;
+  line-height: 1;
+  color: var(--muted);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.summary-value {
+  margin-top: 9px;
+  font-size: 20px;
+  line-height: 1.35;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+.summary-note {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
 }
 .metric-grid {
   margin-top: 16px;
@@ -190,7 +226,7 @@ a { color: inherit; text-decoration: none; }
 .metric-card {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 22px;
+  border-radius: 8px;
   box-shadow: var(--shadow);
   padding: 18px;
   min-height: 128px;
@@ -214,7 +250,7 @@ a { color: inherit; text-decoration: none; }
   color: var(--muted);
 }
 .section {
-  margin-top: 28px;
+  margin-top: 30px;
 }
 .section-header {
   display: flex;
@@ -248,7 +284,7 @@ a { color: inherit; text-decoration: none; }
 .subpanel {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 24px;
+  border-radius: 8px;
   box-shadow: var(--shadow);
   padding: 24px;
 }
@@ -308,7 +344,7 @@ a { color: inherit; text-decoration: none; }
 }
 .info-card {
   padding: 14px;
-  border-radius: 18px;
+  border-radius: 8px;
   background: var(--panel-soft);
   border: 1px solid var(--line-soft);
 }
@@ -348,7 +384,7 @@ a { color: inherit; text-decoration: none; }
 }
 .note-item {
   padding: 12px 14px;
-  border-radius: 16px;
+  border-radius: 8px;
   background: rgba(32, 40, 51, 0.04);
   border: 1px solid rgba(32, 40, 51, 0.07);
   font-size: 13px;
@@ -381,7 +417,7 @@ a { color: inherit; text-decoration: none; }
 .chart-shell {
   background: var(--panel-soft);
   border: 1px solid var(--line-soft);
-  border-radius: 22px;
+  border-radius: 8px;
   overflow: hidden;
 }
 .chart-shell.dark {
@@ -402,7 +438,7 @@ a { color: inherit; text-decoration: none; }
 .segment-card {
   min-height: 150px;
   padding: 16px;
-  border-radius: 18px;
+  border-radius: 8px;
   background: rgba(255, 253, 248, 0.86);
   border: 1px solid rgba(32, 40, 51, 0.08);
 }
@@ -423,7 +459,7 @@ a { color: inherit; text-decoration: none; }
 }
 .segment-count {
   padding: 5px 9px;
-  border-radius: 999px;
+  border-radius: 8px;
   background: rgba(32, 40, 51, 0.06);
   color: var(--muted);
   font-size: 12px;
@@ -475,7 +511,7 @@ a { color: inherit; text-decoration: none; }
 }
 .risk-card {
   padding: 14px;
-  border-radius: 18px;
+  border-radius: 8px;
   background: var(--panel);
   border: 1px solid var(--line);
 }
@@ -540,12 +576,13 @@ a { color: inherit; text-decoration: none; }
 }
 @media (max-width: 760px) {
   .page { padding: 14px; }
-  .panel, .subpanel { padding: 18px; border-radius: 22px; }
+  .panel, .subpanel { padding: 18px; border-radius: 8px; }
   .title-en { font-size: 34px; }
   .title-cn { font-size: 15px; }
   .metric-grid,
   .grid-2,
   .grid-3,
+  .summary-strip,
   .segment-matrix,
   .risk-grid { grid-template-columns: 1fr; }
   .bar-row { grid-template-columns: 1fr; }
@@ -557,6 +594,7 @@ a { color: inherit; text-decoration: none; }
 def render_markdown(package: dict) -> str:
     meta = package.get("metadata", {})
     currency_code = _site_currency_code(meta.get("site", "US"))
+    display_title = _clean_display_title(meta.get("seed_keyword_or_category", "未命名品类"))
     market = package.get("market_analysis", {})
     market_structure = package.get("market_structure", {})
     competitors = package.get("competitor_pool", {})
@@ -569,7 +607,7 @@ def render_markdown(package: dict) -> str:
     ip_compliance_review = package.get("ip_compliance_review", {})
 
     lines = [
-        f"# {meta.get('seed_keyword_or_category', '未命名品类')} 调研报告",
+        f"# {display_title} 调研报告",
         "",
         "## 结论摘要",
         f"- 金额口径：统一按 {currency_code} 展示",
@@ -605,14 +643,22 @@ def render_markdown(package: dict) -> str:
     lines.extend(_ip_compliance_markdown_lines(ip_screening, compliance, ip_compliance_review))
     if voc:
         lines.extend(_voc_markdown_lines(voc))
+    competitor_deep_dive = package.get("competitor_deep_dive", [])
+    if competitor_deep_dive:
+        lines.extend(_competitor_deep_dive_markdown_lines(competitor_deep_dive, currency_code))
     return "\n".join(lines)
 
 
 def render_summary(package: dict) -> str:
     status = package.get("status_card", {})
-    voc = package.get("voc_analysis", {})
     decision = package.get("decision_review", {})
-    first_pain = _first_finding_name(voc.get("pain_points", [])) if voc else "待填"
+    voc = package.get("voc_analysis", {})
+    voc_stats = (voc.get("summary") or {}) if isinstance(voc, dict) else {}
+    voc_note = (
+        f"已接入 {voc_stats.get('review_count', 0)} 条评论，{voc_stats.get('asin_count', 0)} 个 ASIN"
+        if voc_stats.get("review_count")
+        else "待接入"
+    )
     first_action = (decision.get("action_items") or ["待填"])[0] if isinstance(decision, dict) else "待填"
     return "\n".join(
         [
@@ -621,7 +667,7 @@ def render_summary(package: dict) -> str:
             f"- 状态：{status.get('status', '待填')}",
             f"- 原因：{status.get('reason', '待填')}",
             f"- 下一步：{status.get('next_step', '待填')}",
-            f"- 评论首要痛点：{first_pain}",
+            f"- 评论 VOC：{voc_note}（痛点分析由 Claude 在对话中完成）",
             f"- 第一动作：{first_action}",
         ]
     )
@@ -672,8 +718,8 @@ def _dashboard_model(package: dict[str, Any]) -> dict[str, Any]:
     decision = package.get("decision_review", {})
     summary = package.get("report_summary", {})
     return {
-        "title": meta.get("seed_keyword_or_category", "调研看板"),
-        "title_cn": _localized_title(meta.get("seed_keyword_or_category", "")),
+        "title": _clean_display_title(meta.get("seed_keyword_or_category", "调研看板")),
+        "title_cn": _localized_title(_clean_display_title(meta.get("seed_keyword_or_category", ""))),
         "currency_code": _site_currency_code(meta.get("site", "US")),
         "meta": meta,
         "candidate": candidate,
@@ -707,18 +753,30 @@ def _dashboard_model(package: dict[str, Any]) -> dict[str, Any]:
 
 
 def _localized_title(title: str) -> str:
-    text = str(title or "").strip().lower()
-    if "hands free leash" in text or "hands free leashes" in text:
-        return "免手持牵引绳"
-    if "dog leash" in text:
-        return "狗牵引绳"
-    if "bluetooth speaker" in text:
-        return "蓝牙音箱"
-    if "speaker" in text:
-        return "音箱"
-    if "leash" in text:
-        return "牵引绳"
-    return ""
+    return str(title or "").strip()
+
+
+def _clean_display_title(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "调研看板"
+    internal_markers = [
+        "UI重构预览",
+        "UI 重构预览",
+        "UI重构版",
+        "UI 重构版",
+        "重构预览",
+        "预览版",
+        "重新验证",
+        "重新驗證",
+    ]
+    for marker in internal_markers:
+        text = text.replace(marker, "")
+    text = re.sub(r"[_｜|/\\-]+\s*/", " /", text)
+    text = re.sub(r"[_｜|/\\-]{2,}", "_", text)
+    text = re.sub(r"\s{2,}", " ", text)
+    text = text.strip(" _-/｜|\\")
+    return text or "调研看板"
 
 
 def _dashboard_hero(model: dict[str, Any]) -> str:
@@ -761,17 +819,29 @@ def _dashboard_hero(model: dict[str, Any]) -> str:
       <span class="title-en">{escape(str(model['title']))}</span>
       {title_cn_html}
     </h1>
-    <div class="subtitle">{escape(reason)}</div>
+    <div class="subtitle">{escape(first_fact)}</div>
     <div class="hero-meta">
       {''.join(f'<span class="badge">{escape(item)}</span>' for item in meta_badges)}
     </div>
     <div class="hero-meta" style="margin-top:14px;">
       {''.join(links)}
     </div>
-    <div class="grid-3" style="margin-top:22px;">
-      {_render_info_card("当前结论", status_value, first_fact)}
-      {_render_info_card("下一步", next_step, "这一步先做，不急着铺更多字段。")}
-      {_render_info_card("待补重点", missing_line, "先把这些补上，报告会更像成品。")}
+    <div class="summary-strip">
+      <div class="summary-item">
+        <div class="summary-label">当前结论</div>
+        <div class="summary-value">{escape(status_value)}</div>
+        <div class="summary-note">{escape(first_fact)}</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">下一步</div>
+        <div class="summary-value">{escape(next_step)}</div>
+        <div class="summary-note">先完成这个动作，再进入更细的补数和复核。</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">待补重点</div>
+        <div class="summary-value">{escape(missing_line)}</div>
+        <div class="summary-note">这些字段补齐后，结论可信度会明显提升。</div>
+      </div>
     </div>
   </div>
   <div class="panel panel-dark hero-status">
@@ -990,7 +1060,15 @@ def _dashboard_competitor_voc_section(model: dict[str, Any]) -> str:
         )
     if not table_rows:
         table_rows.append('<tr><td colspan="5" class="muted">当前没有可展示的竞品明细。</td></tr>')
-    voc_note = f"评论数 {voc_summary.get('review_count', '待填')}，ASIN 数 {voc_summary.get('asin_count', '待填')}，低分评论 {voc_summary.get('low_rating_count', '待填')}。"
+    entry_site_text = _format_count_items(voc_summary.get("entry_site_distribution", []), limit=2)
+    review_region_text = _format_count_items(voc_summary.get("review_region_distribution", []), limit=4)
+    source_note = str(voc_summary.get("source_scope_note", ""))
+    voc_note = (
+        f"评论数 {voc_summary.get('review_count', '待填')}，ASIN 数 {voc_summary.get('asin_count', '待填')}，"
+        f"低分评论 {voc_summary.get('low_rating_count', '待填')}。"
+        f"采集入口：{entry_site_text or '待填'}；评论地区：{review_region_text or '待填'}。"
+        f"{source_note}"
+    )
     scatter_points = []
     for item in scatter_items:
         price = _safe_float(item.get("price"))
@@ -1673,6 +1751,7 @@ def _build_workbook_sheets(package: dict) -> list[tuple[str, list[list[object]]]
         ("属性分布", _attribute_distribution_rows(market_structure.get("attribute_distributions", []))),
         ("属性交叉分析", _cross_analysis_rows(market_structure.get("cross_analysis", []), currency_code)),
         ("竞品池", _competitor_rows(competitors, currency_code)),
+        ("竞品深拆卡", _competitor_deep_dive_rows(package.get("competitor_deep_dive", []), currency_code)),
         ("利润测算输入", _profit_input_rows(operator_inputs, currency_code)),
         ("利润参考结果", _dict_rows(profit)),
         ("利润成本拆分", _profit_breakdown_rows(profit)),
@@ -1957,7 +2036,10 @@ def _voc_markdown_lines(voc: dict) -> list[str]:
         "## 评论 VOC",
         f"- 评论数：{summary.get('review_count', '待填')}",
         f"- ASIN 数：{summary.get('asin_count', '待填')}",
+        f"- 采集入口站点：{_format_count_items(summary.get('entry_site_distribution', []), 3) or '待填'}",
+        f"- 评论地区分布：{_format_count_items(summary.get('review_region_distribution', []), 5) or '待填'}",
         f"- 低分评论数：{summary.get('low_rating_count', '待填')}",
+        f"- 口径说明：{summary.get('source_scope_note', '站点字段仅表示采集入口。')}",
         "",
         "### 主要痛点",
     ]
@@ -1995,7 +2077,11 @@ def _voc_summary_rows(voc: dict) -> list[list[object]]:
         [
             ["评论数", summary.get("review_count")],
             ["ASIN数", summary.get("asin_count")],
-            ["站点数", summary.get("site_count")],
+            ["采集入口站点", _format_count_items(summary.get("entry_site_distribution", []), 8)],
+            ["评论地区分布", _format_count_items(summary.get("review_region_distribution", []), 12)],
+            ["主采集入口", summary.get("primary_entry_site")],
+            ["主要评论地区", summary.get("primary_review_region")],
+            ["口径说明", summary.get("source_scope_note")],
             ["低分评论数", summary.get("low_rating_count")],
             ["含图片/视频评论数", summary.get("media_review_count")],
             ["首要痛点", _first_finding_name(voc.get("pain_points", []))],
@@ -2007,7 +2093,7 @@ def _voc_summary_rows(voc: dict) -> list[list[object]]:
 
 
 def _voc_evidence_rows(evidence_rows: object) -> list[list[object]]:
-    rows: list[list[object]] = [["类型", "主题", "评论数", "等级", "评论ID", "ASIN", "站点", "评分", "日期", "证据片段", "链接"]]
+    rows: list[list[object]] = [["类型", "主题", "评论数", "等级", "评论ID", "ASIN", "采集入口站点", "评论地区", "评分", "日期", "证据片段", "链接"]]
     if isinstance(evidence_rows, list):
         for item in evidence_rows:
             if isinstance(item, dict):
@@ -2020,6 +2106,7 @@ def _voc_evidence_rows(evidence_rows: object) -> list[list[object]]:
                         item.get("review_id"),
                         item.get("asin"),
                         item.get("site"),
+                        item.get("review_region"),
                         item.get("rating"),
                         item.get("review_date"),
                         item.get("snippet"),
@@ -2027,7 +2114,7 @@ def _voc_evidence_rows(evidence_rows: object) -> list[list[object]]:
                     ]
                 )
     if len(rows) == 1:
-        rows.append(["未接入", "", "", "", "", "", "", "", "", "", ""])
+        rows.append(["未接入", "", "", "", "", "", "", "", "", "", "", ""])
     return rows
 
 
@@ -2294,6 +2381,54 @@ def _competitor_markdown_lines(competitors: dict, currency_code: str = "USD") ->
     return lines if has_any else []
 
 
+def _competitor_deep_dive_rows(cards: list, currency_code: str = "USD") -> list[list[object]]:
+    rows: list[list[object]] = [[
+        "类型", "ASIN", "品牌", "标题（截取）",
+        f"价格({currency_code})", "月销量", "评分", "评分数", "上架天数",
+        "备注", "流量词（P19待补）",
+    ]]
+    for card in (cards or []):
+        rows.append([
+            card.get("card_type", ""),
+            card.get("asin", ""),
+            card.get("brand", ""),
+            _compact_title(card.get("title"), 60),
+            card.get("price_usd"),
+            card.get("monthly_units"),
+            card.get("rating"),
+            card.get("rating_count"),
+            card.get("listing_days"),
+            card.get("note", ""),
+            "—",
+        ])
+    if len(rows) == 1:
+        rows.append(["暂无深拆卡数据"] + [""] * 10)
+    return rows
+
+
+def _competitor_deep_dive_markdown_lines(cards: list, currency_code: str = "USD") -> list[str]:
+    if not cards:
+        return []
+    lines = ["", "## 重点竞品数据", ""]
+    for card in cards:
+        asin = card.get("asin", "")
+        title = _compact_title(card.get("title"), 60)
+        card_type = card.get("card_type", "")
+        price = card.get("price_usd")
+        units = card.get("monthly_units")
+        rating = card.get("rating")
+        rating_count = card.get("rating_count")
+        listing_days = card.get("listing_days")
+        lines += [
+            f"### {card_type}：{asin}",
+            f"- 标题：{title}",
+            f"- 价格：{_format_money(price, currency_code)}　月销量：{_format_number(units)}　评分：{rating}（{_format_number(rating_count)} 条）　上架天数：{listing_days or '待补'}",
+            f"- 流量词：待 P19 Sorftime 补充",
+            "",
+        ]
+    return lines
+
+
 def _compact_title(value: object, limit: int = 72) -> str:
     text = str(value or "").strip()
     return text[:limit] + ("..." if len(text) > limit else "")
@@ -2307,6 +2442,20 @@ def _format_number(value: object) -> str:
             return str(int(value))
         return f"{value:.2f}"
     return str(value)
+
+
+def _format_count_items(items: object, limit: int = 5) -> str:
+    if not isinstance(items, list):
+        return ""
+    parts = []
+    for item in items[:limit]:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip()
+        count = item.get("count")
+        if name:
+            parts.append(f"{name} {count}" if count not in (None, "") else name)
+    return "；".join(parts)
 
 
 def _site_currency_code(site: object) -> str:
@@ -2480,12 +2629,88 @@ def _worksheet_xml(rows: list[list[object]]) -> str:
         f'<row r="{row_index}">{_cells_xml(row, row_index)}</row>'
         for row_index, row in enumerate(rows, start=1)
     )
+    column_nodes = _columns_xml(rows)
     return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  {column_nodes}
   <sheetData>
     {row_nodes}
   </sheetData>
 </worksheet>"""
+
+
+def _columns_xml(rows: list[list[object]]) -> str:
+    widths = _worksheet_column_widths(rows)
+    if not widths:
+        return ""
+    nodes = "\n".join(
+        f'<col min="{index}" max="{index}" width="{width:.1f}" customWidth="1"/>'
+        for index, width in enumerate(widths, start=1)
+    )
+    return f"<cols>\n    {nodes}\n  </cols>"
+
+
+def _worksheet_column_widths(rows: list[list[object]]) -> list[float]:
+    column_count = max((len(row) for row in rows), default=0)
+    if column_count == 0:
+        return []
+    headers = [str(rows[0][index]).strip() if index < len(rows[0]) else "" for index in range(column_count)]
+    widths: list[float] = []
+    for column_index in range(column_count):
+        header = headers[column_index]
+        values = [row[column_index] for row in rows if column_index < len(row)]
+        max_units = max((_display_width(value) for value in values), default=0)
+        min_width, max_width = _column_width_bounds(header)
+        width = max(min_width, min(max_units * 1.05 + 2, max_width))
+        widths.append(round(width, 1))
+    return widths
+
+
+def _column_width_bounds(header: str) -> tuple[float, float]:
+    key = header.strip().lower()
+    bounds = {
+        "field": (24, 32),
+        "label": (16, 24),
+        "value": (18, 28),
+        "currency": (18, 26),
+        "填写口径": (18, 30),
+        "required": (12, 18),
+        "是否必填": (12, 18),
+        "default": (18, 32),
+        "note": (52, 90),
+        "说明": (36, 90),
+        "标题": (36, 72),
+        "商品标题": (42, 80),
+        "来源": (32, 80),
+        "证据": (36, 90),
+        "下一步": (36, 90),
+    }
+    return bounds.get(key, (10, 56))
+
+
+def _display_width(value: object) -> int:
+    text = _display_value(value)
+    if not text:
+        return 0
+    return max((_line_display_width(line) for line in text.splitlines()), default=0)
+
+
+def _line_display_width(text: str) -> int:
+    width = 0
+    for char in text:
+        code = ord(char)
+        if (
+            0x1100 <= code <= 0x11FF
+            or 0x2E80 <= code <= 0xA4CF
+            or 0xAC00 <= code <= 0xD7AF
+            or 0xF900 <= code <= 0xFAFF
+            or 0xFE10 <= code <= 0xFE6F
+            or 0xFF00 <= code <= 0xFFEF
+        ):
+            width += 2
+        else:
+            width += 1
+    return width
 
 
 def _cells_xml(row: list[object], row_index: int) -> str:

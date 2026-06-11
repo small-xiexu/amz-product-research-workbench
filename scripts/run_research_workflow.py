@@ -59,6 +59,11 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Optional filled IP/compliance review template. If provided, screening results are merged before rendering final report.",
     )
+    parser.add_argument(
+        "--sorftime-verification",
+        default="",
+        help="Optional Sorftime verification JSON file. If provided, merged into candidate_pool without re-calling MCP.",
+    )
     return parser.parse_args()
 
 
@@ -75,7 +80,14 @@ def main() -> int:
     manifest_path = output_dir / "import_manifest.json"
     write_json(manifest_path, manifest)
 
-    candidate_pool = build_candidate_pool(manifest)
+    sorftime_verification: dict[str, Any] | None = None
+    if args.sorftime_verification:
+        sv_path = Path(args.sorftime_verification).expanduser().resolve()
+        if not sv_path.exists():
+            raise SystemExit(f"Sorftime verification file does not exist: {sv_path}")
+        sorftime_verification = json.loads(sv_path.read_text(encoding="utf-8"))
+
+    candidate_pool = build_candidate_pool(manifest, sorftime_verification=sorftime_verification)
     candidate_pool_path = output_dir / "candidate_pool.json"
     write_json(candidate_pool_path, candidate_pool)
 

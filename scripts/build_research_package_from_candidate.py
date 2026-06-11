@@ -115,6 +115,8 @@ def build_research_package(
             "next_step": _status_next_step(decision_review, candidate),
         },
         "decision_review": decision_review,
+        "validation_actions": {},
+        "competitor_deep_dive": _build_competitor_deep_dive(competitor_candidates),
         "report_summary": {
             "bullets": [
                 candidate.get("reason", "待补"),
@@ -165,12 +167,14 @@ def _build_review_sources(voc_package: dict[str, Any] | None) -> dict[str, Any]:
     if not voc_package:
         return {}
     metadata = voc_package.get("metadata", {})
+    summary = voc_package.get("summary", {})
     return {
         "package_id": metadata.get("package_id"),
         "source_type": metadata.get("source_type"),
         "source_files": metadata.get("source_files", []),
         "generated_at": metadata.get("generated_at"),
-        "summary": voc_package.get("summary", {}),
+        "summary": summary,
+        "collection_context": summary.get("collection_context", {}),
         "ai_report_reference": voc_package.get("ai_report_reference", {}),
     }
 
@@ -210,8 +214,10 @@ def _decision_facts(candidate: dict[str, Any], voc_package: dict[str, Any] | Non
     ]
     if voc_package:
         summary = voc_package.get("summary", {})
+        scope = _voc_scope_text(summary)
         facts.append(
             f"评论 VOC：已接入 {summary.get('review_count', 0)} 条评论，覆盖 {summary.get('asin_count', 0)} 个 ASIN，低分评论 {summary.get('low_rating_count', 0)} 条。"
+            + (f"{scope}。" if scope else "")
         )
     market_structure_summary = _market_structure_summary_line(candidate)
     if market_structure_summary:
@@ -220,32 +226,9 @@ def _decision_facts(candidate: dict[str, Any], voc_package: dict[str, Any] | Non
 
 
 def _decision_inferences(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> list[str]:
-    competition = candidate.get("competition_structure", {})
-    new_listing = candidate.get("new_listing_opportunity", {})
-    return_risk = candidate.get("return_risk", {})
-    inferences = []
-    top10_share = competition.get("top10_product_units_share")
-    if isinstance(top10_share, (int, float)) and top10_share >= 0.5:
-        inferences.append("Top10 商品销量占比较高，进入时需要明确差异化，不适合只做同款低价。")
-    top_brand_share = competition.get("top_brand_units_share")
-    if isinstance(top_brand_share, (int, float)) and top_brand_share >= 0.3:
-        inferences.append("头部品牌存在明显领先，需评估品牌壁垒和内容门槛。")
-    if new_listing.get("new_listing_count_6m"):
-        inferences.append("近半年仍有新品获得销量，说明并非完全封闭市场，但要验证新品增长是否来自广告或低价。")
-    market_return = return_risk.get("market_return_rate")
-    category_return = return_risk.get("category_return_rate")
-    if isinstance(market_return, (int, float)) and isinstance(category_return, (int, float)) and market_return > category_return:
-        inferences.append("市场退货率高于同类目平均，产品硬伤和预期落差需要前置复核。")
-    first_pain = _first_pain_name(voc_package)
-    if first_pain:
-        inferences.append(f"评论首要痛点为「{first_pain}」，改品方案必须能解释这个问题如何被缓解。")
-    market_structure = candidate.get("market_structure", {})
-    dominant_structure = market_structure.get("summary", {}).get("dominant_structure")
-    if dominant_structure:
-        inferences.append(f"商品属性结构显示：{dominant_structure}。这只是结构线索，不能单独当作进入结论。")
-    for clue in market_structure.get("summary", {}).get("opportunity_clues", [])[:2]:
-        inferences.append(f"属性交叉线索：{clue}")
-    return inferences or ["当前数据能支持继续看，但还不足以形成进入结论。"]
+    # Rule-based inference text removed. Claude reads the facts section above
+    # and provides real inferences in conversation.
+    return []
 
 
 def _decision_missing_inputs(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> list[str]:
@@ -266,18 +249,12 @@ def _decision_missing_inputs(candidate: dict[str, Any], voc_package: dict[str, A
 
 
 def _decision_action_items(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> list[str]:
-    actions = [
+    return [
         "补利润复核字段：建议售价、采购价、FBA费用、头程、入库配置费。",
         "基于 Top10 标杆组核对主卖点、价格带、图片/A+、评论门槛和变体口径。",
         "基于近半年新品组判断新品放量原因：广告、低价、功能差异还是类目自然增长。",
         "做商标/专利/合规初筛，只保留待复核结论，不写最终法律判断。",
     ]
-    first_pain = _first_pain_name(voc_package)
-    if first_pain:
-        actions.insert(2, f"把「{first_pain}」作为供应商问询和样品测试的第一优先级。")
-    if candidate.get("return_risk", {}).get("level") in ("中", "高"):
-        actions.append("结合评论痛点和卖家精灵退货率，判断退货是否来自可改问题。")
-    return actions
 
 
 def _decision_risk_matrix(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> list[dict[str, str]]:
@@ -488,8 +465,16 @@ def _fmt_percent(value: Any) -> str:
 def _build_voc_analysis(voc_package: dict[str, Any] | None) -> dict[str, Any]:
     if not voc_package:
         return {}
+    summary = voc_package.get("summary", {})
     return {
-        "summary": voc_package.get("summary", {}),
+        "summary": summary,
+        "source_scope": {
+            "entry_site": summary.get("primary_entry_site", ""),
+            "primary_review_region": summary.get("primary_review_region", ""),
+            "entry_site_distribution": summary.get("entry_site_distribution", []),
+            "review_region_distribution": summary.get("review_region_distribution", []),
+            "note": summary.get("source_scope_note", ""),
+        },
         "pain_points": _trim_findings(voc_package.get("pain_points", []), finding_limit=8, evidence_limit=5),
         "highlights": _trim_findings(voc_package.get("highlights", []), finding_limit=6, evidence_limit=5),
         "opportunity_hypotheses": voc_package.get("opportunity_hypotheses", [])[:8],
@@ -553,11 +538,11 @@ def _voc_summary_line(voc_package: dict[str, Any] | None) -> str:
     if not voc_package:
         return ""
     summary = voc_package.get("summary", {})
-    pain_points = voc_package.get("pain_points", [])
-    first_pain = pain_points[0].get("name") if pain_points else "待补"
+    scope = _voc_scope_text(summary)
     return (
         f"评论 VOC 已接入：共 {summary.get('review_count', 0)} 条评论、"
-        f"{summary.get('asin_count', 0)} 个 ASIN，首要痛点为「{first_pain}」。"
+        f"{summary.get('asin_count', 0)} 个 ASIN，低分评论 {summary.get('low_rating_count', 0)} 条。"
+        + (f"{scope}。" if scope else "")
     )
 
 
@@ -565,21 +550,74 @@ def _voc_dashboard_card(voc_package: dict[str, Any] | None) -> dict[str, Any] | 
     if not voc_package:
         return None
     summary = voc_package.get("summary", {})
-    pain_points = voc_package.get("pain_points", [])
-    highlights = voc_package.get("highlights", [])
     return {
         "title": "评论 VOC",
         "status": "已接入",
         "review_count": summary.get("review_count", 0),
-        "first_pain_point": pain_points[0].get("name") if pain_points else "待补",
-        "first_highlight": highlights[0].get("name") if highlights else "待补",
+        "entry_site": summary.get("primary_entry_site", ""),
+        "primary_review_region": summary.get("primary_review_region", ""),
+        "low_rating_count": summary.get("low_rating_count", 0),
+        "analysis_note": "痛点/亮点分析由 Claude 在对话中完成，请读取 normalized_reviews。",
     }
+
+
+def _voc_scope_text(summary: dict[str, Any]) -> str:
+    if not summary:
+        return ""
+    entry_site = summary.get("primary_entry_site")
+    review_region = summary.get("primary_review_region")
+    if entry_site and review_region:
+        return f"采集入口为「{entry_site}」，评论地区以「{review_region}」为主，入口站点不等同于目标市场"
+    if entry_site:
+        return f"采集入口为「{entry_site}」，入口站点不等同于目标市场"
+    if review_region:
+        return f"评论地区以「{review_region}」为主"
+    return ""
 
 
 def _append_sentence(base: str, sentence: str) -> str:
     if not sentence:
         return base
     return f"{base} {sentence}"
+
+
+# ── 重点竞品深拆卡 ─────────────────────────────────────────────────────────────
+
+def _build_competitor_deep_dive(competitor_candidates: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build raw competitor data cards for Claude to analyze.
+
+    No analysis text is generated here — learnable points, barriers, and
+    strategic notes are for Claude to assess in conversation.
+    """
+    cards: list[dict[str, Any]] = []
+    seen_asins: set[str] = set()
+
+    def add_card(item: dict[str, Any], card_type: str) -> None:
+        asin = str(item.get("asin") or "").strip()
+        if not asin or asin in seen_asins:
+            return
+        seen_asins.add(asin)
+        cards.append({
+            "asin": asin,
+            "card_type": card_type,
+            "title": item.get("title"),
+            "brand": item.get("brand"),
+            "price_usd": item.get("price"),
+            "monthly_units": item.get("monthly_units"),
+            "rating": item.get("rating"),
+            "rating_count": item.get("rating_count"),
+            "listing_days": item.get("listing_days"),
+            "note": item.get("note"),
+            "url": item.get("url"),
+            "traffic_keywords": [],  # P19 Sorftime 补充
+        })
+
+    for item in (competitor_candidates.get("top10") or [])[:3]:
+        add_card(item, "标杆老品")
+    for item in (competitor_candidates.get("recent_winners") or [])[:2]:
+        add_card(item, "近半年新品")
+
+    return cards
 
 
 def parse_args() -> argparse.Namespace:

@@ -17,113 +17,13 @@ if str(ROOT) not in sys.path:
 
 from packages.research_core.rules.market_structure_rules import build_market_structure_analysis
 
-try:
-    from openpyxl import load_workbook
-except ImportError as exc:  # pragma: no cover - environment guard
-    raise SystemExit("openpyxl is required to read Excel exports") from exc
-
-
-def clean_cell(value: Any) -> Any:
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return value.strip()
-    if hasattr(value, "isoformat"):
-        return value.isoformat()
-    return value
-
-
-def to_float(value: Any) -> float | None:
-    if value in (None, "", "--", "--,--"):
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    text = str(value).strip().replace(",", "").replace("$", "").replace("%", "")
-    if not text:
-        return None
-    try:
-        return float(text)
-    except ValueError:
-        return None
-
-
-def to_int(value: Any) -> int | None:
-    number = to_float(value)
-    return int(number) if number is not None else None
-
-
-def slugify(text: str) -> str:
-    lowered = text.lower()
-    slug = re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
-    return slug or "manual-export-market"
-
-
-def read_records(xlsx_path: Path, sheet_name: str, header_row: int) -> list[dict[str, Any]]:
-    workbook = load_workbook(xlsx_path, read_only=True, data_only=True)
-    worksheet = workbook[sheet_name]
-    header_values = next(worksheet.iter_rows(min_row=header_row, max_row=header_row, values_only=True))
-    headers = [str(clean_cell(value)) if clean_cell(value) not in (None, "") else "" for value in header_values]
-    records: list[dict[str, Any]] = []
-    for row in worksheet.iter_rows(min_row=header_row + 1, values_only=True):
-        values = [clean_cell(value) for value in row]
-        if not any(value not in (None, "") for value in values):
-            continue
-        record = {header: values[index] for index, header in enumerate(headers) if header}
-        records.append(record)
-    return records
-
-
-def file_entry(manifest: dict[str, Any], source_type: str) -> dict[str, Any] | None:
-    for item in manifest.get("files", []):
-        if item.get("source_type") == source_type and item.get("parse_status") == "parsed":
-            return item
-    return None
-
-
-def sheet_entry(file_item: dict[str, Any], role: str) -> dict[str, Any] | None:
-    for sheet in file_item.get("sheets", []):
-        if sheet.get("detected_role") == role:
-            return sheet
-    return None
-
-
-def load_role_records(manifest: dict[str, Any], source_type: str, role: str) -> list[dict[str, Any]]:
-    file_item = file_entry(manifest, source_type)
-    if not file_item:
-        return []
-    sheet = sheet_entry(file_item, role)
-    if not sheet:
-        return []
-    source_folder = Path(manifest["metadata"]["source_folder"])
-    xlsx_path = source_folder / file_item["relative_path"]
-    return read_records(xlsx_path, sheet["sheet_name"], int(sheet["header_row"]))
-
-
-def first_by_value(records: list[dict[str, Any]], field: str, expected: str) -> dict[str, Any]:
-    for record in records:
-        if str(record.get(field, "")).strip() == expected:
-            return record
-    return records[0] if records else {}
-
-
-def sum_top(records: list[dict[str, Any]], field: str, limit: int) -> float | None:
-    values = [to_float(record.get(field)) for record in records[:limit]]
-    values = [value for value in values if value is not None]
-    if not values:
-        return None
-    return sum(values)
-
-
-def top_record(records: list[dict[str, Any]], field: str) -> dict[str, Any]:
-    best: dict[str, Any] = {}
-    best_value = float("-inf")
-    for record in records:
-        value = to_float(record.get(field))
-        if value is not None and value > best_value:
-            best = record
-            best_value = value
-    return best
-
+from packages.research_core.ingestion.seller_sprite_reader import (
+    clean_cell, to_float, to_int, slugify, contains_chinese, display_keyword,
+    clean_task_name, derive_market_name, read_records,
+    file_entry, file_entries, sheet_entry, sheet_entries, load_role_records,
+    first_by_value, best_by_value, first_by_source_and_value,
+    sum_top, top_record, top_records,
+)
 
 def product_from_concentration(record: dict[str, Any], note: str = "") -> dict[str, Any]:
     return {
@@ -196,6 +96,30 @@ def top_products_from_search_results(search_records: list[dict[str, Any]]) -> li
     return result
 
 
+def search_result_quality(search_records: list[dict[str, Any]]) -> dict[str, Any]:
+    asin_values = [str(record.get("ASIN") or "").strip() for record in search_records if str(record.get("ASIN") or "").strip()]
+    duplicates = sorted({asin for asin in asin_values if asin_values.count(asin) > 1})
+    source_files = sorted({str(record.get("__source_file") or "") for record in search_records if record.get("__source_file")})
+    row_count = len(search_records)
+    unique_count = len(set(asin_values))
+    notes: list[str] = []
+    if row_count > unique_count:
+        notes.append(f"搜索结果共有 {row_count} 行展示记录，去重后 {unique_count} 个唯一 ASIN。集中度和候选池按唯一 ASIN 看。")
+    else:
+        notes.append(f"搜索结果共有 {row_count} 行，唯一 ASIN {unique_count} 个。")
+    if len(source_files) > 1:
+        notes.append(f"当前合并了 {len(source_files)} 个搜索结果文件，适合看候选池并集，但需注意不同关键词混池。")
+    return {
+        "display_row_count": row_count,
+        "unique_asin_count": unique_count,
+        "duplicate_asin_count": len(duplicates),
+        "duplicate_asin_examples": duplicates[:20],
+        "source_file_count": len(source_files),
+        "source_files": source_files,
+        "notes": notes,
+    }
+
+
 def recent_winners(search_records: list[dict[str, Any]], limit: int = 10) -> list[dict[str, Any]]:
     recent = [
         record
@@ -245,10 +169,257 @@ def structure_supplements(search_records: list[dict[str, Any]], limit: int = 8) 
     return result
 
 
+def keyword_intent(keyword: str, seed_keywords: list[str] | None = None) -> str:
+    text = keyword.lower()
+    if seed_keywords:
+        for seed in seed_keywords:
+            if any(word in text for word in seed.lower().split() if len(word) > 2):
+                return "目标相关"
+    return "待判断"
+
+
+def aba_keyword_row(record: dict[str, Any], seed_keywords: list[str] | None = None) -> dict[str, Any]:
+    keyword = str(record.get("关键词") or record.get("搜索词") or "").strip()
+    return {
+        "keyword": keyword,
+        "translation": record.get("关键词翻译"),
+        "monthly_searches": to_int(record.get("月搜索量")),
+        "current_rank": to_int(record.get("现排名")),
+        "ppc_usd": to_float(record.get("PPC价格")),
+        "impressions": to_int(record.get("展示量")),
+        "clicks": to_int(record.get("点击量")),
+        "spr": to_int(record.get("SPR")),
+        "intent": keyword_intent(keyword, seed_keywords),
+        "source_file": record.get("__source_file"),
+    }
+
+
+def build_aba_keyword_signal(aba_trends: list[dict[str, Any]], seed_keyword: str = "") -> dict[str, Any]:
+    seed_keywords = [w.strip() for w in seed_keyword.split() if len(w.strip()) > 2] if seed_keyword else []
+    rows = [aba_keyword_row(record, seed_keywords) for record in top_records(aba_trends, "月搜索量", 30) if record.get("关键词")]
+    target_rows = [row for row in rows if row["intent"] == "目标相关"]
+
+    top = rows[0] if rows else {}
+    top_target = target_rows[0] if target_rows else {}
+    signal = "ABA 数据待补"
+    if top:
+        signal = f"ABA 最高搜索词「{top['keyword']}」月搜索量 {_plain_number(top.get('monthly_searches'))}"
+        if top_target and top_target.get("keyword") != top.get("keyword"):
+            signal += f"；目标相关词「{top_target['keyword']}」月搜索量 {_plain_number(top_target.get('monthly_searches'))}"
+
+    return {
+        "top_keywords": rows[:8],
+        "target_keywords": target_rows[:6],
+        "mixed_keywords": [],
+        "signal": signal,
+    }
+
+
+def _plain_number(value: Any) -> str:
+    number = to_float(value)
+    if number is None:
+        return "待补"
+    return f"{number:,.0f}"
+
+
+def product_identity(item: dict[str, Any]) -> str:
+    return str(item.get("asin") or item.get("ASIN") or "").strip()
+
+
+def product_for_review_batch(product: dict[str, Any], reason: str) -> dict[str, Any]:
+    return {
+        "asin": product.get("asin"),
+        "brand": product.get("brand"),
+        "title": product.get("title"),
+        "price_usd": product.get("price"),
+        "monthly_units": product.get("monthly_units"),
+        "rating": product.get("rating"),
+        "rating_count": product.get("rating_count"),
+        "reason": reason,
+    }
+
+
+def build_review_voc_asin_batch(
+    product_concentration: list[dict[str, Any]],
+    search_records: list[dict[str, Any]],
+    limit: int = 16,
+) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    candidates.extend(product_for_review_batch(item, "Top10 标杆") for item in top_products(product_concentration, limit=10))
+    candidates.extend(product_for_review_batch(item, "近半年新品") for item in recent_winners(search_records, limit=6))
+    candidates.extend(product_for_review_batch(item, item.get("note") or "结构样本") for item in structure_supplements(search_records, limit=8))
+
+    low_rating_records = [
+        product_from_search_result(record, "低评分/争议样本")
+        for record in search_records
+        if record.get("ASIN")
+        and (to_float(record.get("评分")) or 5) < 4.2
+        and (to_int(record.get("评分数")) or 0) >= 20
+    ]
+    low_rating_records.sort(key=lambda item: (item.get("rating") or 5, -(item.get("monthly_units") or 0)))
+    candidates.extend(product_for_review_batch(item, "低评分/争议样本") for item in low_rating_records[:6])
+
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in candidates:
+        asin = product_identity(item)
+        if not asin or asin in seen:
+            continue
+        seen.add(asin)
+        result.append(item)
+        if len(result) >= limit:
+            break
+    return result
+
+
+def build_candidate_boundary_review(market_name: str, seed_keyword: str, aba_keyword_signal: dict[str, Any]) -> dict[str, Any]:
+    mainline = market_name or seed_keyword or "当前候选方向"
+    keep_as_reference = ["与当前主线形态一致的关联场景和旁支品"]
+    exclude_first = ["与主线产品形态明显不符的低价配件或独立耗材"]
+    questions = [
+        f"主线是否按「{mainline}」继续看？",
+        "哪些旁支场景只保留参考，哪些要直接排除？",
+        "是否同意用下方建议 VOC ASIN 批次进入评论插件采集？",
+    ]
+    return {
+        "checkpoint": "候选池预审后 / 评论 VOC 前",
+        "recommended_mainline": mainline,
+        "keep_as_reference": keep_as_reference,
+        "exclude_first": exclude_first,
+        "questions": questions,
+        "default_if_no_change": "如运营不调整，系统按推荐主线重筛 VOC ASIN 批次。",
+    }
+
+
+def direction_key_from_text(text: str) -> str:
+    return "mainline"
+
+
+def direction_meta(market_name: str, seed_keyword: str) -> dict[str, str]:
+    return {
+        "name": market_name or seed_keyword or "当前主线方向",
+        "role": "推荐主线",
+        "status": "继续看",
+        "product_form": "根据当前导出数据归入主线，后续需要人工确认产品形态。",
+        "default_risk": "当前分类规则为通用规则，需靠真实标题、类目和运营判断进一步拆分。",
+        "recommendation": "先继续看，待补人工产品形态标签。",
+    }
+
+
+def unique_products_from_search_records(search_records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    products = top_products_from_search_results(search_records)
+    return sorted(products, key=lambda item: item.get("monthly_units") or 0, reverse=True)
+
+
+def build_direction_cards(
+    market_name: str,
+    seed_keyword: str,
+    search_records: list[dict[str, Any]],
+    aba_keyword_signal: dict[str, Any],
+) -> list[dict[str, Any]]:
+    grouped_products: dict[str, list[dict[str, Any]]] = {}
+    for product in unique_products_from_search_records(search_records):
+        text = " ".join(str(product.get(field) or "") for field in ("title", "brand", "category"))
+        key = direction_key_from_text(text)
+        grouped_products.setdefault(key, []).append(product)
+
+    grouped_keywords: dict[str, list[dict[str, Any]]] = {}
+    for item in aba_keyword_signal.get("top_keywords", []) + aba_keyword_signal.get("mixed_keywords", []):
+        if not isinstance(item, dict):
+            continue
+        keyword = str(item.get("keyword") or "")
+        key = direction_key_from_text(keyword)
+        grouped_keywords.setdefault(key, []).append(item)
+
+    keys = sorted(
+        set(grouped_products) | set(grouped_keywords),
+        key=lambda key: (
+            {"优先深挖": 0, "继续看": 1, "保留参考": 2, "谨慎参考": 3, "先排除": 4}.get(
+                direction_meta(market_name, seed_keyword)["status"],
+                9,
+            ),
+            -sum(product.get("monthly_units") or 0 for product in grouped_products.get(key, [])),
+        ),
+    )
+    cards: list[dict[str, Any]] = []
+    for key in keys:
+        products = grouped_products.get(key, [])
+        keywords = grouped_keywords.get(key, [])
+        meta = direction_meta(market_name, seed_keyword)
+        total_units = sum(product.get("monthly_units") or 0 for product in products)
+        avg_price = avg_number(product.get("price") for product in products)
+        top_products_for_card = products[:5]
+        evidence = [
+            f"唯一商品数：{len(products)}" if products else "商品样本待补",
+            f"合计月销量：{_plain_number(total_units)}" if products else "",
+            f"均价：USD {_plain_number(avg_price)}" if avg_price is not None else "",
+        ]
+        if keywords:
+            evidence.append(
+                "关联关键词：" + "；".join(
+                    f"{item.get('keyword')}（月搜 {_plain_number(item.get('monthly_searches'))}）"
+                    for item in keywords[:4]
+                    if item.get("keyword")
+                )
+            )
+        if top_products_for_card:
+            evidence.append(
+                "代表 ASIN：" + "；".join(
+                    f"{item.get('asin')} / {item.get('brand') or '未知品牌'} / 月销 {_plain_number(item.get('monthly_units'))}"
+                    for item in top_products_for_card[:3]
+                    if item.get("asin")
+                )
+            )
+        risks = [meta["default_risk"]]
+        if products and len(products) < 5:
+            risks.append("样本数偏少，只能作为线索，不能单独形成方向结论。")
+        cards.append(
+            {
+                "direction_id": key,
+                "name": meta["name"],
+                "role": meta["role"],
+                "status": meta["status"],
+                "product_form": meta["product_form"],
+                "matched_keywords": keywords[:8],
+                "product_count": len(products),
+                "total_monthly_units": total_units,
+                "avg_price_usd": avg_price,
+                "representative_products": [
+                    {
+                        "asin": item.get("asin"),
+                        "brand": item.get("brand"),
+                        "title": item.get("title"),
+                        "price_usd": item.get("price"),
+                        "monthly_units": item.get("monthly_units"),
+                        "rating": item.get("rating"),
+                        "rating_count": item.get("rating_count"),
+                    }
+                    for item in top_products_for_card
+                ],
+                "evidence": [item for item in evidence if item],
+                "risks": risks,
+                "ai_recommendation": meta["recommendation"],
+                "operator_options": ["选择此方向深挖", "保留为旁支参考", "排除该方向", "让 AI 按证据默认选择"],
+                "next_action": "若选择该方向，下一步按代表 ASIN 抓评论 VOC，并补利润/合规复核。"
+                if meta["status"] in {"优先深挖", "继续看", "保留参考", "谨慎参考"}
+                else "本轮先不深挖，仅作为混池/排除依据记录。",
+            }
+        )
+    return cards[:6]
+
+
+def avg_number(values: Any) -> float | None:
+    numbers = [to_float(value) for value in values]
+    numbers = [value for value in numbers if value is not None]
+    if not numbers:
+        return None
+    return round(sum(numbers) / len(numbers), 2)
+
+
 def extract_seed_keyword(manifest: dict[str, Any]) -> str:
     search_file = file_entry(manifest, "seller_sprite_search_results")
     if search_file:
-        match = re.search(r"Search\\((.*?)\\)", search_file.get("file_name", ""))
+        match = re.search(r"Search\((.*?)\)", search_file.get("file_name", ""))
         if match:
             return match.group(1).replace("-", " ")
     aba_records = load_role_records(manifest, "amazon_aba_keywords", "aba_keywords")
@@ -268,10 +439,8 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
     search_records = load_role_records(manifest, "seller_sprite_search_results", "product_candidates")
     reverse_keywords = load_role_records(manifest, "seller_sprite_reverse_asin_keywords", "reverse_asin_keywords")
     aba_keywords = load_role_records(manifest, "amazon_aba_keywords", "aba_keywords")
+    aba_keyword_trends = load_role_records(manifest, "amazon_aba_keywords", "aba_keyword_trend")
 
-    all_products = first_by_value(overview_records, "样品分类", "全部商品")
-    top10 = first_by_value(overview_records, "样品分类", "前10商品")
-    new_products = first_by_value(overview_records, "样品分类", "6个月内上架")
     demand_12m = first_by_value(demand_signal, "范围", "12个月")
     top_brand = brand_concentration[0] if brand_concentration else {}
     top_product = product_concentration[0] if product_concentration else {}
@@ -281,15 +450,23 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
     top_keyword = top_record(reverse_keywords, "月搜索量") if reverse_keywords else {}
     top_aba = aba_keywords[0] if aba_keywords else {}
     seed_keyword = extract_seed_keyword(manifest)
-    market_name = "Hands Free Leashes"
+    aba_keyword_signal = build_aba_keyword_signal(aba_keyword_trends, seed_keyword)
+    market_name = derive_market_name(manifest, seed_keyword)
     candidate_id = "cand-" + slugify(seed_keyword or market_name)
+    all_products = best_by_value(overview_records, "样品分类", "全部商品", "月均销售额($)")
+    primary_market_source = all_products.get("__source_file")
+    top10 = first_by_source_and_value(overview_records, primary_market_source, "样品分类", "前10商品")
+    new_products = first_by_source_and_value(overview_records, primary_market_source, "样品分类", "6个月内上架")
     market_return_rate = to_float(demand_12m.get("市场退货率"))
     category_return_rate = to_float(demand_12m.get("同类目退货率"))
     return_level = "待确认"
     if market_return_rate is not None and category_return_rate is not None:
         return_level = "中" if market_return_rate > category_return_rate else "低"
     top_product_rows = top_products_from_search_results(search_records)
+    search_quality = search_result_quality(search_records)
     market_structure = build_market_structure_analysis(top_product_rows, expected_count=100)
+    boundary_review = build_candidate_boundary_review(market_name, seed_keyword, aba_keyword_signal)
+    direction_cards = build_direction_cards(market_name, seed_keyword, search_records, aba_keyword_signal)
 
     source_refs = [
         f"manual_export:{item['file_name']}"
@@ -302,7 +479,7 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
         "name": market_name,
         "candidate_type": "market_direction",
         "status": "继续看",
-        "reason": "卖家精灵手动导出数据已覆盖市场分析、搜索结果、关键词反查和 ABA，具备进入候选池初筛的基础证据。",
+        "reason": "卖家精灵手动导出数据已覆盖市场分析、搜索结果和关键词反查，具备进入候选池初筛的基础证据。",
         "appearance_reason": [
             f"搜索入口：{seed_keyword}" if seed_keyword else "来自卖家精灵手动导出样例",
             f"市场样本商品数：{to_int(all_products.get('样本商品数'))}" if all_products else "市场样本数据待补",
@@ -316,6 +493,7 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
             "top_keyword_monthly_searches": to_int(top_keyword.get("月搜索量")),
             "aba_top_search_term": top_aba.get("搜索词"),
             "aba_top_clicked_asin": top_aba.get("点击量最高的商品 #1：ASIN"),
+            "aba_keyword_signal": aba_keyword_signal,
         },
         "competition_structure": {
             "sample_product_count": to_int(all_products.get("样本商品数")),
@@ -329,6 +507,8 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
             "top_seller_location": top_location.get("卖家所属地"),
             "top_seller_location_units_share": to_float(top_location.get("销量占比")),
             "search_result_rows": len(search_records),
+            "search_result_unique_asins": search_quality.get("unique_asin_count"),
+            "search_result_duplicate_asins": search_quality.get("duplicate_asin_count"),
         },
         "competitor_candidates": {
             "top10": top_products(product_concentration),
@@ -336,6 +516,9 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
             "structure_supplement": structure_supplements(search_records),
         },
         "top_products": top_product_rows,
+        "direction_cards": direction_cards,
+        "next_review_voc_asins": build_review_voc_asin_batch(product_concentration, search_records),
+        "candidate_boundary_review": boundary_review,
         "market_structure": market_structure,
         "new_listing_opportunity": {
             "new_listing_count_6m": to_int(new_products.get("样本商品数")),
@@ -352,7 +535,7 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
         },
         "risk_flags": [
             "市场退货率高于同类目平均" if return_level == "中" else "退货率暂未高于同类目平均",
-            "宠物牵引绳涉及拉力、耐磨、扣具安全，需后续结合评论和合规/责任风险复核。",
+            "当前品类仍需后续结合评论、结构/外观专利、材质安全和使用场景责任风险复核。",
         ],
         "return_risk": {
             "level": return_level,
@@ -362,12 +545,14 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
         },
         "ip_compliance_risk": {
             "level": "待确认",
-            "notes": "需后续检查商标、外观/结构专利、宠物用品安全和材质宣称风险。",
+            "notes": "需后续检查商标、外观/结构专利、材质安全、目标站点合规要求和功能宣称风险。",
         },
         "data_quality": {
             "source": "manual_export",
             "source_types": manifest.get("data_quality", {}).get("available_source_types", []),
             "missing_source_types": manifest.get("data_quality", {}).get("missing_source_types", []),
+            "manifest_warnings": manifest.get("data_quality", {}).get("warnings", []),
+            "search_result_quality": search_quality,
             "top_product_quality": market_structure.get("data_quality", {}),
         },
         "missing_data": [
@@ -378,22 +563,27 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
             "评论/VOC证据",
             "商标/专利复核",
         ],
-        "next_step": "基于商品集中度表提取 Top10 标杆组、近半年新品组和结构补充组，再进入重点候选深挖。",
+        "next_step": "先看报表后多方向候选卡，确认主线/旁支/排除项，再按选定方向抓评论 VOC。",
         "source_refs": source_refs,
     }
 
 
-def build_candidate_pool(manifest: dict[str, Any]) -> dict[str, Any]:
+def build_candidate_pool(manifest: dict[str, Any], sorftime_verification: dict[str, Any] | None = None) -> dict[str, Any]:
     candidate = build_candidate(manifest)
+    if sorftime_verification:
+        candidate["sorftime_verification"] = sorftime_verification
+    pool_metadata: dict[str, Any] = {
+        "pool_id": "pool-manual-export-" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
+        "site": manifest.get("metadata", {}).get("site") or "US",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "discovery_mode": "manual_export" if not sorftime_verification else "mixed",
+        "data_sources": manifest.get("data_quality", {}).get("available_source_types", []),
+        "import_manifest": manifest.get("metadata", {}).get("manifest_id"),
+    }
+    if sorftime_verification:
+        pool_metadata["sorftime_verified_at"] = sorftime_verification.get("verified_at", "")
     return {
-        "metadata": {
-            "pool_id": "pool-manual-export-" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
-            "site": manifest.get("metadata", {}).get("site") or "US",
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "discovery_mode": "manual_export",
-            "data_sources": manifest.get("data_quality", {}).get("available_source_types", []),
-            "import_manifest": manifest.get("metadata", {}).get("manifest_id"),
-        },
+        "metadata": pool_metadata,
         "source_brief": {
             "brief_id": "brief-from-manual-export",
             "site": manifest.get("metadata", {}).get("site") or "US",

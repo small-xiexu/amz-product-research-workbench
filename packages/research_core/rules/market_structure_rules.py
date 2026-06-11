@@ -83,6 +83,8 @@ def build_data_quality(products: list[dict[str, Any]], expected_count: int) -> d
     warnings = []
     if total < expected_count:
         warnings.append(f"商品明细只有 {total} 条，少于正式深挖要求的 Top{expected_count}，当前只能做基础结构分析。")
+    if expected_count and total > expected_count:
+        warnings.append(f"商品明细 {total} 条超过 Top{expected_count}，通常来自多关键词合并；统计应按去重商品池口径解释。")
     if duplicate_asins:
         warnings.append(f"存在重复 ASIN {len(duplicate_asins)} 个，需要确认是否为导出重复。")
     if duplicate_parent_asins:
@@ -96,7 +98,7 @@ def build_data_quality(products: list[dict[str, Any]], expected_count: int) -> d
     return {
         "expected_count": expected_count,
         "actual_count": total,
-        "completeness_rate": safe_rate(total, expected_count),
+        "completeness_rate": min(safe_rate(total, expected_count), 1),
         "unique_asin_count": len(set(asin_values)),
         "duplicate_asins": duplicate_asins[:20],
         "duplicate_parent_asins": duplicate_parent_asins[:20],
@@ -105,7 +107,7 @@ def build_data_quality(products: list[dict[str, Any]], expected_count: int) -> d
         "warnings": warnings,
         "quality_score": completeness_score,
         "level": quality_level(completeness_score),
-        "next_check": "补全 Top100 明细，并让运营确认多变体和混池口径。" if total < expected_count else "抽查标签和异常值后再进入强结论。",
+        "next_check": "补全 Top100 明细，并让运营确认多变体和混池口径。" if total < expected_count else "抽查标签、重复 ASIN、混池词和异常值后再进入强结论。",
     }
 
 
@@ -292,7 +294,11 @@ def attribute_definitions() -> list[dict[str, str]]:
         {"dimension": "listing_age_band", "label": "上架时间", "rule": "近半年、半年-2年、2年以上"},
         {"dimension": "monthly_units_band", "label": "销量层级", "rule": "0、1-100、101-500、501-1000、1000+"},
         {"dimension": "variant_band", "label": "变体复杂度", "rule": "无/少变体、中变体、多变体"},
-        {"dimension": "product_route", "label": "产品路线", "rule": "按标题和卖点保守识别：双狗、腰包、缓冲、防拉断、反光、车载等"},
+        {
+            "dimension": "product_route",
+            "label": "产品路线",
+            "rule": "按标题和卖点识别通用结构特征：套装/组合、可伸缩/长杆、替换件/耗材、便携/迷你、专业/重型等。",
+        },
     ]
 
 
@@ -387,37 +393,47 @@ def yes_no_tag(value: Any) -> str:
 
 def product_route(text: str) -> str:
     routes = []
-    if any(token in text for token in ["double dog", "two dogs", "2 dogs", "dual leash"]):
-        routes.append("双狗牵引")
-    if any(token in text for token in ["pouch", "bag", "pocket", "zipper"]):
-        routes.append("带腰包/收纳")
-    if any(token in text for token in ["bungee", "shock", "absorber", "elastic"]):
-        routes.append("缓冲弹力")
-    if any(token in text for token in ["reflective", "reflector"]):
-        routes.append("反光安全")
-    if any(token in text for token in ["heavy duty", "anti-break", "durable", "strong"]):
-        routes.append("防断裂/重型")
-    if any(token in text for token in ["car", "seat belt", "vehicle"]):
-        routes.append("车载/安全带")
+    if any(token in text for token in ["2 in 1", "3 in 1", "two in one", "three in one", "combo", "bundle", "set", "kit", "pack"]):
+        routes.append("套装/组合")
+    if any(token in text for token in ["extendable", "telescopic", "extension pole", "long handle", "pole"]):
+        routes.append("可伸缩/长杆")
+    if any(token in text for token in ["replacement", "refill", "extra", "spare", "compatible"]):
+        routes.append("替换件/耗材")
+    if any(token in text for token in ["portable", "compact", "mini", "travel", "foldable", "folding"]):
+        routes.append("便携/折叠")
+    if any(token in text for token in ["heavy duty", "professional", "commercial", "industrial"]):
+        routes.append("专业/重型")
     if not routes:
-        return "基础免手持牵引"
+        return "待确认"
     return "+".join(routes[:3])
 
 
 def feature_tags(text: str) -> list[str]:
     tags = []
     for token, label in [
-        ("pouch", "腰包/收纳"),
-        ("pocket", "腰包/收纳"),
-        ("bungee", "缓冲"),
-        ("shock", "缓冲"),
-        ("reflective", "反光"),
-        ("heavy duty", "重型"),
-        ("anti-break", "防断裂"),
-        ("dual handle", "双手柄"),
-        ("double dog", "双狗"),
-        ("two dogs", "双狗"),
-        ("car", "车载"),
+        ("extendable", "可伸缩/长杆"),
+        ("telescopic", "可伸缩/长杆"),
+        ("extension pole", "可伸缩/长杆"),
+        ("long handle", "可伸缩/长杆"),
+        ("2 in 1", "多功能组合"),
+        ("3 in 1", "多功能组合"),
+        ("combo", "多功能组合"),
+        ("bundle", "套装"),
+        ("kit", "套装"),
+        ("set", "套装"),
+        ("replacement", "替换件/耗材"),
+        ("refill", "替换件/耗材"),
+        ("portable", "便携"),
+        ("compact", "便携"),
+        ("foldable", "折叠"),
+        ("folding", "折叠"),
+        ("heavy duty", "专业/重型"),
+        ("professional", "专业/重型"),
+        ("reflective", "反光/安全"),
+        ("waterproof", "防水"),
+        ("rechargeable", "可充电"),
+        ("wireless", "无线"),
+        ("adjustable", "可调节"),
     ]:
         if token in text and label not in tags:
             tags.append(label)
@@ -435,7 +451,7 @@ def tag_confidence(product: dict[str, Any], tags: dict[str, Any]) -> str:
 
 def tag_notes(product: dict[str, Any], tags: dict[str, Any]) -> list[str]:
     notes = []
-    if tags.get("product_route") == "基础免手持牵引":
+    if tags.get("product_route") == "待确认":
         notes.append("产品路线仅按标题/卖点弱识别，需人工抽查。")
     if compact_text(product.get("parent_asin")):
         notes.append("存在父 ASIN，需注意多变体口径。")
