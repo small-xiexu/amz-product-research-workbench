@@ -233,7 +233,7 @@ def update_decision_review(decision: dict[str, Any], review: dict[str, Any]) -> 
             missing_inputs.append(item)
     facts = list(updated.get("facts", []))
     if not missing and not pending:
-        facts.append(f"知产/合规初筛：整体风险 {review.get('overall_level')}，{review.get('next_step')}")
+        facts.append(f"知产/合规初筛：整体风险 {review.get('overall_level')}")
     action_items = replace_ip_compliance_action(updated.get("action_items", []), review)
     updated["facts"] = facts
     updated["missing_inputs"] = missing_inputs
@@ -243,8 +243,8 @@ def update_decision_review(decision: dict[str, Any], review: dict[str, Any]) -> 
 
 
 def replace_ip_compliance_action(action_items: list[str], review: dict[str, Any]) -> list[str]:
-    filtered = [item for item in action_items if "商标" not in item and "专利" not in item and "合规" not in item and "知产" not in item]
-    return [review.get("next_step", "继续补充知产/合规初筛证据。")] + filtered
+    # Action items are Claude's work. Return only non-IP filtered items.
+    return [item for item in action_items if "商标" not in item and "专利" not in item and "合规" not in item and "知产" not in item]
 
 
 def update_risk_matrix(risks: list[dict[str, Any]], review: dict[str, Any]) -> list[dict[str, Any]]:
@@ -281,14 +281,8 @@ def update_status_card(status: dict[str, Any], review: dict[str, Any]) -> dict[s
 
 
 def next_step_for(level: str, missing: list[str], pending: list[str]) -> str:
-    if missing:
-        return "补齐知产/合规初筛字段：" + "、".join(missing)
-    if level in {"强风险", "高"}:
-        suffix = "；同时复核待确认项：" + "、".join(pending) if pending else ""
-        return RISK_ACTION.get(level, "先暂停推进并人工复核。") + suffix
-    if pending:
-        return "继续复核待确认项：" + "、".join(pending)
-    return RISK_ACTION.get(level, "继续保留人工复核。")
+    # Next step recommendation is Claude's work, not a hardcoded rule.
+    return ""
 
 
 def max_level(levels: list[str]) -> str:

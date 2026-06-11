@@ -107,7 +107,6 @@ def build_data_quality(products: list[dict[str, Any]], expected_count: int) -> d
         "warnings": warnings,
         "quality_score": completeness_score,
         "level": quality_level(completeness_score),
-        "next_check": "补全 Top100 明细，并让运营确认多变体和混池口径。" if total < expected_count else "抽查标签、重复 ASIN、混池词和异常值后再进入强结论。",
     }
 
 
