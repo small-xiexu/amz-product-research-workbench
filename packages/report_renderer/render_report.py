@@ -1752,6 +1752,8 @@ def _build_workbook_sheets(package: dict) -> list[tuple[str, list[list[object]]]
         ("属性交叉分析", _cross_analysis_rows(market_structure.get("cross_analysis", []), currency_code)),
         ("竞品池", _competitor_rows(competitors, currency_code)),
         ("竞品深拆卡", _competitor_deep_dive_rows(package.get("competitor_deep_dive", []), currency_code)),
+        ("进入壁垒", _entry_barriers_rows(package.get("entry_barriers", []))),
+        ("Go_No-Go评分卡", _go_nogo_scorecard_rows(package.get("decision_review", {}).get("go_nogo_scorecard", {}) if isinstance(package.get("decision_review"), dict) else {})),
         ("利润测算输入", _profit_input_rows(operator_inputs, currency_code)),
         ("利润参考结果", _dict_rows(profit)),
         ("利润成本拆分", _profit_breakdown_rows(profit)),
@@ -2732,6 +2734,45 @@ def _column_letter(index: int) -> str:
         index, remainder = divmod(index - 1, 26)
         letters = chr(65 + remainder) + letters
     return letters
+
+
+def _entry_barriers_rows(barriers: list[dict]) -> list[list[object]]:
+    rows: list[list[object]] = [["壁垒类型", "等级", "数据依据", "判断规则", "建议"]]
+    if not barriers:
+        rows.append(["未生成", "", "", "", ""])
+        return rows
+    for item in barriers:
+        rows.append([
+            item.get("type"),
+            item.get("level"),
+            item.get("data_basis"),
+            item.get("rule"),
+            item.get("suggestion"),
+        ])
+    return rows
+
+
+def _go_nogo_scorecard_rows(scorecard: dict) -> list[list[object]]:
+    rows: list[list[object]] = [["维度", "得分（满分10）", "权重", "加权得分", "依据"]]
+    if not scorecard:
+        rows.append(["未生成", "", "", "", ""])
+        return rows
+    dimensions = scorecard.get("dimensions", {})
+    for dim_name, dim_data in dimensions.items():
+        score = dim_data.get("score", 0)
+        weight = dim_data.get("weight", 0)
+        rows.append([
+            dim_name,
+            score,
+            f"{weight * 100:.0f}%",
+            round(score * weight, 2),
+            dim_data.get("note", ""),
+        ])
+    rows.append([])
+    rows.append(["加权总分", scorecard.get("weighted_score", ""), "", "", ""])
+    rows.append(["决策结论", scorecard.get("decision", ""), "", "", ""])
+    rows.append(["说明", scorecard.get("note", ""), "", "", ""])
+    return rows
 
 
 def _safe_sheet_name(name: str) -> str:

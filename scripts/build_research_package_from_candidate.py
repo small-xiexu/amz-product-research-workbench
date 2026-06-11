@@ -30,7 +30,9 @@ def build_research_package(
     voc_review_sources = _build_review_sources(voc_package)
     voc_opportunities = _build_voc_opportunities(voc_package, candidate.get("candidate_id"))
     voc_summary_line = _voc_summary_line(voc_package)
-    decision_review = _build_decision_review(candidate, voc_package)
+    entry_barriers = _build_entry_barriers(candidate)
+    go_nogo_scorecard = _build_go_nogo_scorecard(candidate, entry_barriers, voc_package)
+    decision_review = _build_decision_review(candidate, voc_package, go_nogo_scorecard)
 
     package = {
         "metadata": {
@@ -116,6 +118,7 @@ def build_research_package(
         },
         "decision_review": decision_review,
         "validation_actions": {},
+        "entry_barriers": entry_barriers,
         "competitor_deep_dive": _build_competitor_deep_dive(competitor_candidates),
         "report_summary": {
             "bullets": [
@@ -144,6 +147,275 @@ def build_research_package(
     if not voc_package:
         package["dashboard_views"]["cards"] = [card for card in package["dashboard_views"]["cards"] if card]
     return package
+
+
+def _build_entry_barriers(candidate: dict[str, Any]) -> list[dict[str, Any]]:
+    competition = candidate.get("competition_structure", {})
+    return_risk = candidate.get("return_risk", {})
+    ip_risk = candidate.get("ip_compliance_risk", {})
+    new_listing = candidate.get("new_listing_opportunity", {})
+
+    top10_avg_review = None
+    top10 = candidate.get("competitor_candidates", {}).get("top10", [])
+    if top10:
+        review_counts = [item.get("rating_count") for item in top10 if isinstance(item.get("rating_count"), (int, float))]
+        if review_counts:
+            top10_avg_review = sum(review_counts) / len(review_counts)
+
+    top_brand_share = competition.get("top_brand_units_share")
+    if isinstance(top_brand_share, float) and top_brand_share <= 1:
+        brand_share_pct = top_brand_share * 100
+    elif isinstance(top_brand_share, (int, float)):
+        brand_share_pct = float(top_brand_share)
+    else:
+        brand_share_pct = None
+
+    ip_level = str(ip_risk.get("level", "待确认"))
+    return_level = str(return_risk.get("level", "待确认"))
+
+    def review_barrier_level(avg: float | None) -> str:
+        if avg is None:
+            return "待确认"
+        return "高" if avg > 2000 else ("中" if avg >= 500 else "低")
+
+    def brand_barrier_level(share_pct: float | None) -> str:
+        if share_pct is None:
+            return "待确认"
+        return "高" if share_pct > 40 else ("中" if share_pct >= 20 else "低")
+
+    barriers = [
+        {
+            "type": "Review门槛",
+            "level": review_barrier_level(top10_avg_review),
+            "data_basis": f"Top10平均评分数 {round(top10_avg_review) if top10_avg_review else '待补'}",
+            "rule": ">2000=高，500-2000=中，<500=低",
+        },
+        {
+            "type": "资金壁垒",
+            "level": "待补",
+            "data_basis": "首批备货 + FBA + 头程估算待运营填写利润模板后计算",
+            "rule": "依赖运营填写利润复核模板",
+        },
+        {
+            "type": "技术壁垒",
+            "level": "待确认" if "待确认" in ip_level else ("高" if "高" in ip_level else "低"),
+            "data_basis": f"知产/合规初筛状态：{ip_level}",
+            "rule": "有认证要求=高，无=低",
+        },
+        {
+            "type": "合规壁垒",
+            "level": "待确认" if "待确认" in ip_level else ("高" if "高" in ip_level else "低"),
+            "data_basis": f"知产/合规初筛状态：{ip_level}。强认证（UL/FCC/CE等）判为高。",
+            "rule": "有强认证=高，无=低",
+        },
+        {
+            "type": "供应链壁垒",
+            "level": "中" if return_level in ("中", "高") else "低",
+            "data_basis": f"退货风险等级：{return_level}",
+            "rule": "定制件/强季节/高退货=高，通用白牌=低",
+        },
+        {
+            "type": "品牌壁垒",
+            "level": brand_barrier_level(brand_share_pct),
+            "data_basis": f"头部品牌销量占比 {f'{brand_share_pct:.1f}%' if brand_share_pct is not None else '待补'}",
+            "rule": ">40%=高，20-40%=中，<20%=低",
+        },
+    ]
+    return barriers
+
+
+def _build_go_nogo_scorecard(
+    candidate: dict[str, Any],
+    entry_barriers: list[dict[str, Any]],
+    voc_package: dict[str, Any] | None,
+) -> dict[str, Any]:
+    demand = candidate.get("demand_evidence", {})
+    competition = candidate.get("competition_structure", {})
+    profit = candidate.get("preliminary_profit_space", {})
+    new_listing = candidate.get("new_listing_opportunity", {})
+
+    def score_market_size() -> tuple[float, str]:
+        avg_units = demand.get("market_avg_monthly_units")
+        avg_rev = demand.get("market_avg_monthly_revenue_usd")
+        if avg_units is None and avg_rev is None:
+            return 5.0, "数据待补，默认中等"
+        score = 5.0
+        note_parts = []
+        if avg_units is not None:
+            if avg_units >= 500:
+                score = 8.0
+                note_parts.append(f"月均销量 {avg_units:,.0f}（体量充足）")
+            elif avg_units >= 200:
+                score = 6.0
+                note_parts.append(f"月均销量 {avg_units:,.0f}（体量一般）")
+            else:
+                score = 3.0
+                note_parts.append(f"月均销量 {avg_units:,.0f}（体量偏小）")
+        if avg_rev is not None:
+            if avg_rev >= 10000:
+                score = max(score, 8.0)
+                note_parts.append(f"月均销售额 USD {avg_rev:,.0f}（规模可观）")
+            elif avg_rev >= 5000:
+                score = max(score, 6.0)
+        return score, "；".join(note_parts) or "待补"
+
+    def score_competition() -> tuple[float, str]:
+        top10_share = competition.get("top10_product_units_share")
+        brand_share = competition.get("top_brand_units_share")
+        # Sorftime keyword_competitor_count supplements SellerSprite concentration data
+        kw_competitor_count = competition.get("keyword_competitor_count")
+        # Sorftime category_trend concentration signal
+        sf_ct = demand.get("sorftime_category_trend", {})
+        conc_trend = sf_ct.get("top3_concentration_trend", "")
+
+        score = 5.0
+        note_parts = []
+        if top10_share is not None:
+            share_pct = top10_share * 100 if top10_share <= 1 else top10_share
+            if share_pct < 50:
+                score = 8.0
+                note_parts.append(f"Top10占比 {share_pct:.1f}%（竞争分散，可进入）")
+            elif share_pct < 70:
+                score = 5.5
+                note_parts.append(f"Top10占比 {share_pct:.1f}%（竞争中等集中）")
+            else:
+                score = 3.0
+                note_parts.append(f"Top10占比 {share_pct:.1f}%（竞争高度集中）")
+        if brand_share is not None:
+            b_pct = brand_share * 100 if brand_share <= 1 else brand_share
+            if b_pct > 40:
+                score = min(score, 3.5)
+                note_parts.append(f"头部品牌占比 {b_pct:.1f}%（品牌壁垒高）")
+        if kw_competitor_count is not None:
+            if kw_competitor_count > 50000:
+                score = min(score, 4.0)
+                note_parts.append(f"Sorftime 搜索竞品数 {kw_competitor_count:,}（竞争激烈）")
+            elif kw_competitor_count > 20000:
+                note_parts.append(f"Sorftime 搜索竞品数 {kw_competitor_count:,}（竞争中等）")
+            else:
+                score = min(score + 0.5, 10.0)
+                note_parts.append(f"Sorftime 搜索竞品数 {kw_competitor_count:,}（竞争相对可控）")
+        if "恶化" in conc_trend:
+            score = min(score, 4.0)
+            note_parts.append(f"Sorftime：集中度趋势恶化")
+        elif "分散" in conc_trend:
+            score = min(score + 0.5, 10.0)
+            note_parts.append(f"Sorftime：集中度趋势分散")
+        return score, "；".join(note_parts) or "待补"
+
+    def score_demand_clarity() -> tuple[float, str]:
+        search_signal = demand.get("search_signal", "")
+        trend_signal = demand.get("trend_signal", "")
+        has_aba = bool(demand.get("aba_top_search_term"))
+        has_keyword = bool(demand.get("top_keyword"))
+        # Sorftime keyword verification supplements SellerSprite signals
+        sf_kw_list = demand.get("sorftime_keyword_verification", [])
+        sf_top_kw = sf_kw_list[0] if sf_kw_list else {}
+        has_sf_search = bool(sf_top_kw.get("monthly_search_volume"))
+        sf_trend = sf_top_kw.get("trend_direction", "")
+        # Sorftime category trend supplements trend signal
+        sf_ct = demand.get("sorftime_category_trend", {})
+        sf_trend_dir = sf_ct.get("trend_direction", "")
+        effective_trend = sf_trend_dir or sf_trend or str(trend_signal)
+
+        score = 5.0
+        note_parts = []
+        if has_keyword:
+            score += 1.0
+            note_parts.append(f"卖家精灵核心词：{demand.get('top_keyword')}")
+        if has_aba:
+            score += 0.5
+            note_parts.append("ABA 搜索词有数据")
+        if has_sf_search:
+            score += 1.0
+            note_parts.append(f"Sorftime 月搜索量 {sf_top_kw.get('monthly_search_volume'):,}（{sf_top_kw.get('keyword')}）")
+        if "增长" in effective_trend:
+            score += 1.5
+            note_parts.append(f"趋势增长（{effective_trend}）")
+        elif "衰退" in effective_trend:
+            score -= 2.0
+            note_parts.append(f"趋势衰退（{effective_trend}）")
+        elif "季节性" in effective_trend:
+            score -= 0.5
+            note_parts.append(f"强季节性（{effective_trend}）")
+        score = max(1.0, min(10.0, score))
+        return score, "；".join(note_parts) or "待补"
+
+    def score_entry_barriers() -> tuple[float, str]:
+        barrier_score_map = {"低": 9.0, "中": 6.0, "高": 3.0, "待确认": 5.0, "待补": 5.0}
+        scores = []
+        for b in entry_barriers:
+            level = str(b.get("level", "待确认"))
+            if level in barrier_score_map:
+                scores.append(barrier_score_map[level])
+        if not scores:
+            return 5.0, "壁垒数据待补"
+        avg = sum(scores) / len(scores)
+        high_barriers = [b["type"] for b in entry_barriers if b.get("level") == "高"]
+        note = f"综合壁垒评分 {avg:.1f}"
+        if high_barriers:
+            note += f"；高壁垒项：{'、'.join(high_barriers)}"
+        return round(avg, 1), note
+
+    def score_profitability() -> tuple[float, str]:
+        margin = None
+        for field in ("post_ads_returns_margin", "base_fba_margin"):
+            val = profit.get(field)
+            if isinstance(val, (int, float)):
+                margin = float(val)
+                break
+        if margin is None:
+            return 5.0, "利润数据待补，无法计算"
+        margin_pct = margin * 100 if -1 <= margin <= 1 else margin
+        if margin_pct >= 25:
+            return 9.0, f"利润率 {margin_pct:.1f}%（空间充足）"
+        elif margin_pct >= 15:
+            return 6.5, f"利润率 {margin_pct:.1f}%（利润一般）"
+        elif margin_pct >= 5:
+            return 4.0, f"利润率 {margin_pct:.1f}%（利润偏紧）"
+        else:
+            return 2.0, f"利润率 {margin_pct:.1f}%（利润不健康）"
+
+    weights = {
+        "市场规模": 0.20,
+        "竞争格局": 0.25,
+        "需求清晰度": 0.15,
+        "进入壁垒": 0.20,
+        "盈利能力": 0.20,
+    }
+
+    s_market, n_market = score_market_size()
+    s_competition, n_competition = score_competition()
+    s_demand, n_demand = score_demand_clarity()
+    s_barrier, n_barrier = score_entry_barriers()
+    s_profit, n_profit = score_profitability()
+
+    dimensions = {
+        "市场规模": {"score": round(s_market, 1), "weight": weights["市场规模"], "note": n_market},
+        "竞争格局": {"score": round(s_competition, 1), "weight": weights["竞争格局"], "note": n_competition},
+        "需求清晰度": {"score": round(s_demand, 1), "weight": weights["需求清晰度"], "note": n_demand},
+        "进入壁垒": {"score": round(s_barrier, 1), "weight": weights["进入壁垒"], "note": n_barrier},
+        "盈利能力": {"score": round(s_profit, 1), "weight": weights["盈利能力"], "note": n_profit},
+    }
+
+    weighted_total = sum(dim["score"] * dim["weight"] for dim in dimensions.values())
+    weighted_total = round(weighted_total, 2)
+
+    if weighted_total >= 7.5:
+        decision = "GO"
+    elif weighted_total >= 6.0:
+        decision = "CONDITIONAL GO"
+    elif weighted_total >= 4.0:
+        decision = "HOLD"
+    else:
+        decision = "NO-GO"
+
+    return {
+        "weighted_score": weighted_total,
+        "decision": decision,
+        "dimensions": dimensions,
+        "note": "评分基于当前已有数据自动估算，利润待补时盈利维度不可靠，需人工复核后再用作正式决策依据。",
+    }
 
 
 def _select_candidate(candidates: list[dict[str, Any]], candidate_id: str | None) -> dict[str, Any]:
@@ -179,7 +451,11 @@ def _build_review_sources(voc_package: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-def _build_decision_review(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> dict[str, Any]:
+def _build_decision_review(
+    candidate: dict[str, Any],
+    voc_package: dict[str, Any] | None,
+    go_nogo_scorecard: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     return {
         "status_explanation": _status_explanation(candidate, voc_package),
         "facts": _decision_facts(candidate, voc_package),
@@ -187,21 +463,13 @@ def _build_decision_review(candidate: dict[str, Any], voc_package: dict[str, Any
         "missing_inputs": _decision_missing_inputs(candidate, voc_package),
         "action_items": _decision_action_items(candidate, voc_package),
         "risk_matrix": _decision_risk_matrix(candidate, voc_package),
+        "go_nogo_scorecard": go_nogo_scorecard or {},
     }
 
 
 def _status_explanation(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> str:
-    status = candidate.get("status", "观察")
-    if status in ("继续看", "试做"):
-        base = "当前可以继续深挖，但不能直接进入打样或采购决策。"
-    elif status == "观察":
-        base = "当前需要先补关键缺口，再判断是否进入深挖。"
-    else:
-        base = "当前不建议进入深挖，除非出现新的证据或明确改品方案。"
-    first_pain = _first_pain_name(voc_package)
-    if first_pain:
-        return f"{base} 评论 VOC 首要痛点为「{first_pain}」，需要在供应链和 Listing 方案中优先验证。"
-    return base
+    # Status interpretation is Claude's work, not a script rule.
+    return ""
 
 
 def _decision_facts(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> list[str]:
@@ -249,12 +517,8 @@ def _decision_missing_inputs(candidate: dict[str, Any], voc_package: dict[str, A
 
 
 def _decision_action_items(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> list[str]:
-    return [
-        "补利润复核字段：建议售价、采购价、FBA费用、头程、入库配置费。",
-        "基于 Top10 标杆组核对主卖点、价格带、图片/A+、评论门槛和变体口径。",
-        "基于近半年新品组判断新品放量原因：广告、低价、功能差异还是类目自然增长。",
-        "做商标/专利/合规初筛，只保留待复核结论，不写最终法律判断。",
-    ]
+    # Action items are Claude's work, not hardcoded script rules.
+    return []
 
 
 def _decision_risk_matrix(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> list[dict[str, str]]:
@@ -269,58 +533,48 @@ def _decision_risk_matrix(candidate: dict[str, Any], voc_package: dict[str, Any]
             "dimension": "市场容量",
             "level": "中",
             "basis": _market_size_text(candidate),
-            "next_check": "继续用 Top100 和关键词数据确认需求稳定性。",
         },
         {
             "dimension": "竞争集中度",
             "level": "高" if isinstance(top10_share, (int, float)) and top10_share >= 0.5 else "中",
             "basis": _brand_concentration_text(candidate),
-            "next_check": "确认头部是否靠品牌、广告、低价或历史评论门槛领先。",
         },
         {
             "dimension": "新品机会",
             "level": "中",
             "basis": _new_listing_text(candidate),
-            "next_check": "拆解近半年新品是否真实放量，以及是否可复制。",
         },
         {
             "dimension": "评论/VOC",
             "level": "高" if first_pain else "待补",
             "basis": f"首要痛点：{first_pain}" if first_pain else "未接入评论 VOC",
-            "next_check": "把高频差评转成供应商测试项和 Listing 避坑项。",
         },
         {
             "dimension": "退货风险",
             "level": str(return_risk.get("level", "待确认")),
             "basis": _return_rate_text(candidate),
-            "next_check": "判断退货来自产品硬伤、误购、质量波动还是使用门槛。",
         },
         {
             "dimension": "利润不确定性",
             "level": "待补",
             "basis": "采购价、FBA、头程和入库配置费仍未补齐。",
-            "next_check": "按内部口径补字段后再算毛利率。",
         },
         {
             "dimension": "知产/合规",
             "level": str(ip_risk.get("level", "待确认")),
             "basis": str(ip_risk.get("notes", "待复核")),
-            "next_check": "做商标、外观/结构专利和品类合规入口初筛。",
         },
         {
             "dimension": "数据质量",
             "level": str(data_quality.get("level", "待确认")),
             "basis": _market_structure_summary_line(candidate) or "Top 商品明细待补",
-            "next_check": str(data_quality.get("next_check", "补齐 Top100 明细，并抽查属性标签。")),
         },
     ]
 
 
 def _status_next_step(decision_review: dict[str, Any], candidate: dict[str, Any]) -> str:
-    action_items = decision_review.get("action_items", [])
-    if action_items:
-        return str(action_items[0])
-    return str(candidate.get("next_step", "待补"))
+    # Next step suggestion is Claude's work.
+    return ""
 
 
 def _first_pain_name(voc_package: dict[str, Any] | None) -> str:

@@ -169,6 +169,63 @@ def structure_supplements(search_records: list[dict[str, Any]], limit: int = 8) 
     return result
 
 
+def _new_listing_friendliness(
+    new_listing_count_6m: int | None,
+    recent_6m_units_share: float | None,
+    sample_product_count: int | None,
+    has_recent_winners: bool,
+) -> dict[str, Any]:
+    # new listing ratio in top100 (fraction 0-1)
+    if new_listing_count_6m is not None and sample_product_count:
+        ratio = new_listing_count_6m / max(sample_product_count, 1)
+    else:
+        ratio = None
+
+    # units share: normalize to 0-1 fraction
+    if recent_6m_units_share is not None:
+        share = recent_6m_units_share / 100 if recent_6m_units_share > 1 else recent_6m_units_share
+    else:
+        share = None
+
+    def light(value: float | None, green: float, yellow: float) -> str:
+        if value is None:
+            return "待确认"
+        return "绿" if value >= green else ("黄" if value >= yellow else "红")
+
+    i1 = light(ratio, 0.10, 0.05)
+    i2 = light(share, 0.10, 0.05)
+    i3 = "黄" if has_recent_winners else "红"
+
+    lights = [i for i in (i1, i2, i3) if i != "待确认"]
+    if "红" in lights:
+        overall = "红"
+    elif all(i == "绿" for i in lights):
+        overall = "绿"
+    else:
+        overall = "黄"
+
+    return {
+        "overall": overall,
+        "indicators": {
+            "new_listing_ratio_in_top100": {
+                "value": round(ratio * 100, 1) if ratio is not None else None,
+                "unit": "%",
+                "light": i1,
+            },
+            "new_listing_units_share": {
+                "value": round(share * 100, 1) if share is not None else None,
+                "unit": "%",
+                "light": i2,
+            },
+            "has_recent_winner_sample": {
+                "value": has_recent_winners,
+                "light": i3,
+            },
+        },
+        "note": "评级自动估算，需结合竞品结构人工复核。",
+    }
+
+
 def keyword_intent(keyword: str, seed_keywords: list[str] | None = None) -> str:
     text = keyword.lower()
     if seed_keywords:
@@ -274,20 +331,9 @@ def build_review_voc_asin_batch(
 
 def build_candidate_boundary_review(market_name: str, seed_keyword: str, aba_keyword_signal: dict[str, Any]) -> dict[str, Any]:
     mainline = market_name or seed_keyword or "当前候选方向"
-    keep_as_reference = ["与当前主线形态一致的关联场景和旁支品"]
-    exclude_first = ["与主线产品形态明显不符的低价配件或独立耗材"]
-    questions = [
-        f"主线是否按「{mainline}」继续看？",
-        "哪些旁支场景只保留参考，哪些要直接排除？",
-        "是否同意用下方建议 VOC ASIN 批次进入评论插件采集？",
-    ]
     return {
         "checkpoint": "候选池预审后 / 评论 VOC 前",
         "recommended_mainline": mainline,
-        "keep_as_reference": keep_as_reference,
-        "exclude_first": exclude_first,
-        "questions": questions,
-        "default_if_no_change": "如运营不调整，系统按推荐主线重筛 VOC ASIN 批次。",
     }
 
 
@@ -302,7 +348,6 @@ def direction_meta(market_name: str, seed_keyword: str) -> dict[str, str]:
         "status": "继续看",
         "product_form": "根据当前导出数据归入主线，后续需要人工确认产品形态。",
         "default_risk": "当前分类规则为通用规则，需靠真实标题、类目和运营判断进一步拆分。",
-        "recommendation": "先继续看，待补人工产品形态标签。",
     }
 
 
@@ -526,6 +571,12 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
             "new_listing_avg_monthly_revenue_usd": to_float(new_products.get("月均销售额($)")),
             "recent_6m_units_share": to_float(recent_listing.get("销量占比")),
             "latest_listing_date": all_products.get("商品最新上架时间"),
+            "friendliness": _new_listing_friendliness(
+                to_int(new_products.get("样本商品数")),
+                to_float(recent_listing.get("销量占比")),
+                to_int(all_products.get("样本商品数")),
+                bool(recent_winners(search_records, limit=1)),
+            ),
         },
         "preliminary_profit_space": {
             "avg_price_usd": to_float(all_products.get("平均价格($)")),
@@ -568,10 +619,60 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def merge_sorftime_signals(candidate: dict[str, Any], sorftime_verification: dict[str, Any]) -> dict[str, Any]:
+    """Decompose sorftime_verification blob into specific candidate fields.
+
+    Writes into demand_evidence (trend/search signals) and competition_structure
+    (keyword-based competitor count). Does not overwrite fields that already have
+    non-null values from SellerSprite, so the two sources stay traceable.
+    """
+    candidate = dict(candidate)
+    demand = dict(candidate.get("demand_evidence", {}))
+    competition = dict(candidate.get("competition_structure", {}))
+
+    ct = sorftime_verification.get("category_trend", {})
+    if ct:
+        trend_dir = ct.get("trend_direction", "")
+        new_prod_trend = ct.get("new_product_share_trend", "")
+        conc_trend = ct.get("top3_concentration_trend", "")
+        parts = []
+        if trend_dir:
+            parts.append(f"类目趋势：{trend_dir}")
+        if new_prod_trend:
+            parts.append(f"新品占比趋势：{new_prod_trend}")
+        if conc_trend:
+            parts.append(f"头部集中度趋势：{conc_trend}")
+        if parts:
+            demand["trend_signal"] = "；".join(parts) + "（Sorftime category_trend）"
+        demand["sorftime_category_trend"] = ct
+
+    kw_list = sorftime_verification.get("keyword_verification", [])
+    if kw_list:
+        top_kw = kw_list[0]
+        if not demand.get("search_signal") and top_kw.get("monthly_search_volume"):
+            demand["search_signal"] = (
+                f"「{top_kw.get('keyword')}」月搜索量 {_plain_number(top_kw.get('monthly_search_volume'))}"
+                + (f"，CPC {top_kw.get('cpc')}" if top_kw.get("cpc") else "")
+                + "（Sorftime keyword_detail）"
+            )
+        if not competition.get("keyword_competitor_count") and top_kw.get("competitor_count"):
+            competition["keyword_competitor_count"] = top_kw.get("competitor_count")
+        demand["sorftime_keyword_verification"] = kw_list
+
+    traffic = sorftime_verification.get("traffic_terms", {})
+    if traffic:
+        demand["sorftime_traffic_terms"] = traffic
+
+    candidate["demand_evidence"] = demand
+    candidate["competition_structure"] = competition
+    candidate["sorftime_verification"] = sorftime_verification
+    return candidate
+
+
 def build_candidate_pool(manifest: dict[str, Any], sorftime_verification: dict[str, Any] | None = None) -> dict[str, Any]:
     candidate = build_candidate(manifest)
     if sorftime_verification:
-        candidate["sorftime_verification"] = sorftime_verification
+        candidate = merge_sorftime_signals(candidate, sorftime_verification)
     pool_metadata: dict[str, Any] = {
         "pool_id": "pool-manual-export-" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
         "site": manifest.get("metadata", {}).get("site") or "US",
