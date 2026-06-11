@@ -11,6 +11,9 @@ outputs/
 
 # Local SellerSprite/manual export samples are input data, not repository source.
 卖家精灵导出样例_*/
+卖家精灵导出_*/
+评价导出_*/
+评论插件导出_*/
 imports/
 
 # Runtime/cache files
