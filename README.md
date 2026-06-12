@@ -9,11 +9,26 @@
 ## 当前目标
 
 - V1 采用三源融合：卖家精灵手动导出（广域候选池）+ Sorftime MCP（类目/关键词/竞品深度验证）+ 自有评论插件（VOC 证据链）。
+- 主产品体验是 AI 与运营交互式推进：AI 判断当前阶段、下一步动作、是否需要运营决策；最终报告沉淀整个交互过程。
 - 当前已跑通 `卖家精灵导出文件夹 -> 候选品池 -> 可选 Sorftime 深度验证 -> 可选评论 VOC -> 利润复核模板 -> 知产/合规初筛模板 -> 深挖报告`。
 - 生成选品报告四件套：主报告、摘要、HTML 看板、Excel 数据底表。
 - 保留 Excel 数据底表和可追溯证据链。
 - 利润、退货、知产、合规等关键判断保留人工复核。
 - 自有评论插件已通过 Excel/HTML 文件导入方式接入重点候选深挖。
+
+## 当前架构
+
+| 层 | 位置 | 职责 |
+|---|---|---|
+| 交互式流程入口 | `scripts/plan_interactive_workflow.py` | 生成/更新 `workflow_state` 和下一步动作卡 |
+| 批量回归入口 | `scripts/run_research_workflow.py` | 数据齐全后重跑完整报告，用于回归和开发验证 |
+| Workflow 应用层 | `packages/research_core/workflows/` | 交互式状态推进 + 批量报告编排 |
+| Contracts 契约层 | `packages/research_core/contracts/` | 在关键节点校验 `import_manifest`、`candidate_pool`、`research_package` 等数据包结构 |
+| Core 规则层 | `packages/research_core/` | Adapter、统一 Schema、字段合并、利润/市场结构等可复用规则 |
+| Renderer 输出层 | `packages/report_renderer/` | 生成 Markdown、HTML 看板、Excel 数据底表 |
+| Skills 分析层 | `skills/` | 约束 Claude 如何基于结构化数据做市场/VOC/深挖判断 |
+
+主体验优先调用 `packages.research_core.workflows.create_initial_state()` / `plan_next_action()` / `advance_stage()` 维护交互状态；`run_research_workflow()` 保留为批量重跑和回归工具。新增第三方数据源优先落在 `packages/research_core/adapters/` 和 `merge_strategy.py`。
 
 ## 文档索引
 
@@ -21,12 +36,15 @@
 |---|---|
 | `docs/plans/V1选品系统实施计划.md` | 唯一进度台账，下次恢复任务先看这里 |
 | `docs/选品系统方向锚点.md` | 项目方向主锚点，防止偏成“录入产品做报告” |
+| `docs/AI交互式选品流程引擎.md` | AI 与运营实时协作的主流程、状态机、决策点和报告沉淀规则 |
 | `skills/seller-sprite-product-research/SKILL.md` | Skill 主入口，定义流程、规则、输入输出 |
 | `skills/seller-sprite-product-research/references/` | 工具映射、数据包结构、决策规则、输出结构 |
 | `skills/seller-sprite-product-research/agents/` | 数据管道和洞察职责拆分 |
-| `packages/research_core/` | 统一数据结构、利润规则、状态规则 |
+| `packages/research_core/workflows/` | 交互式状态推进和批量报告编排，可被 CLI/网页/API 复用 |
+| `packages/research_core/contracts/` | 核心数据包结构校验 |
+| `packages/research_core/` | 统一数据结构、Adapter、利润规则、状态规则 |
 | `packages/report_renderer/` | 主报告、摘要、HTML 看板渲染 |
-| `scripts/` | 本地生成和验证脚本 |
+| `scripts/` | 本地 CLI 入口和兼容工具脚本 |
 | `examples/` | 最小输入样例和 mock 数据包 |
 | `requirements.txt` | 本地脚本依赖，当前主要用于读取 Excel |
 | `docs/V1范围冻结.md` | 冻结第一版要做什么、不做什么、输出什么 |
@@ -40,9 +58,30 @@
 | `docs/亚马逊运营选品自查工具技术方案.md` | 技术架构、目录规划、数据包、版本和验收 |
 | `docs/知产与合规检索入口库.md` | 知产、商标、合规早期筛查入口 |
 
+## 交互式流程状态
+
+生成第一张下一步动作卡：
+
+```bash
+python3 scripts/plan_interactive_workflow.py \
+  /tmp/workflow_state.json \
+  --mode targeted_deep_dive \
+  --intent "窗户刮水器二合一工具" \
+  --site US \
+  --workflow-id window-squeegee-001
+```
+
+输出：
+
+- `/tmp/workflow_state.json`
+- 当前阶段
+- 是否需要运营决策
+- AI 应该问运营的问题
+- 下一步动作卡
+
 ## 本地验证
 
-优先使用一键完整流程：
+一键完整流程用于数据齐全后的报告重跑和回归验证：
 
 ```bash
 python3 scripts/run_research_workflow.py \

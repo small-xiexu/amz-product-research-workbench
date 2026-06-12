@@ -1,0 +1,135 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/workflow_state.schema.json",
+  "title": "WorkflowState",
+  "type": "object",
+  "required": ["workflow_id", "mode", "stage", "initial_intent", "site"],
+  "properties": {
+    "workflow_id": { "type": "string" },
+    "mode": {
+      "type": "string",
+      "enum": ["broad_discovery", "targeted_deep_dive"]
+    },
+    "stage": {
+      "type": "string",
+      "enum": [
+        "intent_intake",
+        "exploration_planning",
+        "seller_sprite_request",
+        "data_inventory",
+        "candidate_pool_review",
+        "boundary_confirmation",
+        "voc_batch_planning",
+        "voc_analysis",
+        "deep_dive",
+        "profit_compliance_review",
+        "final_decision"
+      ]
+    },
+    "initial_intent": { "type": "string" },
+    "site": { "type": "string" },
+    "known_inputs": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "missing_inputs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "decision_required": { "type": "boolean" },
+    "operator_question": { "type": "string" },
+    "next_actions": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/next_action_card" }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/evidence_ref" }
+    },
+    "decision_log": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/decision_record" }
+    },
+    "updated_at": { "type": "string" }
+  },
+  "definitions": {
+    "evidence_ref": {
+      "type": "object",
+      "required": ["ref_type", "ref_id"],
+      "properties": {
+        "ref_type": { "type": "string" },
+        "ref_id": { "type": "string" },
+        "path": { "type": "string" },
+        "note": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "decision_record": {
+      "type": "object",
+      "required": ["decision_id", "stage", "actor", "decision", "rationale"],
+      "properties": {
+        "decision_id": { "type": "string" },
+        "stage": { "type": "string" },
+        "actor": { "type": "string" },
+        "decision": { "type": "string" },
+        "rationale": { "type": "string" },
+        "evidence_refs": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/evidence_ref" }
+        },
+        "created_at": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "next_action_card": {
+      "type": "object",
+      "required": ["stage", "decision_required", "question", "recommended_action"],
+      "properties": {
+        "stage": { "type": "string" },
+        "decision_required": { "type": "boolean" },
+        "question": { "type": "string" },
+        "recommended_action": {
+          "type": "object",
+          "required": ["type", "label", "reason"],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "operator_decision",
+                "operator_export",
+                "operator_upload",
+                "mcp_call",
+                "local_script",
+                "review_crawl",
+                "render_report",
+                "wait"
+              ]
+            },
+            "label": { "type": "string" },
+            "reason": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "label", "impact"],
+            "properties": {
+              "id": { "type": "string" },
+              "label": { "type": "string" },
+              "impact": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/evidence_ref" }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,6 +11,14 @@ from openpyxl import load_workbook
 
 from packages.report_renderer.xlsx_writer import write_xlsx
 from packages.research_core.adapters import SorftimeAdapter, SortimeAdapter
+from packages.research_core.contracts import (
+    ContractValidationError,
+    validate_candidate_pool,
+    validate_import_manifest,
+    validate_research_package,
+)
+from packages.research_core.workflows import WorkflowConfig, run_research_workflow
+from packages.research_core.workflows import DecisionRecord, advance_stage, create_initial_state
 from scripts.apply_ip_compliance_review import apply_ip_compliance_review, next_step_for
 from scripts.apply_profit_review import apply_profit_review
 from scripts.build_candidate_pool_from_import_manifest import build_candidate_pool
@@ -131,6 +140,122 @@ class RegressionTests(unittest.TestCase):
         self.assertIn("## Executive Summary / 当前结论", report)
         self.assertIn("## 下一步动作与证据附录", report)
 
+    def test_contract_validators_reject_missing_handoff_fields(self) -> None:
+        with self.assertRaisesRegex(ContractValidationError, "metadata"):
+            validate_import_manifest({"files": [], "data_quality": {}})
+
+        with self.assertRaisesRegex(ContractValidationError, "candidates"):
+            validate_candidate_pool({"metadata": {}, "source_brief": {}, "candidates": []})
+
+        with self.assertRaisesRegex(ContractValidationError, "normalized_tables"):
+            validate_research_package({"metadata": {"candidate_id": "cand-1"}})
+
+    def test_contract_validators_accept_minimal_handoff_packages(self) -> None:
+        validate_import_manifest(
+            {
+                "metadata": {"site": "US", "task_name": "测试任务"},
+                "files": [],
+                "data_quality": {"available_source_types": [], "missing_source_types": []},
+            }
+        )
+        validate_candidate_pool(
+            {
+                "metadata": {"site": "US"},
+                "source_brief": {},
+                "candidates": [
+                    {
+                        "candidate_id": "cand-1",
+                        "name": "测试方向",
+                        "status": "观察",
+                        "demand_evidence": {},
+                        "competition_structure": {},
+                        "top_products": [],
+                    }
+                ],
+            }
+        )
+        validate_research_package(
+            {
+                "metadata": {"candidate_id": "cand-1"},
+                "normalized_tables": {"candidate": {}, "top100": []},
+                "market_structure": {},
+                "decision_review": {"go_nogo_scorecard": {}},
+                "status_card": {},
+            }
+        )
+
+    def test_interactive_workflow_initial_broad_discovery_requires_operator_boundary(self) -> None:
+        state = create_initial_state(
+            workflow_id="wf-001",
+            mode="broad_discovery",
+            initial_intent="美国站家居清洁小工具",
+            site="US",
+        )
+
+        self.assertEqual(state.stage, "intent_intake")
+        self.assertTrue(state.decision_required)
+        self.assertIn("业务边界", state.operator_question)
+        self.assertEqual(state.next_actions[0].recommended_action.action_type, "operator_decision")
+
+    def test_interactive_workflow_targeted_deep_dive_requires_product_boundary(self) -> None:
+        state = create_initial_state(
+            workflow_id="wf-002",
+            mode="targeted_deep_dive",
+            initial_intent="窗户刮水器二合一工具",
+            site="US",
+        )
+
+        self.assertEqual(state.stage, "intent_intake")
+        self.assertTrue(state.decision_required)
+        self.assertIn("产品边界", state.operator_question)
+
+    def test_interactive_workflow_advances_with_decision_log(self) -> None:
+        state = create_initial_state(
+            workflow_id="wf-003",
+            mode="targeted_deep_dive",
+            initial_intent="窗户刮水器二合一工具",
+        )
+        next_state = advance_stage(
+            state,
+            DecisionRecord(
+                decision_id="decision-001",
+                stage=state.stage,
+                actor="operator",
+                decision="确认主线为刮条+海绵垫窗户清洁工具",
+                rationale="排除单独清洁液和汽车专用工具。",
+            ),
+        )
+
+        self.assertEqual(next_state.stage, "exploration_planning")
+        self.assertEqual(len(next_state.decision_log), 1)
+        self.assertEqual(next_state.next_actions[0].recommended_action.action_type, "operator_export")
+
+    def test_interactive_workflow_cli_writes_state_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "workflow_state.json"
+            completed = subprocess.run(
+                [
+                    "python3",
+                    str(ROOT / "scripts/plan_interactive_workflow.py"),
+                    str(output),
+                    "--mode",
+                    "targeted_deep_dive",
+                    "--intent",
+                    "窗户刮水器二合一工具",
+                    "--workflow-id",
+                    "wf-cli",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            data = json.loads(output.read_text(encoding="utf-8"))
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(data["workflow_id"], "wf-cli")
+        self.assertEqual(data["next_actions"][0]["recommended_action"]["type"], "operator_decision")
+
     @unittest.skipUnless(
         (ROOT / "卖家精灵导出样例_美国站_宠物牵引绳_20260607").exists(),
         "local SellerSprite sample folder is ignored and may be absent",
@@ -149,6 +274,64 @@ class RegressionTests(unittest.TestCase):
         candidate = candidate_pool["candidates"][0]
         self.assertTrue(candidate["candidate_id"].startswith("cand-"))
         self.assertGreaterEqual(len(candidate.get("top_products", [])), 1)
+
+    @unittest.skipUnless(
+        (ROOT / "卖家精灵导出样例_美国站_宠物牵引绳_20260607").exists(),
+        "local SellerSprite sample folder is ignored and may be absent",
+    )
+    def test_workflow_api_runs_manual_export_sample(self) -> None:
+        source = ROOT / "卖家精灵导出样例_美国站_宠物牵引绳_20260607"
+        with tempfile.TemporaryDirectory() as tmp:
+            copied_source = Path(tmp) / source.name
+            output_dir = Path(tmp) / "workflow"
+            shutil.copytree(source, copied_source, ignore=shutil.ignore_patterns(".DS_Store"))
+
+            result = run_research_workflow(
+                WorkflowConfig(
+                    manual_export_folder=copied_source,
+                    output_dir=output_dir,
+                    site="US",
+                    task_name="Workflow API 回归",
+                )
+            )
+
+            validation = validate_workflow_output(output_dir)
+
+        self.assertTrue(result.report_path.name.endswith("report.md"))
+        self.assertTrue(validation.ok, validation.errors)
+
+    @unittest.skipUnless(
+        (ROOT / "卖家精灵导出样例_美国站_宠物牵引绳_20260607").exists(),
+        "local SellerSprite sample folder is ignored and may be absent",
+    )
+    def test_workflow_cli_stays_compatible(self) -> None:
+        source = ROOT / "卖家精灵导出样例_美国站_宠物牵引绳_20260607"
+        with tempfile.TemporaryDirectory() as tmp:
+            copied_source = Path(tmp) / source.name
+            output_dir = Path(tmp) / "workflow_cli"
+            shutil.copytree(source, copied_source, ignore=shutil.ignore_patterns(".DS_Store"))
+
+            completed = subprocess.run(
+                [
+                    "python3",
+                    str(ROOT / "scripts/run_research_workflow.py"),
+                    str(copied_source),
+                    str(output_dir),
+                    "--site",
+                    "US",
+                    "--task-name",
+                    "Workflow CLI 回归",
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            validation = validate_workflow_output(output_dir)
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("Wrote workflow outputs", completed.stdout)
+        self.assertTrue(validation.ok, validation.errors)
 
 
 def _load_json(relative_path: str) -> dict:
