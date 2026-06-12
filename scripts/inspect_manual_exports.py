@@ -346,7 +346,12 @@ def infer_source_tool(source_type: str) -> str:
     }.get(source_type, "未知来源")
 
 
-def build_manifest(folder: Path, task_name: str | None, site: str | None) -> dict[str, Any]:
+def build_manifest(
+    folder: Path,
+    task_name: str | None,
+    site: str | None,
+    sorftime_snapshot: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     files = [
         inspect_file(path, folder, index)
         for index, path in enumerate(sorted(p for p in folder.iterdir() if p.is_file()), start=1)
@@ -358,8 +363,9 @@ def build_manifest(folder: Path, task_name: str | None, site: str | None) -> dic
         warnings.append("缺少 V1 建议数据源: " + ", ".join(missing))
     for item in files:
         warnings.extend(f"{item['file_name']}: {warning}" for warning in item["warnings"])
-    return {
+    manifest: dict[str, Any] = {
         "metadata": {
+            "manifest_version": 2 if sorftime_snapshot else 1,
             "manifest_id": f"manifest-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
             "task_name": task_name or folder.name,
             "site": site or "",
@@ -374,6 +380,9 @@ def build_manifest(folder: Path, task_name: str | None, site: str | None) -> dic
             "warnings": warnings,
         },
     }
+    if sorftime_snapshot:
+        manifest["sorftime_snapshot"] = sorftime_snapshot
+    return manifest
 
 
 def parse_args() -> argparse.Namespace:
@@ -382,6 +391,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("output", help="Path to write import_manifest.json.")
     parser.add_argument("--task-name", default=None, help="Optional task name for manifest metadata.")
     parser.add_argument("--site", default=None, help="Optional Amazon marketplace, such as US.")
+    parser.add_argument("--sorftime-snapshot", dest="sorftime_snapshot", default=None,
+                        help="Path to Sorftime snapshot JSON saved by Claude. Written into manifest v2 sorftime_snapshot field.")
     return parser.parse_args()
 
 
@@ -390,7 +401,13 @@ def main() -> None:
     folder = Path(args.folder).expanduser().resolve()
     if not folder.exists() or not folder.is_dir():
         raise SystemExit(f"Export folder does not exist or is not a directory: {folder}")
-    manifest = build_manifest(folder, args.task_name, args.site)
+    sorftime_snapshot: dict[str, Any] | None = None
+    if args.sorftime_snapshot:
+        sf_path = Path(args.sorftime_snapshot).expanduser().resolve()
+        if not sf_path.exists():
+            raise SystemExit(f"Sorftime snapshot file does not exist: {sf_path}")
+        sorftime_snapshot = json.loads(sf_path.read_text(encoding="utf-8"))
+    manifest = build_manifest(folder, args.task_name, args.site, sorftime_snapshot)
     output = Path(args.output).expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -398,6 +415,8 @@ def main() -> None:
     print("Available source types:", ", ".join(manifest["data_quality"]["available_source_types"]))
     if manifest["data_quality"]["missing_source_types"]:
         print("Missing source types:", ", ".join(manifest["data_quality"]["missing_source_types"]))
+    if sorftime_snapshot:
+        print("Sorftime snapshot included (manifest v2).")
 
 
 if __name__ == "__main__":

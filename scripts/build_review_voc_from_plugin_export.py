@@ -245,6 +245,22 @@ def _fallback_review_id(raw: dict[str, Any]) -> str:
     return "review-" + hashlib.sha1(source.encode("utf-8")).hexdigest()[:12]
 
 
+def read_reviews_from_json(path: Path) -> list[dict[str, Any]]:
+    """Read reviews from the plugin's workbench-mode JSON export.
+
+    The JSON is pre-normalized by the plugin (snake_case field names matching
+    normalize_review expectations), so we pass each item directly.
+    """
+    data = json.loads(path.read_text(encoding="utf-8"))
+    raw_reviews = data.get("reviews", []) if isinstance(data, dict) else data
+    records: list[dict[str, Any]] = []
+    for raw in raw_reviews:
+        record = normalize_review(raw, path)
+        if record.get("review_id") or record.get("review_text") or record.get("review_text_zh"):
+            records.append(record)
+    return records
+
+
 def read_ai_report(path: Path) -> dict[str, Any]:
     parser = MarkdownBodyParser()
     parser.feed(path.read_text(encoding="utf-8", errors="ignore"))
@@ -452,7 +468,8 @@ def display_value(value: Any) -> str:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Extract and normalize review data from Amazon review plugin exports.")
     parser.add_argument("output_dir", help="Directory to write review_voc_package.json and report outputs.")
-    parser.add_argument("inputs", nargs="+", help="Review plugin .xlsx exports and optional .html AI reports.")
+    parser.add_argument("inputs", nargs="*", help="Review plugin .xlsx exports and optional .html AI reports.")
+    parser.add_argument("--json-input", dest="json_input", default=None, help="Review plugin JSON export (workbench mode, replaces xlsx inputs).")
     parser.add_argument("--candidate-id", default="", help="Candidate id from candidate_pool, if available.")
     parser.add_argument("--candidate-name", default="", help="Candidate name, if available.")
     return parser.parse_args()
@@ -460,20 +477,33 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    input_paths = [Path(item).expanduser().resolve() for item in args.inputs]
-    excel_paths = [p for p in input_paths if p.suffix.lower() == ".xlsx"]
-    html_paths = [p for p in input_paths if p.suffix.lower() in {".html", ".htm"}]
-    if not excel_paths:
-        raise SystemExit("At least one review plugin Excel export is required.")
 
     reviews: list[dict[str, Any]] = []
-    for path in excel_paths:
-        if not path.exists():
-            raise SystemExit(f"Review input does not exist or is not a file: {path}")
-        reviews.extend(read_review_excel(path))
+    ai_reports: list[dict[str, Any]] = []
+    source_paths: list[Path] = []
 
-    ai_reports = [read_ai_report(p) for p in html_paths]
-    package = build_voc_package(reviews, ai_reports, input_paths, args.candidate_id, args.candidate_name)
+    if args.json_input:
+        json_path = Path(args.json_input).expanduser().resolve()
+        if not json_path.exists():
+            raise SystemExit(f"JSON input does not exist: {json_path}")
+        reviews = read_reviews_from_json(json_path)
+        source_paths = [json_path]
+    else:
+        if not args.inputs:
+            raise SystemExit("At least one review plugin Excel export is required, or use --json-input.")
+        input_paths = [Path(item).expanduser().resolve() for item in args.inputs]
+        excel_paths = [p for p in input_paths if p.suffix.lower() == ".xlsx"]
+        html_paths = [p for p in input_paths if p.suffix.lower() in {".html", ".htm"}]
+        if not excel_paths:
+            raise SystemExit("At least one review plugin Excel export is required.")
+        for path in excel_paths:
+            if not path.exists():
+                raise SystemExit(f"Review input does not exist or is not a file: {path}")
+            reviews.extend(read_review_excel(path))
+        ai_reports = [read_ai_report(p) for p in html_paths]
+        source_paths = input_paths
+
+    package = build_voc_package(reviews, ai_reports, source_paths, args.candidate_id, args.candidate_name)
 
     output_dir = Path(args.output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)

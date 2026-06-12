@@ -20,7 +20,10 @@
 - Go/No-Go、选品判断、继续看这个品
 - Sorftime 验证、数据交叉验证
 
-**前置条件**：已有 `candidate_pool.json` 和竞品选择逻辑表，才能进入深挖。未完成市场扫描就要求深挖，先执行 `skills/market-scan/SKILL.md`。
+**前置条件**：
+- 已有 `candidate_pool.json` 和竞品选择逻辑表，才能进入深挖
+- 未完成市场扫描就要求深挖，先执行 `skills/market-scan/SKILL.md`
+- **模式二（指定方向）**：运营给出明确方向、Sorftime 快验通过、卖家精灵定向导出完成后，可直接进入本 Skill，无需多候选对比
 
 ---
 
@@ -32,6 +35,8 @@
 - 类目趋势验证（`category_trend`）
 - 关键词趋势和 CPC（`keyword_detail` / `keyword_trend`）
 - 竞品流量词（`product_traffic_terms` / `competitor_product_keywords`）
+
+> ⚠️ 如果市场扫描阶段已调用过 `category_trend` 或 `keyword_detail`，本阶段直接复用结论，不重复调用。只补充尚未覆盖的工具（如 `product_traffic_terms`、`keyword_trend`）。
 
 调用后必须完成三件事：
 

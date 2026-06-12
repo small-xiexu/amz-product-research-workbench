@@ -23,6 +23,15 @@
 | 阶段五～七：候选品深挖 | `skills/candidate-deep-dive/SKILL.md` | 深挖报告、Go/No-Go、差异化建议 |
 | 评论 VOC 分析 | `skills/review-voc-analysis/SKILL.md` | 评论分析、VOC、痛点挖掘、改品机会 |
 
+**快速入口**：
+
+| 你的情况 | 直接进入 |
+|---|---|
+| 不知道做什么品，只有禁区和偏好 | `market-scan`（模式一：模糊探索）|
+| 大概知道方向，想让 AI 先验证再导数据 | `market-scan`（模式二：指定方向，Sorftime 快验在前）|
+| 已有 `candidate_pool.json`，要出深挖报告 | `candidate-deep-dive` |
+| 候选品已确认，要做评论痛点分析 | `review-voc-analysis` |
+
 ---
 
 ## 断点续跑

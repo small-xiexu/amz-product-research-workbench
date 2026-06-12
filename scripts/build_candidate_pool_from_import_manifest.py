@@ -16,6 +16,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from packages.research_core.rules.market_structure_rules import build_market_structure_analysis
+from packages.research_core.adapters import SellerSpriteAdapter, SortimeAdapter
+from packages.research_core.adapters.merge_strategy import merge_products, sorftime_only_warnings
 
 from packages.research_core.ingestion.seller_sprite_reader import (
     clean_cell, to_float, to_int, slugify, contains_chinese, display_keyword,
@@ -443,7 +445,7 @@ def build_direction_cards(
                 ],
                 "evidence": [item for item in evidence if item],
                 "risks": risks,
-                "ai_recommendation": meta["recommendation"],
+                "ai_recommendation": meta.get("recommendation", ""),
                 "operator_options": ["选择此方向深挖", "保留为旁支参考", "排除该方向", "让 AI 按证据默认选择"],
                 "next_action": "若选择该方向，下一步按代表 ASIN 抓评论 VOC，并补利润/合规复核。"
                 if meta["status"] in {"优先深挖", "继续看", "保留参考", "谨慎参考"}
@@ -471,6 +473,43 @@ def extract_seed_keyword(manifest: dict[str, Any]) -> str:
     if aba_records:
         return str(aba_records[0].get("搜索词", "")).strip()
     return manifest.get("metadata", {}).get("task_name", "")
+
+
+def _apply_sorftime_enrichment(
+    candidate: dict[str, Any],
+    sf_keywords: list,
+    sf_category: Any,
+) -> None:
+    """将 Sorftime 规范化数据写入 candidate 的 demand_evidence / competition_structure。"""
+    demand = candidate.get("demand_evidence") or {}
+    competition = candidate.get("competition_structure") or {}
+
+    if sf_category:
+        parts = []
+        if sf_category.trend_direction:
+            parts.append(f"类目趋势：{sf_category.trend_direction}")
+        if sf_category.new_product_share_trend:
+            parts.append(f"新品占比趋势：{sf_category.new_product_share_trend}")
+        if sf_category.top3_concentration_trend:
+            parts.append(f"头部集中度趋势：{sf_category.top3_concentration_trend}")
+        if parts:
+            demand["trend_signal"] = "；".join(parts) + "（Sorftime category_trend）"
+        demand["sorftime_category_trend"] = sf_category.to_dict()
+
+    if sf_keywords:
+        top_kw = sf_keywords[0]
+        if top_kw.monthly_search_volume and not demand.get("search_signal"):
+            demand["search_signal"] = (
+                f"「{top_kw.keyword}」月搜索量 {_plain_number(top_kw.monthly_search_volume)}"
+                + (f"，CPC {top_kw.cpc}" if top_kw.cpc else "")
+                + "（Sorftime keyword_detail）"
+            )
+        if top_kw.competitor_count and not competition.get("keyword_competitor_count"):
+            competition["keyword_competitor_count"] = top_kw.competitor_count
+        demand["sorftime_keyword_verification"] = [k.to_dict() for k in sf_keywords]
+
+    candidate["demand_evidence"] = demand
+    candidate["competition_structure"] = competition
 
 
 def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
@@ -507,7 +546,29 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
     return_level = "待确认"
     if market_return_rate is not None and category_return_rate is not None:
         return_level = "中" if market_return_rate > category_return_rate else "低"
-    top_product_rows = top_products_from_search_results(search_records)
+    # ── Adapter 层：规范化产品列表 + 可选 Sorftime 合并（M2-P1/P3）──
+    _data_freshness = manifest.get("metadata", {}).get("generated_at")
+    _ss_adapter = SellerSpriteAdapter(
+        search_records=search_records,
+        concentration_records=product_concentration,
+        data_freshness=_data_freshness,
+    )
+    _ss_products = _ss_adapter.fetch_products()
+    _sorftime_snapshot = manifest.get("sorftime_snapshot")
+    _sf_warnings: list[str] = []
+    _sf_keywords: list = []
+    _sf_category = None
+    if _sorftime_snapshot:
+        _sf_adapter = SortimeAdapter(_sorftime_snapshot)
+        _sf_products = _sf_adapter.fetch_products()
+        _sf_keywords = _sf_adapter.fetch_keywords()
+        _sf_category = _sf_adapter.fetch_category()
+        _merged = merge_products(_ss_products, _sf_products)
+        if not _ss_products:
+            _sf_warnings = sorftime_only_warnings(_sf_products)
+    else:
+        _merged = _ss_products
+    top_product_rows = [p.to_dict() for p in _merged]
     search_quality = search_result_quality(search_records)
     market_structure = build_market_structure_analysis(top_product_rows, expected_count=100)
     boundary_review = build_candidate_boundary_review(market_name, seed_keyword, aba_keyword_signal)
@@ -519,7 +580,7 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
         if item.get("parse_status") == "parsed" and item.get("source_type") != "system_file"
     ]
 
-    return {
+    result = {
         "candidate_id": candidate_id,
         "name": market_name,
         "candidate_type": "market_direction",
@@ -599,10 +660,11 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
             "notes": "需后续检查商标、外观/结构专利、材质安全、目标站点合规要求和功能宣称风险。",
         },
         "data_quality": {
-            "source": "manual_export",
+            "source": "manual_export" if not _sorftime_snapshot else "mixed",
             "source_types": manifest.get("data_quality", {}).get("available_source_types", []),
             "missing_source_types": manifest.get("data_quality", {}).get("missing_source_types", []),
             "manifest_warnings": manifest.get("data_quality", {}).get("warnings", []),
+            "sf_warnings": _sf_warnings,
             "search_result_quality": search_quality,
             "top_product_quality": market_structure.get("data_quality", {}),
         },
@@ -617,6 +679,9 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
         "next_step": "先看报表后多方向候选卡，确认主线/旁支/排除项，再按选定方向抓评论 VOC。",
         "source_refs": source_refs,
     }
+    if _sf_category or _sf_keywords:
+        _apply_sorftime_enrichment(result, _sf_keywords, _sf_category)
+    return result
 
 
 def merge_sorftime_signals(candidate: dict[str, Any], sorftime_verification: dict[str, Any]) -> dict[str, Any]:
