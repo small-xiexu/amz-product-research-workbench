@@ -68,6 +68,14 @@ python3 scripts/run_research_workflow.py \
 - `/tmp/research_workbench_workflow/final_report/data.xlsx`
 - `/tmp/research_workbench_workflow/workflow_summary.md`
 
+生成后必须运行正式交付校验：
+
+```bash
+python3 scripts/validate_research_outputs.py /tmp/research_workbench_workflow
+```
+
+校验器会检查正式报告四件套、`workflow_summary`、Excel 关键 Sheet、Top100 行数、12 章报告结构、属性/交叉分析、竞品选择逻辑、VOC 证据链和七维 Go/Wait/No-Go 评分卡。利润或知产/合规未回填时，评分卡只能输出 Wait/观察/待补，不能给强 Go。
+
 利润模板填好并保存后，再回填生成带利润测算的报告。`--profit-template` 传入的是已填写保存后的模板路径，可以是原模板直接填写保存，也可以另存为一份：
 
 ```bash
@@ -106,6 +114,32 @@ python3 scripts/run_research_workflow.py \
   --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07-report.html \
   --profit-template /tmp/research_workbench_workflow/filled_profit_review_template.xlsx \
   --ip-compliance-template /tmp/research_workbench_workflow/filled_ip_compliance_review_template.xlsx
+```
+
+## P20 回归样例
+
+当前默认用两组真实样例回归正式深挖链路：
+
+```bash
+python3 scripts/run_research_workflow.py \
+  卖家精灵导出样例_美国站_宠物牵引绳_20260607 \
+  /tmp/amz_p20_regression_dog \
+  --site US \
+  --task-name P20宠物牵引绳回归 \
+  --review-input 评论插件导出_免手持牵引绳_20260608/B07R56CBWX-multi-2026-06-07.xlsx \
+  --review-input 评论插件导出_免手持牵引绳_20260608/B07R56CBWX-multi-2026-06-07-report.html
+
+python3 scripts/validate_research_outputs.py /tmp/amz_p20_regression_dog
+
+python3 scripts/run_research_workflow.py \
+  卖家精灵导出_刮窗器_20260608 \
+  /tmp/amz_p20_regression_window \
+  --site US \
+  --task-name P20刮窗器回归 \
+  --review-input 评价导出_刮窗器_20260609/B0BKTM56C3-multi-2026-06-09.xlsx \
+  --review-input 评价导出_刮窗器_20260609/B0BKTM56C3-multi-2026-06-09-report.html
+
+python3 scripts/validate_research_outputs.py /tmp/amz_p20_regression_window
 ```
 
 也可以分开执行：

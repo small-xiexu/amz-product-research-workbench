@@ -9,6 +9,7 @@
 - 读懂市场数据：体量、竞争集中度、新品机会、退货风险
 - 给出方向排名和推荐主线，每个方向不超过 3 句核心判断
 - 在进入 VOC 前完成候选边界校准，输出竞品选择逻辑表
+- 使用 `docs/分析模式库.md`，至少套用「数据 -> 空白 -> 机会」「交叉维度 -> 结构性空白」「待补项 -> 验证动作」中的 2 种，避免只罗列数据
 
 ---
 
@@ -137,6 +138,7 @@ python3 scripts/build_candidate_pool_from_import_manifest.py <manifest.json> <�
 - 深挖方向是否准确（不混池）
 - 排除哪些场景或产品形态
 - VOC 覆盖哪些 ASIN
+- `candidate_pool.next_review_voc_asins` 必须保留 ASIN、品牌、价格、月销量、评分/评分数、竞品类型、覆盖维度和选择理由
 
 **必须输出竞品选择逻辑表**：
 
@@ -150,6 +152,8 @@ python3 scripts/build_candidate_pool_from_import_manifest.py <manifest.json> <�
 - 价格带覆盖：高/中/低各至少 1 个
 - 痛点参考：至少 1 个（差评密集或星级偏低）
 - 总数 6-10 个
+
+进入深挖前，候选池预审输出里的 `待确认标签`、`方向候选卡`、`建议 VOC ASIN`、`竞品选择逻辑表` 必须能互相解释；缺口要写成下一步抓评或运营确认动作。
 
 ---
 
@@ -172,6 +176,8 @@ python3 scripts/build_candidate_pool_from_import_manifest.py <manifest.json> <�
 - [ ] Top100 实际条数已确认（< 50 条须标注风险）
 - [ ] 方向排名已给出，推荐主线有双源数据支撑（阶段三）
 - [ ] 竞品选择逻辑表已输出（阶段四）
+- [ ] 待确认标签已列出，低置信产品路线不能直接当强结论
+- [ ] 下一步 VOC ASIN 批次已覆盖量级标杆、近半年新品、价格带/功能差异和痛点参考
 
 未通过的项必须明确标出缺什么，不允许假装完成。
 
@@ -186,6 +192,7 @@ Sorftime 初探/快验阶段已收集的 `category_trend` 和 `keyword_detail` �
 
 ## 参考文档
 
+- `docs/分析模式库.md` — 市场扫描和候选判断的洞察模式
 - `docs/sorftime-mcp-工具调用策略.md` — Sorftime 工具调用规则与两阶段使用说明
 - `docs/卖家精灵手动导出数据清单.md` — 卖家精灵导出步骤
 - `docs/架构原则.md` — 脚本/Claude 分工说明

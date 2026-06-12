@@ -286,6 +286,7 @@ def product_identity(item: dict[str, Any]) -> str:
 
 
 def product_for_review_batch(product: dict[str, Any], reason: str) -> dict[str, Any]:
+    coverage = competitor_coverage_dimensions(product, reason)
     return {
         "asin": product.get("asin"),
         "brand": product.get("brand"),
@@ -294,8 +295,49 @@ def product_for_review_batch(product: dict[str, Any], reason: str) -> dict[str, 
         "monthly_units": product.get("monthly_units"),
         "rating": product.get("rating"),
         "rating_count": product.get("rating_count"),
+        "competitor_type": competitor_type_from_reason(reason),
+        "coverage_dimensions": coverage,
         "reason": reason,
+        "selection_reason": selection_reason(product, reason, coverage),
     }
+
+
+def competitor_type_from_reason(reason: str) -> str:
+    if "Top10" in reason or "标杆" in reason:
+        return "量级标杆"
+    if "新品" in reason:
+        return "近半年新品"
+    if "低价" in reason or "高价" in reason or "价格" in reason:
+        return "价格带覆盖"
+    if "低评分" in reason or "争议" in reason or "风险" in reason:
+        return "痛点参考"
+    return "功能差异代表"
+
+
+def competitor_coverage_dimensions(product: dict[str, Any], reason: str) -> list[str]:
+    dimensions = [competitor_type_from_reason(reason)]
+    if product.get("price") is not None:
+        dimensions.append("价格带")
+    if product.get("monthly_units") is not None:
+        dimensions.append("销量量级")
+    if product.get("rating") is not None or product.get("rating_count") is not None:
+        dimensions.append("评分/评论门槛")
+    title = str(product.get("title") or "").lower()
+    if any(token in title for token in ["extendable", "telescopic", "pole", "hands free", "2 in 1", "3 in 1", "combo", "kit", "set"]):
+        dimensions.append("功能/形态差异")
+    return list(dict.fromkeys(dimensions))
+
+
+def selection_reason(product: dict[str, Any], reason: str, coverage: list[str]) -> str:
+    parts = [reason]
+    if product.get("monthly_units") is not None:
+        parts.append(f"月销量 {_plain_number(product.get('monthly_units'))}")
+    if product.get("rating") is not None and product.get("rating_count") is not None:
+        parts.append(f"评分 {product.get('rating')} / 评论 {_plain_number(product.get('rating_count'))}")
+    if product.get("price") is not None:
+        parts.append(f"价格 USD {_plain_number(product.get('price'))}")
+    parts.append("覆盖：" + "、".join(coverage))
+    return "；".join(parts)
 
 
 def build_review_voc_asin_batch(

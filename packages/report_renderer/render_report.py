@@ -591,62 +591,79 @@ a { color: inherit; text-decoration: none; }
 """
 
 
+FORMAL_REPORT_SECTION_TITLES = (
+    "Executive Summary / 当前结论",
+    "数据来源与口径",
+    "候选方向与边界",
+    "市场结构与数据质量",
+    "关键词与需求信号",
+    "产品属性分布与交叉分析",
+    "竞品池与竞品选择逻辑",
+    "评论 VOC 与真实痛点",
+    "利润复核",
+    "知产/合规/退货风险",
+    "Go/Wait/No-Go 决策检查",
+    "下一步动作与证据附录",
+)
+
+REPORT_EXCEL_SHEET_MAP = (
+    ("数据来源与口径", "数据来源说明、调研边界"),
+    ("市场结构与数据质量", "市场结构、Top100原始明细、数据质量检查"),
+    ("产品属性分布与交叉分析", "属性定义、Top商品打标、属性分布、属性交叉分析"),
+    ("竞品池与竞品选择逻辑", "竞品池、竞品深拆卡、进入壁垒"),
+    ("评论 VOC 与真实痛点", "评论VOC、VOC证据"),
+    ("利润复核", "利润测算输入、利润参考结果、利润成本拆分"),
+    ("知产/合规/退货风险", "知产合规复核、知产初筛、合规认证预判、退货风险"),
+    ("Go/Wait/No-Go 决策检查", "Go_No-Go评分卡、决策检查、风险矩阵、状态卡"),
+)
+
+
 def render_markdown(package: dict) -> str:
     meta = package.get("metadata", {})
     currency_code = _site_currency_code(meta.get("site", "US"))
     display_title = _clean_display_title(meta.get("seed_keyword_or_category", "未命名品类"))
+    constraints = package.get("constraints", {})
+    candidate = package.get("normalized_tables", {}).get("candidate", {})
     market = package.get("market_analysis", {})
     market_structure = package.get("market_structure", {})
     competitors = package.get("competitor_pool", {})
     profit = package.get("profit_reference", {})
+    return_risk = package.get("return_risk", {})
     status = package.get("status_card", {})
     voc = package.get("voc_analysis", {})
     decision = package.get("decision_review", {})
     ip_screening = package.get("ip_screening", {})
     compliance = package.get("compliance_screening", {})
     ip_compliance_review = package.get("ip_compliance_review", {})
+    competitor_deep_dive = package.get("competitor_deep_dive", [])
 
     lines = [
         f"# {display_title} 调研报告",
         "",
-        "## 结论摘要",
-        f"- 金额口径：统一按 {currency_code} 展示",
-        f"- 状态：{status.get('status', '待填')}",
-        f"- 理由：{status.get('reason', '待填')}",
-        "",
     ]
-    lines.extend(_decision_markdown_lines(decision, currency_code))
-    lines.extend(
-        [
-            "## 市场扫描",
-            f"- 市场规模：{_normalize_money_text(market.get('market_size', '待填'), currency_code)}",
-            f"- 价格带：{_normalize_money_text(market.get('price_band', '待填'), currency_code)}",
-            f"- 品牌集中度：{market.get('brand_concentration', '待填')}",
-            f"- 卖家结构：{market.get('seller_concentration', '待填')}",
-            f"- 新品机会：{market.get('new_listing_ratio', '待填')}",
-            "",
-        ]
+    sections = (
+        (FORMAL_REPORT_SECTION_TITLES[0], _executive_summary_markdown_lines(status, decision, package.get("report_summary", {}), currency_code)),
+        (FORMAL_REPORT_SECTION_TITLES[1], _data_source_markdown_lines(meta, package.get("raw_sources", {}))),
+        (FORMAL_REPORT_SECTION_TITLES[2], _candidate_boundary_markdown_lines(meta, constraints, candidate)),
+        (FORMAL_REPORT_SECTION_TITLES[3], _market_quality_markdown_lines(market, market_structure, currency_code)),
+        (FORMAL_REPORT_SECTION_TITLES[4], _keyword_demand_markdown_lines(candidate, package.get("keyword_analysis", {}))),
+        (FORMAL_REPORT_SECTION_TITLES[5], _attribute_analysis_markdown_lines(market_structure, currency_code)),
+        (
+            FORMAL_REPORT_SECTION_TITLES[6],
+            _competitor_selection_markdown_lines(package.get("competitor_selection_logic", []), competitors, competitor_deep_dive, currency_code),
+        ),
+        (FORMAL_REPORT_SECTION_TITLES[7], _voc_markdown_lines(voc) if voc else _empty_section_lines("评论插件导出未接入，需先补 review_voc_package。")),
+        (FORMAL_REPORT_SECTION_TITLES[8], _profit_review_markdown_lines(profit, package.get("operator_inputs", {}), currency_code)),
+        (
+            FORMAL_REPORT_SECTION_TITLES[9],
+            _risk_review_markdown_lines(return_risk, ip_screening, compliance, ip_compliance_review),
+        ),
+        (FORMAL_REPORT_SECTION_TITLES[10], _go_nogo_markdown_lines(decision, status, currency_code)),
+        (FORMAL_REPORT_SECTION_TITLES[11], _next_step_evidence_markdown_lines(status, decision)),
     )
-    lines.extend(_market_structure_markdown_lines(market_structure))
-    lines.extend(_competitor_markdown_lines(competitors, currency_code))
-    lines.extend(
-        [
-            "## 利润参考",
-            f"- 基础 FBA 毛利：{_format_money(profit.get('base_fba_gross_profit', '待填'), currency_code)}",
-            f"- 基础 FBA 毛利率：{_format_percent_or_text(profit.get('base_fba_margin', '待填'))}",
-            f"- 扣广告和退货后的 FBA 毛利：{_format_money(profit.get('post_ads_returns_gross_profit', '待填'), currency_code)}",
-            f"- 扣广告和退货后的 FBA 毛利率：{_format_percent_or_text(profit.get('post_ads_returns_margin', '待填'))}",
-            "",
-        ]
-    )
-    lines.extend(_profit_breakdown_markdown_lines(profit))
-    lines.extend(_ip_compliance_markdown_lines(ip_screening, compliance, ip_compliance_review))
-    if voc:
-        lines.extend(_voc_markdown_lines(voc))
-    competitor_deep_dive = package.get("competitor_deep_dive", [])
-    if competitor_deep_dive:
-        lines.extend(_competitor_deep_dive_markdown_lines(competitor_deep_dive, currency_code))
-    return "\n".join(lines)
+    for title, body in sections:
+        lines.extend(_formal_section(title, body))
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def render_summary(package: dict) -> str:
@@ -1748,8 +1765,11 @@ def _build_workbook_sheets(package: dict) -> list[tuple[str, list[list[object]]]
         ("数据质量检查", _data_quality_rows(market_structure.get("data_quality", {}))),
         ("属性定义", _attribute_definition_rows(market_structure.get("attribute_definitions", []))),
         ("Top商品打标", _top_product_rows(package.get("normalized_tables", {}).get("top_product_tags"), currency_code, include_tags=True)),
+        ("待确认标签", _pending_label_rows(market_structure.get("pending_label_items", []), currency_code)),
         ("属性分布", _attribute_distribution_rows(market_structure.get("attribute_distributions", []))),
         ("属性交叉分析", _cross_analysis_rows(market_structure.get("cross_analysis", []), currency_code)),
+        ("机会判断", _opportunity_judgment_rows(market_structure.get("opportunity_judgments", []), currency_code)),
+        ("竞品选择逻辑", _competitor_selection_logic_rows(package.get("competitor_selection_logic", []), currency_code)),
         ("竞品池", _competitor_rows(competitors, currency_code)),
         ("竞品深拆卡", _competitor_deep_dive_rows(package.get("competitor_deep_dive", []), currency_code)),
         ("进入壁垒", _entry_barriers_rows(package.get("entry_barriers", []))),
@@ -1769,10 +1789,47 @@ def _build_workbook_sheets(package: dict) -> list[tuple[str, list[list[object]]]
     ]
 
 
+def _formal_section(title: str, body: list[str]) -> list[str]:
+    lines = [f"## {title}", ""]
+    lines.extend(body or ["- 待补", ""])
+    if lines[-1] != "":
+        lines.append("")
+    return lines
+
+
+def _empty_section_lines(message: str) -> list[str]:
+    return [f"- 待补：{message}", ""]
+
+
+def _executive_summary_markdown_lines(
+    status: dict,
+    decision: dict,
+    report_summary: dict,
+    currency_code: str,
+) -> list[str]:
+    missing_inputs = decision.get("missing_inputs", []) if isinstance(decision, dict) else []
+    lines = [
+        "### 状态卡",
+        f"- 金额口径：统一按 {currency_code} 展示",
+        f"- 状态：{status.get('status', '待填') if isinstance(status, dict) else '待填'}",
+        f"- 理由：{status.get('reason', '待填') if isinstance(status, dict) else '待填'}",
+        f"- 下一步：{status.get('next_step', '待填') if isinstance(status, dict) else '待填'}",
+        f"- 待补项：{_join_or_default(missing_inputs[:8], '暂无')}",
+        "",
+    ]
+    bullets = report_summary.get("bullets", []) if isinstance(report_summary, dict) else []
+    if bullets:
+        lines.extend(["### 摘要要点"])
+        for item in bullets[:5]:
+            lines.append(f"- {_normalize_money_text(item, currency_code)}")
+        lines.append("")
+    return lines
+
+
 def _decision_markdown_lines(decision: dict, currency_code: str = "USD") -> list[str]:
     if not decision:
         return []
-    lines = ["## 决策检查", ""]
+    lines: list[str] = []
     if decision.get("status_explanation"):
         lines.extend(["### 状态解释", f"- {decision.get('status_explanation')}", ""])
     for title, key in (
@@ -1801,6 +1858,84 @@ def _decision_markdown_lines(decision: dict, currency_code: str = "USD") -> list
     return lines
 
 
+def _data_source_markdown_lines(meta: dict, raw_sources: dict | None = None) -> list[str]:
+    lines = ["### 数据来源说明"]
+    sources = meta.get("data_sources", []) if isinstance(meta, dict) else []
+    if sources:
+        for source in sources:
+            lines.append(f"- {source}")
+    else:
+        lines.append("- 待补：metadata.data_sources 未填写")
+    if meta.get("site"):
+        lines.append(f"- 站点：{meta.get('site')}")
+    if meta.get("generated_at"):
+        lines.append(f"- 生成时间：{meta.get('generated_at')}")
+    if isinstance(raw_sources, dict) and raw_sources.get("candidate_pool"):
+        pool = raw_sources.get("candidate_pool", {})
+        lines.append(f"- 候选池：{pool.get('pool_id', '待填')} / {pool.get('candidate_id', '待填')}")
+    lines.extend(["", "### Excel 追溯"])
+    for section, sheets in REPORT_EXCEL_SHEET_MAP:
+        lines.append(f"- {section}：`data.xlsx` -> {sheets}")
+    lines.append("")
+    return lines
+
+
+def _status_card_markdown_lines(status: dict, decision: dict) -> list[str]:
+    missing_inputs = decision.get("missing_inputs", []) if isinstance(decision, dict) else []
+    missing_line = "、".join(str(item) for item in missing_inputs[:8]) or "暂无"
+    lines = [
+        "## 状态卡",
+        "",
+        f"- 状态：{status.get('status', '待填') if isinstance(status, dict) else '待填'}",
+        f"- 理由：{status.get('reason', '待填') if isinstance(status, dict) else '待填'}",
+        f"- 下一步：{status.get('next_step', '待填') if isinstance(status, dict) else '待填'}",
+        f"- 待补项：{missing_line}",
+        "",
+    ]
+    return lines
+
+
+def _candidate_boundary_markdown_lines(meta: dict, constraints: dict, candidate: dict) -> list[str]:
+    boundary = candidate.get("candidate_boundary_review", {}) if isinstance(candidate, dict) else {}
+    lines = [
+        f"- 候选 ID：{meta.get('candidate_id', '待填')}",
+        f"- 候选池 ID：{meta.get('candidate_pool_id', '待填')}",
+        f"- 关键词/品类：{meta.get('seed_keyword_or_category', '待填')}",
+        f"- 产品形态：{meta.get('product_shape', '待填')}",
+        f"- 明确禁区：{_join_or_default((constraints or {}).get('exclusion_rules', []), '暂无')}",
+        f"- 推荐主线：{boundary.get('recommended_mainline', '待确认')}",
+        f"- 校准节点：{boundary.get('checkpoint', '待确认')}",
+        "",
+    ]
+    direction_cards = candidate.get("direction_cards", []) if isinstance(candidate, dict) else []
+    if direction_cards:
+        lines.append("### 报表后方向卡")
+        for item in direction_cards[:6]:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"- {item.get('role', '方向')} / {item.get('status', '待确认')}："
+                f"{item.get('name', '待填')}；商品数 {item.get('product_count', '待填')}；"
+                f"月销量 {_format_number(item.get('total_monthly_units')) if item.get('total_monthly_units') is not None else '待填'}"
+            )
+        lines.append("")
+    return lines
+
+
+def _market_quality_markdown_lines(market: dict, market_structure: dict, currency_code: str) -> list[str]:
+    lines = [
+        f"- 市场规模：{_normalize_money_text(market.get('market_size', '待填'), currency_code)}",
+        f"- 价格带：{_normalize_money_text(market.get('price_band', '待填'), currency_code)}",
+        f"- 品牌集中度：{market.get('brand_concentration', '待填')}",
+        f"- 卖家结构：{market.get('seller_concentration', '待填')}",
+        f"- 新品机会：{market.get('new_listing_ratio', '待填')}",
+        f"- 退货率：{market.get('return_rate', '待填')}",
+        "",
+    ]
+    lines.extend(_market_structure_markdown_lines(market_structure))
+    return lines
+
+
 def _market_structure_markdown_lines(market_structure: dict) -> list[str]:
     if not market_structure:
         return []
@@ -1808,7 +1943,7 @@ def _market_structure_markdown_lines(market_structure: dict) -> list[str]:
     quality = market_structure.get("data_quality", {})
     distributions = market_structure.get("attribute_distributions", [])
     cross_analysis = market_structure.get("cross_analysis", [])
-    lines = ["## 数据质量与属性结构", ""]
+    lines = ["### 数据质量"]
     if summary.get("quality_summary"):
         lines.append(f"- {summary.get('quality_summary')}")
     if summary.get("dominant_structure"):
@@ -1816,6 +1951,9 @@ def _market_structure_markdown_lines(market_structure: dict) -> list[str]:
     if quality.get("warnings"):
         for warning in quality.get("warnings", [])[:5]:
             lines.append(f"- 提醒：{warning}")
+    lines.append("")
+    if distributions:
+        lines.append("### 属性结构概览")
     for item in distributions[:4]:
         if isinstance(item, dict):
             lines.append(f"- {item.get('label', item.get('dimension', '维度'))}：{item.get('summary', '待填')}")
@@ -1828,6 +1966,78 @@ def _market_structure_markdown_lines(market_structure: dict) -> list[str]:
         lines.append(f"- 交叉分析：{first.get('summary', '待填')}")
     lines.append("")
     return lines
+
+
+def _keyword_demand_markdown_lines(candidate: dict, keyword_analysis: dict) -> list[str]:
+    demand = candidate.get("demand_evidence", {}) if isinstance(candidate, dict) else {}
+    aba_signal = demand.get("aba_keyword_signal", {}) if isinstance(demand, dict) else {}
+    lines = [
+        f"- 卖家精灵核心词：{demand.get('top_keyword', '待填')}",
+        f"- 核心词月搜索量：{_format_number(demand.get('top_keyword_monthly_searches')) if demand.get('top_keyword_monthly_searches') is not None else '待填'}",
+        f"- 搜索信号：{keyword_analysis.get('search_signal', demand.get('search_signal', '待填'))}",
+        f"- 趋势信号：{keyword_analysis.get('trend_signal', demand.get('trend_signal', '待填'))}",
+        f"- ABA 核心词：{demand.get('aba_top_search_term') or '待填'}",
+        f"- ABA 点击 ASIN：{demand.get('aba_top_clicked_asin') or '待填'}",
+        "",
+    ]
+    target_keywords = aba_signal.get("target_keywords", []) if isinstance(aba_signal, dict) else []
+    top_keywords = target_keywords or (aba_signal.get("top_keywords", []) if isinstance(aba_signal, dict) else [])
+    if top_keywords:
+        lines.append("### ABA/关键词线索")
+        for item in top_keywords[:8]:
+            lines.append(
+                f"- {item.get('keyword', '待填')}：月搜 {_format_number(item.get('monthly_searches'))}；"
+                f"点击 { _format_number(item.get('clicks')) if item.get('clicks') is not None else '待填'}；"
+                f"PPC {item.get('ppc_usd', '待填')}；意图 {item.get('intent', '待确认')}"
+            )
+        lines.append("")
+    return lines
+
+
+def _attribute_analysis_markdown_lines(market_structure: dict, currency_code: str) -> list[str]:
+    definitions = market_structure.get("attribute_definitions", []) if isinstance(market_structure, dict) else []
+    distributions = market_structure.get("attribute_distributions", []) if isinstance(market_structure, dict) else []
+    cross_analysis = market_structure.get("cross_analysis", []) if isinstance(market_structure, dict) else []
+    pending_labels = market_structure.get("pending_label_items", []) if isinstance(market_structure, dict) else []
+    opportunity_judgments = market_structure.get("opportunity_judgments", []) if isinstance(market_structure, dict) else []
+    summary = market_structure.get("summary", {}) if isinstance(market_structure, dict) else {}
+    lines: list[str] = []
+    if definitions:
+        lines.append("### 属性定义")
+        for item in definitions[:8]:
+            lines.append(f"- {item.get('label', item.get('dimension', '维度'))}：{item.get('rule', '待填')}")
+        lines.append("")
+    if distributions:
+        lines.append("### 属性分布")
+        for item in distributions[:8]:
+            lines.append(f"- {item.get('label', item.get('dimension', '维度'))}：{item.get('summary', '待填')}")
+        lines.append("")
+    if cross_analysis:
+        lines.append("### 属性交叉分析")
+        for item in cross_analysis[:6]:
+            lines.append(f"- {item.get('label', '交叉维度')}：{item.get('summary', '待填')}")
+        lines.append("")
+    if opportunity_judgments:
+        lines.append("### 机会判断")
+        if summary.get("opportunity_judgment_summary"):
+            lines.append(f"- 汇总：{summary.get('opportunity_judgment_summary')}")
+        for item in opportunity_judgments[:8]:
+            lines.append(
+                f"- {item.get('opportunity_type', '待验证')}：{item.get('cross_dimension', '交叉维度')} / "
+                f"{item.get('combination', '组合待填')}；均销量 {_format_number(item.get('avg_monthly_units'))}；"
+                f"下一步：{item.get('next_check', '待验证')}"
+            )
+        lines.append("")
+    if pending_labels:
+        lines.append("### 待确认标签")
+        lines.append(f"- 待运营复核商品数：{len(pending_labels)}")
+        for item in pending_labels[:8]:
+            lines.append(
+                f"- {item.get('asin', '待填')}：路线 {item.get('product_route', '待确认')}；"
+                f"置信度 {item.get('tag_confidence', '待确认')}；{_compact_title(item.get('title'), 48)}"
+            )
+        lines.append("")
+    return lines or _empty_section_lines("属性分布和交叉分析未生成。")
 
 
 def _profit_breakdown_markdown_lines(profit: dict) -> list[str]:
@@ -1855,6 +2065,140 @@ def _profit_breakdown_markdown_lines(profit: dict) -> list[str]:
         lines.append(f"- 说明：{profit.get('notes')}")
     lines.append("")
     return lines
+
+
+def _profit_review_markdown_lines(profit: dict, operator_inputs: dict, currency_code: str) -> list[str]:
+    lines = [
+        f"- 基础 FBA 毛利：{_format_money(profit.get('base_fba_gross_profit', '待填'), currency_code)}",
+        f"- 基础 FBA 毛利率：{_format_percent_or_text(profit.get('base_fba_margin', '待填'))}",
+        f"- 扣广告和退货后的 FBA 毛利：{_format_money(profit.get('post_ads_returns_gross_profit', '待填'), currency_code)}",
+        f"- 扣广告和退货后的 FBA 毛利率：{_format_percent_or_text(profit.get('post_ads_returns_margin', '待填'))}",
+        "",
+    ]
+    missing_inputs = [
+        label
+        for key, label in (
+            ("purchase_cost", "采购价"),
+            ("exchange_rate", "站点汇率"),
+            ("fba_fee", "FBA费用"),
+            ("first_leg_shipping", "头程费用"),
+            ("inbound_placement_fee", "入库配置费"),
+        )
+        if str(operator_inputs.get(key, "待补")) in {"", "待补", "待填", "None"}
+    ]
+    lines.append(f"- 利润待补：{_join_or_default(missing_inputs, '暂无')}")
+    lines.append("")
+    lines.extend(_profit_breakdown_markdown_lines(profit))
+    return lines
+
+
+def _risk_review_markdown_lines(return_risk: dict, ip_screening: dict, compliance: dict, review: dict) -> list[str]:
+    lines = [
+        "### 退货风险",
+        f"- 来源：{return_risk.get('source', '待填') if isinstance(return_risk, dict) else '待填'}",
+        f"- 等级：{return_risk.get('level', '待确认') if isinstance(return_risk, dict) else '待确认'}",
+        f"- 市场退货率：{_format_percent_or_text(return_risk.get('market_return_rate', '待填')) if isinstance(return_risk, dict) else '待填'}",
+        "",
+    ]
+    lines.extend(_ip_compliance_markdown_lines(ip_screening, compliance, review))
+    return lines
+
+
+def _competitor_selection_markdown_lines(selection_logic: object, competitors: dict, cards: list, currency_code: str) -> list[str]:
+    total_count = 0
+    if isinstance(competitors, dict):
+        total_count = sum(len(competitors.get(key, []) or []) for key in ("top10", "recent_winners", "structure_supplement"))
+    selection_rows = selection_logic if isinstance(selection_logic, list) else []
+    covered_types = sorted(
+        {
+            str(item.get("competitor_type"))
+            for item in selection_rows
+            if isinstance(item, dict) and item.get("competitor_type")
+        }
+    )
+    lines = [
+        f"- 竞品池覆盖数量：{total_count}",
+        "- 选择逻辑：优先覆盖 Top10 标杆、近半年放量新品、结构补充样本和价格/功能差异样本。",
+        "- 证据口径：每个竞品行应回到 `data.xlsx` 的 `竞品池` 与 `竞品深拆卡` Sheet 核对。",
+        f"- VOC 推荐抓取覆盖角色：{_join_or_default(covered_types, '待补')}",
+        "",
+    ]
+    if selection_rows:
+        lines.append("### 竞品选择逻辑表")
+        for item in selection_rows[:12]:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"- {item.get('asin', '待填')} / {item.get('brand', '待填')} / {item.get('competitor_type', '待填')}："
+                f"{_compact_title(item.get('title'), 48)}；"
+                f"价格 {_format_money(item.get('price_usd'), currency_code)}；"
+                f"月销量 {_format_number(item.get('monthly_units'))}；"
+                f"评分 {item.get('rating', '待填')}（{_format_number(item.get('rating_count'))}）；"
+                f"理由：{item.get('selection_reason', '待填')}"
+            )
+        lines.append("")
+    lines.extend(_competitor_markdown_lines(competitors, currency_code))
+    lines.extend(_competitor_deep_dive_markdown_lines(cards, currency_code))
+    return lines
+
+
+def _go_nogo_markdown_lines(decision: dict, status: dict, currency_code: str) -> list[str]:
+    scorecard = decision.get("go_nogo_scorecard", {}) if isinstance(decision, dict) else {}
+    lines = [
+        "### 状态卡",
+        f"- 当前状态：{status.get('status', '待填') if isinstance(status, dict) else '待填'}",
+        f"- 状态理由：{status.get('reason', '待填') if isinstance(status, dict) else '待填'}",
+        f"- 下一步：{status.get('next_step', '待填') if isinstance(status, dict) else '待填'}",
+        "",
+    ]
+    if scorecard:
+        lines.append("### Go/Wait/No-Go 评分卡")
+        if scorecard.get("gating_reasons"):
+            lines.append(f"- 决策限制：{_join_or_default(scorecard.get('gating_reasons'), '无')}")
+        for name, item in scorecard.get("dimensions", {}).items():
+            score = item.get("score", "待填")
+            weight = item.get("weight", "待填")
+            weight_text = f"{weight * 100:.0f}%" if isinstance(weight, (int, float)) else str(weight)
+            lines.append(f"- {name}：{score}/10，权重 {weight_text}；依据：{item.get('note', '待填')}")
+        lines.append(f"- 加权总分：{scorecard.get('weighted_score', '待填')}")
+        lines.append(f"- 决策结论：{scorecard.get('decision', '待填')}")
+        if scorecard.get("note"):
+            lines.append(f"- 说明：{scorecard.get('note')}")
+        lines.append("")
+    lines.extend(_decision_markdown_lines(decision, currency_code))
+    return lines
+
+
+def _next_step_evidence_markdown_lines(status: dict, decision: dict) -> list[str]:
+    actions = decision.get("action_items", []) if isinstance(decision, dict) else []
+    missing_inputs = decision.get("missing_inputs", []) if isinstance(decision, dict) else []
+    lines = [
+        f"- 下一步：{status.get('next_step', '待填') if isinstance(status, dict) else '待填'}",
+        f"- 待补项：{_join_or_default(missing_inputs[:12], '暂无')}",
+        "",
+        "### 动作清单",
+    ]
+    if actions:
+        for item in actions[:10]:
+            lines.append(f"- {item}")
+    else:
+        lines.append("- 待 Claude 结合当前数据补充具体动作。")
+    lines.extend(["", "### 证据附录"])
+    for section, sheets in REPORT_EXCEL_SHEET_MAP:
+        lines.append(f"- {section}：`data.xlsx` -> {sheets}")
+    lines.append("- 运行摘要：`workflow_summary.md` / `workflow_summary.json`")
+    lines.append("")
+    return lines
+
+
+def _join_or_default(values: object, default: str) -> str:
+    if not values:
+        return default
+    if isinstance(values, (list, tuple, set)):
+        text = "、".join(str(item) for item in values if str(item).strip())
+        return text or default
+    text = str(values).strip()
+    return text or default
 
 
 def _profit_breakdown_rows(profit: dict) -> list[list[object]]:
@@ -1887,7 +2231,7 @@ def _profit_breakdown_rows(profit: dict) -> list[list[object]]:
 def _ip_compliance_markdown_lines(ip_screening: dict, compliance: dict, review: dict) -> list[str]:
     if not ip_screening and not compliance and not review:
         return []
-    lines = ["## 知产/合规初筛", ""]
+    lines = ["### 知产/合规初筛", ""]
     if review:
         missing = review.get("missing_fields", [])
         pending = review.get("pending_fields", [])
@@ -2035,7 +2379,7 @@ def _trim_sentence_end(value: object) -> str:
 def _voc_markdown_lines(voc: dict) -> list[str]:
     summary = voc.get("summary", {})
     lines = [
-        "## 评论 VOC",
+        "### 评论 VOC 摘要",
         f"- 评论数：{summary.get('review_count', '待填')}",
         f"- ASIN 数：{summary.get('asin_count', '待填')}",
         f"- 采集入口站点：{_format_count_items(summary.get('entry_site_distribution', []), 3) or '待填'}",
@@ -2236,12 +2580,12 @@ def _attribute_distribution_rows(distributions: list[dict[str, object]]) -> list
 
 
 def _cross_analysis_rows(cross_analysis: list[dict[str, object]], currency_code: str = "USD") -> list[list[object]]:
-    rows: list[list[object]] = [["交叉维度", "说明", "组合", "样本数", "均价", "月销量均值", "评分均值", "解释"]]
+    rows: list[list[object]] = [["交叉维度", "说明", "组合", "样本数", "均价", "月销量均值", "评分均值", "机会类型", "解释"]]
     for item in cross_analysis:
         if not isinstance(item, dict):
             continue
         cells = item.get("cells", [])
-        rows.append([item.get("label"), item.get("purpose"), "", "", "", "", "", item.get("summary")])
+        rows.append([item.get("label"), item.get("purpose"), "", "", "", "", "", "", item.get("summary")])
         for cell in cells[:8]:
             if isinstance(cell, dict):
                 rows.append(
@@ -2253,11 +2597,70 @@ def _cross_analysis_rows(cross_analysis: list[dict[str, object]], currency_code:
                         cell.get("avg_price"),
                         cell.get("avg_monthly_units"),
                         cell.get("avg_rating"),
+                        cell.get("opportunity_type"),
                         cell.get("interpretation"),
                     ]
                 )
     if len(rows) == 1:
-        rows.append(["未生成", "", "", "", "", "", "", ""])
+        rows.append(["未生成", "", "", "", "", "", "", "", ""])
+    return rows
+
+
+def _pending_label_rows(items: object, currency_code: str = "USD") -> list[list[object]]:
+    rows: list[list[object]] = [[
+        "ASIN", "标题（截取）", f"价格({currency_code})", "月销量",
+        "AI产品路线", "AI功能标签", "置信度", "AI备注",
+        "运营填写-产品路线", "运营填写-主场景", "运营备注",
+    ]]
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            rows.append(
+                [
+                    item.get("asin"),
+                    _compact_title(item.get("title"), 70),
+                    item.get("price"),
+                    item.get("monthly_units"),
+                    item.get("product_route"),
+                    _display_value(item.get("feature_tags")),
+                    item.get("tag_confidence"),
+                    _display_value(item.get("tag_notes")),
+                    item.get("operator_product_route", ""),
+                    item.get("operator_main_scene", ""),
+                    item.get("operator_note", ""),
+                ]
+            )
+    if len(rows) == 1:
+        rows.append(["暂无待确认标签", "", "", "", "", "", "", "", "", "", ""])
+    return rows
+
+
+def _opportunity_judgment_rows(items: object, currency_code: str = "USD") -> list[list[object]]:
+    rows: list[list[object]] = [[
+        "交叉维度", "组合", "机会类型", "样本数", f"均价({currency_code})",
+        "月销量均值", "评分均值", "依据", "下一步", "样本ASIN",
+    ]]
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            rows.append(
+                [
+                    item.get("cross_dimension"),
+                    item.get("combination"),
+                    item.get("opportunity_type"),
+                    item.get("sample_count"),
+                    item.get("avg_price"),
+                    item.get("avg_monthly_units"),
+                    item.get("avg_rating"),
+                    item.get("basis"),
+                    item.get("next_check"),
+                    _display_value(item.get("sample_asins")),
+                ]
+            )
+    if len(rows) == 1:
+        rows.append(["未生成", "", "", "", "", "", "", "", "", ""])
     return rows
 
 
@@ -2347,6 +2750,34 @@ def _competitor_rows(competitors: dict, currency_code: str = "USD") -> list[list
     return rows
 
 
+def _competitor_selection_logic_rows(items: object, currency_code: str = "USD") -> list[list[object]]:
+    rows: list[list[object]] = [[
+        "ASIN", "品牌", "标题（截取）", f"价格({currency_code})", "月销量",
+        "评分", "评分数", "竞品类型", "覆盖维度", "选择理由",
+    ]]
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            rows.append(
+                [
+                    item.get("asin"),
+                    item.get("brand"),
+                    _compact_title(item.get("title"), 80),
+                    item.get("price_usd"),
+                    item.get("monthly_units"),
+                    item.get("rating"),
+                    item.get("rating_count"),
+                    item.get("competitor_type"),
+                    _display_value(item.get("coverage_dimensions")),
+                    item.get("selection_reason"),
+                ]
+            )
+    if len(rows) == 1:
+        rows.append(["未生成", "", "", "", "", "", "", "", "", ""])
+    return rows
+
+
 def _competitor_markdown_lines(competitors: dict, currency_code: str = "USD") -> list[str]:
     if not competitors:
         return []
@@ -2355,7 +2786,7 @@ def _competitor_markdown_lines(competitors: dict, currency_code: str = "USD") ->
         ("recent_winners", "近半年放量新品组"),
         ("structure_supplement", "结构补充组"),
     ]
-    lines = ["## 竞品池", ""]
+    lines = ["### 竞品池", ""]
     has_any = False
     for key, label in groups:
         items = competitors.get(key, [])
@@ -2411,7 +2842,7 @@ def _competitor_deep_dive_rows(cards: list, currency_code: str = "USD") -> list[
 def _competitor_deep_dive_markdown_lines(cards: list, currency_code: str = "USD") -> list[str]:
     if not cards:
         return []
-    lines = ["", "## 重点竞品数据", ""]
+    lines = ["", "### 重点竞品数据", ""]
     for card in cards:
         asin = card.get("asin", "")
         title = _compact_title(card.get("title"), 60)
@@ -2589,6 +3020,7 @@ def _go_nogo_scorecard_rows(scorecard: dict) -> list[list[object]]:
     rows.append([])
     rows.append(["加权总分", scorecard.get("weighted_score", ""), "", "", ""])
     rows.append(["决策结论", scorecard.get("decision", ""), "", "", ""])
+    rows.append(["决策限制", _display_value(scorecard.get("gating_reasons", [])), "", "", ""])
     rows.append(["说明", scorecard.get("note", ""), "", "", ""])
     return rows
 

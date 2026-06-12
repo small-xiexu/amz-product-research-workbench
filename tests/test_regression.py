@@ -13,6 +13,8 @@ from packages.research_core.adapters import SorftimeAdapter, SortimeAdapter
 from scripts.apply_ip_compliance_review import apply_ip_compliance_review, next_step_for
 from scripts.apply_profit_review import apply_profit_review
 from scripts.build_candidate_pool_from_import_manifest import build_candidate_pool
+from scripts.validate_research_outputs import validate_workflow_output
+from packages.report_renderer.render_report import FORMAL_REPORT_SECTION_TITLES, render_markdown
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -89,6 +91,46 @@ class RegressionTests(unittest.TestCase):
             self.assertEqual(sheet["A2"].value, "A")
             self.assertEqual(sheet["B2"].value, "中文内容")
 
+    def test_validate_research_outputs_accepts_minimal_complete_workflow(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workflow_dir = Path(tmp)
+            final_report = workflow_dir / "final_report"
+            final_report.mkdir()
+            _write_minimal_workflow_summary(workflow_dir)
+            (final_report / "report.md").write_text(_minimal_formal_report_markdown(), encoding="utf-8")
+            (final_report / "summary.md").write_text("# 摘要\n", encoding="utf-8")
+            (final_report / "dashboard.html").write_text("<!doctype html><html></html>", encoding="utf-8")
+            write_xlsx(final_report / "data.xlsx", _minimal_delivery_sheets(top100_rows=100))
+
+            result = validate_workflow_output(workflow_dir)
+
+        self.assertTrue(result.ok, result.errors)
+        self.assertFalse(result.warnings)
+
+    def test_validate_research_outputs_reports_missing_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workflow_dir = Path(tmp)
+            final_report = workflow_dir / "final_report"
+            final_report.mkdir()
+            _write_minimal_workflow_summary(workflow_dir)
+            (final_report / "report.md").write_text(_minimal_formal_report_markdown(), encoding="utf-8")
+            (final_report / "summary.md").write_text("# 摘要\n", encoding="utf-8")
+
+            result = validate_workflow_output(workflow_dir)
+
+        self.assertFalse(result.ok)
+        self.assertTrue(any("dashboard.html" in item for item in result.errors))
+        self.assertTrue(any("data.xlsx" in item for item in result.errors))
+
+    def test_render_markdown_uses_formal_report_sections(self) -> None:
+        package = _load_json("examples/minimal_research_package.json")
+        report = render_markdown(package)
+        positions = [report.index(f"## {title}") for title in FORMAL_REPORT_SECTION_TITLES]
+
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn("## Executive Summary / 当前结论", report)
+        self.assertIn("## 下一步动作与证据附录", report)
+
     @unittest.skipUnless(
         (ROOT / "卖家精灵导出样例_美国站_宠物牵引绳_20260607").exists(),
         "local SellerSprite sample folder is ignored and may be absent",
@@ -111,6 +153,99 @@ class RegressionTests(unittest.TestCase):
 
 def _load_json(relative_path: str) -> dict:
     return json.loads((ROOT / relative_path).read_text(encoding="utf-8"))
+
+
+def _write_minimal_workflow_summary(workflow_dir: Path) -> None:
+    summary = {
+        "review_voc": {"enabled": False},
+        "profit_review": {"applied": False, "status": "待填写模板"},
+        "ip_compliance_review": {"applied": False, "status": "待填写模板"},
+    }
+    (workflow_dir / "workflow_summary.json").write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (workflow_dir / "workflow_summary.md").write_text(
+        "# 选品流程运行摘要\n\n- 利润复核：待填写模板\n- 知产/合规初筛：待填写模板\n",
+        encoding="utf-8",
+    )
+
+
+def _minimal_delivery_sheets(top100_rows: int) -> list[tuple[str, list[list[object]]]]:
+    rows: list[list[object]] = [["ASIN", "标题", "价格", "月销量"]]
+    for index in range(top100_rows):
+        rows.append([f"B{index:09d}", f"测试商品 {index}", 19.99, 100 + index])
+    return [
+        ("数据来源说明", [["来源", "说明"], ["seller-sprite-export", "测试"]]),
+        ("市场结构", [["字段", "值"], ["市场规模", "测试"]]),
+        ("Top100原始明细", rows),
+        ("数据质量检查", [["字段", "值"], ["实际数量", top100_rows]]),
+        ("属性定义", [["维度", "名称", "判定规则"], ["price_band", "价格带", "测试"], ["review_band", "评论门槛", "测试"], ["product_route", "产品路线", "测试"]]),
+        ("Top商品打标", [["ASIN", "标题", "属性标签", "置信度"], ["B000000001", "测试", "{}", "高"]]),
+        ("待确认标签", [["ASIN", "标题", "置信度"], ["B000000002", "测试", "低"]]),
+        ("属性分布", [["维度", "名称", "分布摘要"], ["shape", "测试", "测试"]]),
+        (
+            "属性交叉分析",
+            [
+                ["交叉维度", "说明", "组合", "样本数"],
+                ["价格带 x 销量层级", "测试", "", ""],
+                ["上架时间 x 评论门槛", "测试", "", ""],
+                ["产品路线 x 销量层级", "测试", "", ""],
+            ],
+        ),
+        ("机会判断", [["交叉维度", "组合", "机会类型"], ["价格带 x 销量层级", "20-30 x 1000+", "待验证"]]),
+        (
+            "竞品选择逻辑",
+            [
+                ["ASIN", "品牌", "标题", "价格(USD)", "月销量", "评分", "评分数", "竞品类型", "覆盖维度", "选择理由"],
+                ["B000000001", "BrandA", "测试", 19.99, 1000, 4.5, 200, "量级标杆", "销量量级", "测试"],
+                ["B000000002", "BrandB", "测试", 25.99, 800, 4.4, 150, "近半年新品", "新品", "测试"],
+                ["B000000003", "BrandC", "测试", 12.99, 500, 3.9, 80, "痛点参考", "评分/评论门槛", "测试"],
+            ],
+        ),
+        ("竞品池", [["ASIN", "标题"], ["B000000001", "测试"]]),
+        (
+            "Go_No-Go评分卡",
+            [
+                ["维度", "得分（满分10）", "权重", "加权得分", "依据"],
+                ["市场规模", 6, "16%", 0.96, "测试"],
+                ["竞争格局", 6, "16%", 0.96, "测试"],
+                ["需求清晰度", 6, "14%", 0.84, "测试"],
+                ["新品友好度", 6, "12%", 0.72, "测试"],
+                ["利润可行性", 5, "16%", 0.8, "待补"],
+                ["知产/合规/退货风险", 5, "14%", 0.7, "待补"],
+                ["数据完整度", 8, "12%", 0.96, "测试"],
+                [],
+                ["加权总分", 5.94, "", "", ""],
+                ["决策结论", "WAIT", "", "", ""],
+                ["决策限制", "利润复核未回填；知产/合规初筛未回填", "", "", ""],
+            ],
+        ),
+        ("决策检查", [["字段", "值"], ["状态", "观察"]]),
+        ("风险矩阵", [["维度", "等级"], ["数据", "低"]]),
+        ("状态卡", [["字段", "值"], ["状态", "观察"]]),
+        ("评论VOC", [["字段", "值"], ["未接入", ""]]),
+        (
+            "VOC证据",
+            [
+                ["类型", "主题", "评论数", "等级", "评论ID", "ASIN", "采集入口站点", "评论地区", "评分", "日期", "证据片段", "链接"],
+                ["痛点", "测试", 1, "中", "R1", "B000000001", "US", "United States", 2, "2026-01-01", "测试片段", "https://example.com"],
+            ],
+        ),
+        ("利润参考结果", [["字段", "值"], ["状态", "待填写模板"]]),
+        ("利润成本拆分", [["字段", "值"], ["状态", "未计算"]]),
+        ("知产合规复核", [["字段", "值"], ["状态", "待填写模板"]]),
+        ("知产初筛", [["字段", "值"], ["状态", "待复核"]]),
+        ("合规认证预判", [["字段", "值"], ["状态", "待复核"]]),
+    ]
+
+
+def _minimal_formal_report_markdown() -> str:
+    lines = ["# 测试调研报告", ""]
+    for title in FORMAL_REPORT_SECTION_TITLES:
+        lines.extend([f"## {title}", "", "- 测试内容", ""])
+    lines.append("- 数据来源说明 / 状态卡 / 下一步 / 待补项")
+    return "\n".join(lines) + "\n"
 
 
 if __name__ == "__main__":

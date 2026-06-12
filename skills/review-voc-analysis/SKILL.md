@@ -9,6 +9,7 @@
 - 判断每个痛点的改品可行性，给出具体产品方案而非模板建议
 - 识别好评背后用户真正在意的卖点（用来锁定差异化方向）
 - 输出可以直接给供应商验证的改品假设，不写"需要进一步研究"
+- 使用 `docs/分析模式库.md` 中「痛点 -> 能力/供应链 -> 产品方案」和「竞品角色 -> VOC 覆盖 -> 证据链」模式，所有痛点必须能追溯到 review_id、ASIN、评分和原文片段
 
 ---
 
@@ -66,6 +67,13 @@ python3 scripts/build_review_voc_from_plugin_export.py <评论文件> <输出目
 ### 第三步：输出分析结论
 
 按下方格式输出，不省略任何字段。
+
+输出后需要把可追溯证据回填到 `review_voc_package.json`：
+- `pain_points[].evidence[]` 必须包含 `review_id`、`asin`、`rating`、`snippet`、`url`
+- `highlights[].evidence[]` 同样保留完整追溯字段
+- `opportunity_hypotheses[].evidence_review_ids` 必须引用真实 `review_id`
+
+如果尚未完成 Claude 归纳，最终报告会从 `normalized_reviews` 抽低分/代表评论作为 `VOC证据` 兜底；但正式交付时仍应补齐痛点/亮点归纳，不能只停留在原始评论明细。
 
 ---
 
@@ -131,6 +139,8 @@ python3 scripts/build_review_voc_from_plugin_export.py <评论文件> <输出目
 - [ ] 好评卖点至少 2 个，有原文支撑
 - [ ] 改品机会假设至少 1 个，具体到可以给供应商验证
 - [ ] 数据范围已说明（评论数、ASIN 数、时效）
+- [ ] 每个痛点/亮点都有 review_id、ASIN、评分、原文片段和链接，最终 Excel `VOC证据` 可追溯
+- [ ] VOC 覆盖的 ASIN 已和 `candidate_pool.next_review_voc_asins` / `竞品选择逻辑` 对照，缺口已写成下一轮抓评建议
 
 未通过的项必须明确标出缺什么，不允许假装完成。
 
@@ -139,3 +149,4 @@ python3 scripts/build_review_voc_from_plugin_export.py <评论文件> <输出目
 ## 参考文档
 
 - `docs/架构原则.md` — 脚本/Claude 分工说明
+- `docs/分析模式库.md` — VOC 痛点、竞品覆盖和证据链分析模式

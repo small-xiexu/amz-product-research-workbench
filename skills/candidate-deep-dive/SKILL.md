@@ -9,6 +9,7 @@
 - 调度 VOC 分析（切换到 `review-voc-analysis` Skill）
 - 生成最终深挖报告，并在对话中给出综合判断
 - 明确告知运营下一步最重要的 3 件事
+- 使用 `docs/分析模式库.md`，正式判断至少套用 3 种模式；利润或合规未回填时，只能给 Wait/观察/待补，不给强 Go
 
 ---
 
@@ -112,10 +113,24 @@ python3 scripts/run_research_workflow.py <导出文件夹> <输出目录> \
   --review-input <评论xlsx> --review-input <评论html>
 ```
 
+报告生成后必须运行正式交付校验：
+
+```bash
+python3 scripts/validate_research_outputs.py <输出目录>
+```
+
+校验失败时先修数据或报告，不进入综合判断。校验器会检查：
+- `report.md` 固定 12 章顺序
+- `data.xlsx` 关键 Sheet、Top100、属性定义、交叉分析、待确认标签、机会判断
+- 竞品选择逻辑和 VOC 证据链
+- 七维 Go/Wait/No-Go 评分卡
+- 利润/知产合规未回填时禁止 GO
+
 **报告生成后，你还没完成任务**。必须在对话里：
 1. 读生成的 `report.md`，检查数据是否合理，标注异常
 2. 给出综合判断：**Go / Wait / No-Go + 核心理由（不超过 3 条，每条对应具体数据）**
 3. 明确告知运营下一步最重要的 3 件事
+4. 说明本轮使用了 `docs/分析模式库.md` 中哪些模式，至少覆盖 3 种；没有证据支撑的模式不要硬套
 
 ---
 
@@ -146,8 +161,9 @@ python3 scripts/run_research_workflow.py <导出文件夹> <输出目录> \
 
 1. **Go/No-Go 判断必须可回溯**：每条理由对应 `research_package.json` 中的具体字段或 Sorftime 返回数据
 2. **数据缺口直说**：利润字段未填、知产未复核时，判断前必须说明"基于不完整数据"
-3. **不编造评分依据**：Go/No-Go 评分卡的五个维度得分，每分必须有数据来源
+3. **不编造评分依据**：Go/Wait/No-Go 评分卡固定 7 维：市场规模、竞争格局、需求清晰度、新品友好度、利润可行性、知产/合规/退货风险、数据完整度；每分必须有数据来源
 4. **区分事实与推断**：引用数字是事实；"这说明竞争可以进入"是推断，须注明
+5. **利润或合规未回填时禁止强 Go**：评分卡必须输出 Wait/观察/待补，并写明 `gating_reasons`
 
 ---
 
@@ -158,6 +174,9 @@ python3 scripts/run_research_workflow.py <导出文件夹> <输出目录> \
 - [ ] VOC 分析已完成（通过 `review-voc-analysis` Skill）
 - [ ] `research_package.json` 已生成（阶段七）
 - [ ] `report.md` / `dashboard.html` / `data.xlsx` 已生成（阶段七）
+- [ ] `python3 scripts/validate_research_outputs.py <输出目录>` 已通过
+- [ ] `report.md` 固定 12 章结构完整：当前结论、数据来源、候选边界、市场质量、关键词、属性交叉、竞品逻辑、VOC、利润、风险、评分卡、下一步证据附录
+- [ ] `Go_No-Go评分卡` 7 个固定维度完整；利润或合规未回填时结论为 Wait/观察/待补
 - [ ] 综合 Go/Wait/No-Go 判断已在对话中给出（有数据支撑）
 - [ ] 运营下一步 3 件事已明确列出
 
@@ -169,6 +188,7 @@ python3 scripts/run_research_workflow.py <导出文件夹> <输出目录> \
 
 ## 参考文档
 
+- `docs/分析模式库.md` — 正式深挖报告和 Go/Wait/No-Go 判断的洞察模式
 - `docs/sorftime-mcp-工具调用策略.md` — Sorftime 工具调用规则与积分说明
 - `docs/架构原则.md` — 脚本/Claude 分工说明
 - `skills/review-voc-analysis/SKILL.md` — VOC 分析 Skill

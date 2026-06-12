@@ -91,6 +91,7 @@ def build_research_package(
             "recent_winners": _competitor_items(competitor_candidates.get("recent_winners", [])),
             "structure_supplement": _competitor_items(competitor_candidates.get("structure_supplement", [])),
         },
+        "competitor_selection_logic": _build_competitor_selection_logic(candidate),
         "profit_reference": {
             "base_fba_gross_profit": "待补",
             "base_fba_margin": "待补",
@@ -376,45 +377,97 @@ def _build_go_nogo_scorecard(
         else:
             return 2.0, f"利润率 {margin_pct:.1f}%（利润不健康）"
 
+    def score_new_listing_friendliness() -> tuple[float, str]:
+        friendliness = new_listing.get("friendliness", {}) if isinstance(new_listing, dict) else {}
+        overall = friendliness.get("overall") if isinstance(friendliness, dict) else ""
+        recent_count = new_listing.get("new_listing_count_6m")
+        recent_share = new_listing.get("recent_6m_units_share")
+        if overall == "绿":
+            return 8.0, f"近半年新品信号较好；新品数 {recent_count}，销量占比 {_fmt_percent(recent_share)}"
+        if overall == "黄":
+            return 6.0, f"近半年新品信号一般；新品数 {recent_count}，销量占比 {_fmt_percent(recent_share)}"
+        if overall == "红":
+            return 3.5, f"近半年新品信号偏弱；新品数 {recent_count}，销量占比 {_fmt_percent(recent_share)}"
+        return 5.0, "新品友好度待确认"
+
+    def score_risk() -> tuple[float, str]:
+        return_score = 5.0
+        return_level = ""
+        for barrier in entry_barriers:
+            if barrier.get("type") in {"技术壁垒", "合规壁垒"} and barrier.get("level") == "高":
+                return 3.0, f"{barrier.get('type')}为高，需要专业复核"
+            if barrier.get("type") == "供应链壁垒":
+                return_level = str(barrier.get("level", "待确认"))
+        if return_level == "低":
+            return_score = 7.0
+        elif return_level == "中":
+            return_score = 5.0
+        elif return_level == "高":
+            return_score = 3.0
+        return return_score, f"退货/供应链壁垒：{return_level or '待确认'}；知产/合规未专业复核前仅作早期风险参考"
+
+    def score_data_completeness() -> tuple[float, str]:
+        quality = candidate.get("market_structure", {}).get("data_quality", {})
+        quality_score_value = quality.get("quality_score")
+        if isinstance(quality_score_value, (int, float)):
+            return max(1.0, min(10.0, quality_score_value / 10)), (
+                f"Top商品质量分 {quality_score_value}；实际 {quality.get('actual_count')} / 要求 {quality.get('expected_count')}"
+            )
+        return 5.0, "数据完整度待确认"
+
+    gating_reasons = [
+        "利润复核未回填",
+        "知产/合规初筛未回填",
+    ]
+
     weights = {
-        "市场规模": 0.20,
-        "竞争格局": 0.25,
-        "需求清晰度": 0.15,
-        "进入壁垒": 0.20,
-        "盈利能力": 0.20,
+        "市场规模": 0.16,
+        "竞争格局": 0.16,
+        "需求清晰度": 0.14,
+        "新品友好度": 0.12,
+        "利润可行性": 0.16,
+        "知产/合规/退货风险": 0.14,
+        "数据完整度": 0.12,
     }
 
     s_market, n_market = score_market_size()
     s_competition, n_competition = score_competition()
     s_demand, n_demand = score_demand_clarity()
-    s_barrier, n_barrier = score_entry_barriers()
+    s_new, n_new = score_new_listing_friendliness()
     s_profit, n_profit = score_profitability()
+    s_risk, n_risk = score_risk()
+    s_data, n_data = score_data_completeness()
 
     dimensions = {
         "市场规模": {"score": round(s_market, 1), "weight": weights["市场规模"], "note": n_market},
         "竞争格局": {"score": round(s_competition, 1), "weight": weights["竞争格局"], "note": n_competition},
         "需求清晰度": {"score": round(s_demand, 1), "weight": weights["需求清晰度"], "note": n_demand},
-        "进入壁垒": {"score": round(s_barrier, 1), "weight": weights["进入壁垒"], "note": n_barrier},
-        "盈利能力": {"score": round(s_profit, 1), "weight": weights["盈利能力"], "note": n_profit},
+        "新品友好度": {"score": round(s_new, 1), "weight": weights["新品友好度"], "note": n_new},
+        "利润可行性": {"score": round(s_profit, 1), "weight": weights["利润可行性"], "note": n_profit},
+        "知产/合规/退货风险": {"score": round(s_risk, 1), "weight": weights["知产/合规/退货风险"], "note": n_risk},
+        "数据完整度": {"score": round(s_data, 1), "weight": weights["数据完整度"], "note": n_data},
     }
 
     weighted_total = sum(dim["score"] * dim["weight"] for dim in dimensions.values())
     weighted_total = round(weighted_total, 2)
 
-    if weighted_total >= 7.5:
+    if gating_reasons:
+        decision = "WAIT"
+    elif weighted_total >= 7.5:
         decision = "GO"
     elif weighted_total >= 6.0:
-        decision = "CONDITIONAL GO"
+        decision = "WAIT"
     elif weighted_total >= 4.0:
-        decision = "HOLD"
+        decision = "WAIT"
     else:
         decision = "NO-GO"
 
     return {
         "weighted_score": weighted_total,
         "decision": decision,
+        "gating_reasons": gating_reasons,
         "dimensions": dimensions,
-        "note": "评分基于当前已有数据自动估算，利润待补时盈利维度不可靠，需人工复核后再用作正式决策依据。",
+        "note": "评分基于当前已有数据自动估算；利润或知产/合规未回填时只能给 WAIT/观察，不给强 GO。",
     }
 
 
@@ -785,6 +838,73 @@ def _collect_voc_evidence(voc_package: dict[str, Any] | None) -> list[dict[str, 
                         **evidence,
                     }
                 )
+    return rows or _collect_raw_review_evidence(voc_package)
+
+
+def _collect_raw_review_evidence(voc_package: dict[str, Any], limit: int = 80) -> list[dict[str, Any]]:
+    reviews = [item for item in voc_package.get("normalized_reviews", []) if isinstance(item, dict)]
+    reviews.sort(key=lambda item: (review_rating_sort_key(item), -(item.get("helpful_count") or 0)))
+    rows: list[dict[str, Any]] = []
+    for review in reviews:
+        snippet = review_snippet(review)
+        if not snippet:
+            continue
+        rows.append(
+            {
+                "finding_type": "原始评论",
+                "finding_name": "待 Claude 归纳",
+                "review_count": "",
+                "severity": "待分析",
+                "review_id": review.get("review_id"),
+                "asin": review.get("asin"),
+                "site": review.get("site"),
+                "review_region": review.get("review_region"),
+                "rating": review.get("rating"),
+                "review_date": review.get("review_date"),
+                "snippet": snippet,
+                "url": review.get("url"),
+            }
+        )
+        if len(rows) >= limit:
+            break
+    return rows
+
+
+def review_rating_sort_key(review: dict[str, Any]) -> float:
+    rating = review.get("rating")
+    if isinstance(rating, (int, float)):
+        return float(rating)
+    try:
+        return float(str(rating).strip())
+    except (TypeError, ValueError):
+        return 9.0
+
+
+def review_snippet(review: dict[str, Any], limit: int = 180) -> str:
+    text = str(review.get("review_text_zh") or review.get("review_text") or "").strip()
+    text = " ".join(text.split())
+    return text[:limit]
+
+
+def _build_competitor_selection_logic(candidate: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in candidate.get("next_review_voc_asins", []) or []:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            {
+                "asin": item.get("asin"),
+                "brand": item.get("brand"),
+                "title": item.get("title"),
+                "price_usd": item.get("price_usd"),
+                "monthly_units": item.get("monthly_units"),
+                "rating": item.get("rating"),
+                "rating_count": item.get("rating_count"),
+                "competitor_type": item.get("competitor_type") or item.get("reason"),
+                "coverage_dimensions": item.get("coverage_dimensions", []),
+                "selection_reason": item.get("selection_reason") or item.get("reason"),
+            }
+        )
     return rows
 
 
