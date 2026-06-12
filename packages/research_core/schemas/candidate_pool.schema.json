@@ -137,6 +137,71 @@
           "source_refs": {
             "type": "array",
             "items": { "type": "string" }
+          },
+          "sorftime_verification": {
+            "type": "object",
+            "description": "Sorftime MCP 验证结果，由 apply_sorftime_verification.py 合并写入",
+            "properties": {
+              "verified_at": { "type": "string" },
+              "early_exploration": {
+                "type": "object",
+                "properties": {
+                  "stage": { "type": "string", "description": "模式一并行初探 / 模式二前置快验" },
+                  "conclusion": {
+                    "type": "string",
+                    "enum": ["值得继续", "建议调整方向", "建议放弃"]
+                  },
+                  "reason": { "type": "string" }
+                },
+                "additionalProperties": true
+              },
+              "category_trend": {
+                "type": "object",
+                "properties": {
+                  "trend_direction": { "type": "string" },
+                  "monthly_sales_24m": { "type": "array" },
+                  "top3_concentration_trend": { "type": "string" },
+                  "new_product_share_trend": { "type": "string" }
+                },
+                "additionalProperties": true
+              },
+              "keyword_verification": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "keyword": { "type": "string" },
+                    "weekly_search_volume": { "type": "number" },
+                    "monthly_search_volume": { "type": "number" },
+                    "cpc": { "type": "number" },
+                    "seasonality": { "type": "string" },
+                    "competitor_count": { "type": "number" },
+                    "trend_direction": { "type": "string" }
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "traffic_terms": {
+                "type": "object",
+                "properties": {
+                  "asin": { "type": "string" },
+                  "top_traffic_words": { "type": "array", "items": { "type": "string" } },
+                  "gap_opportunities": { "type": "array", "items": { "type": "string" } }
+                },
+                "additionalProperties": true
+              },
+              "category_report_snapshot": {
+                "type": "object",
+                "description": "Sorftime category_report 返回的 Top100 类目快照，可包含 products/product_list/top100/items 等产品列表字段",
+                "additionalProperties": true
+              },
+              "supply_chain_signal": {
+                "type": "object",
+                "description": "Sorftime ali1688_similar_product 返回的 1688 粗采购价信号",
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": true
           }
         },
         "additionalProperties": true

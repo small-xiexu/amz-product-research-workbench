@@ -24,6 +24,7 @@ from packages.research_core.workflows import DecisionRecord, advance_stage, crea
 from scripts.apply_ip_compliance_review import apply_ip_compliance_review, next_step_for
 from scripts.apply_profit_review import apply_profit_review
 from scripts.build_candidate_pool_from_import_manifest import build_candidate_pool
+from scripts.build_research_package_from_candidate import build_research_package
 from scripts.validate_research_outputs import validate_workflow_output
 from packages.report_renderer.render_report import FORMAL_REPORT_SECTION_TITLES, render_data_workbook, render_markdown
 
@@ -229,6 +230,22 @@ class RegressionTests(unittest.TestCase):
         )
         validate_workflow_state(_sample_workflow_state())
 
+    def test_sorftime_category_report_and_supply_chain_flow_to_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            candidate_pool = build_candidate_pool(
+                _minimal_import_manifest(Path(tmp)),
+                sorftime_verification=_sample_sorftime_verification(),
+            )
+        candidate = candidate_pool["candidates"][0]
+        research_package = build_research_package(candidate_pool, candidate["candidate_id"])
+        report = render_markdown(research_package)
+
+        self.assertEqual(candidate["demand_evidence"]["sorftime_category_report"]["product_count"], 2)
+        self.assertEqual(candidate["preliminary_profit_space"]["supply_chain_signal"]["supplier_count"], 2)
+        self.assertIn("Sorftime category_report 快照", report)
+        self.assertIn("1688 粗估 COGS 信号", report)
+        self.assertEqual(research_package["profit_reference"]["supply_chain_signal"]["purchase_price_cny_min"], 12.0)
+
     def test_interactive_workflow_initial_broad_discovery_requires_operator_boundary(self) -> None:
         state = create_initial_state(
             workflow_id="wf-001",
@@ -273,7 +290,8 @@ class RegressionTests(unittest.TestCase):
 
         self.assertEqual(next_state.stage, "exploration_planning")
         self.assertEqual(len(next_state.decision_log), 1)
-        self.assertEqual(next_state.next_actions[0].recommended_action.action_type, "operator_export")
+        # targeted_deep_dive 的 exploration_planning 先做 Sorftime 前置快验，action_type 为 mcp_call
+        self.assertEqual(next_state.next_actions[0].recommended_action.action_type, "mcp_call")
 
     def test_build_workflow_trace_preserves_decision_log_for_report(self) -> None:
         trace = build_workflow_trace(_sample_workflow_state(), Path("/tmp/workflow_state.json"))
@@ -467,6 +485,66 @@ def _sample_workflow_state() -> dict:
 
 def _sample_workflow_trace() -> dict:
     return build_workflow_trace(_sample_workflow_state(), Path("/tmp/workflow_state.json"))
+
+
+def _minimal_import_manifest(source_folder: Path) -> dict:
+    return {
+        "metadata": {
+            "site": "US",
+            "task_name": "窗户刮水器二合一工具",
+            "generated_at": "2026-06-13T00:00:00+00:00",
+            "manifest_id": "manifest-test",
+            "source_folder": str(source_folder),
+        },
+        "files": [],
+        "data_quality": {
+            "available_source_types": ["sorftime"],
+            "missing_source_types": [],
+            "warnings": [],
+        },
+    }
+
+
+def _sample_sorftime_verification() -> dict:
+    return {
+        "verified_at": "2026-06-13",
+        "category_report_snapshot": {
+            "category_name": "Squeegees",
+            "nodeId": "2245500011",
+            "products": [
+                {
+                    "asin": "B0SF000001",
+                    "title": "2 in 1 Window Squeegee",
+                    "brand": "BrandA",
+                    "price": 19.99,
+                    "monthly_sales": 1200,
+                    "monthly_revenue": 23988,
+                    "rating": 4.5,
+                    "rating_count": 320,
+                    "listing_days": 120,
+                },
+                {
+                    "asin": "B0SF000002",
+                    "title": "Window Cleaning Kit",
+                    "brand": "BrandB",
+                    "price": 24.99,
+                    "monthly_sales": 800,
+                    "monthly_revenue": 19992,
+                    "rating": 4.3,
+                    "rating_count": 180,
+                    "listing_days": 260,
+                },
+            ],
+        },
+        "supply_chain_signal": {
+            "searchName": "刮窗器",
+            "exchange_rate": 7.2,
+            "products": [
+                {"title": "刮窗器套装", "price": "12-18", "supplier": "供应商A"},
+                {"title": "伸缩刮窗器", "price": "16-22", "supplier": "供应商B"},
+            ],
+        },
+    }
 
 
 def _minimal_delivery_sheets(top100_rows: int, interactive: bool = False) -> list[tuple[str, list[list[object]]]]:

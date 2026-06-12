@@ -81,6 +81,7 @@ def build_research_package(
             "seller_concentration": _seller_concentration_text(candidate),
             "new_listing_ratio": _new_listing_text(candidate),
             "return_rate": _return_rate_text(candidate),
+            "sorftime_category_report": candidate.get("demand_evidence", {}).get("sorftime_category_report", {}),
         },
         "keyword_analysis": {
             "search_signal": candidate.get("demand_evidence", {}).get("search_signal", "待填"),
@@ -98,6 +99,7 @@ def build_research_package(
             "post_ads_returns_gross_profit": "待补",
             "post_ads_returns_margin": "待补",
             "preliminary_profit_space": profit_space,
+            "supply_chain_signal": profit_space.get("supply_chain_signal", {}),
         },
         "return_risk": candidate.get("return_risk", {}),
         "ip_screening": candidate.get("ip_compliance_risk", {}),
@@ -642,6 +644,7 @@ def _first_pain_name(voc_package: dict[str, Any] | None) -> str:
 def _market_size_text(candidate: dict[str, Any]) -> str:
     demand = candidate.get("demand_evidence", {})
     competition = candidate.get("competition_structure", {})
+    category_report = demand.get("sorftime_category_report", {})
     parts = []
     if competition.get("sample_product_count") is not None:
         parts.append(f"样本商品数 {_fmt_number(competition.get('sample_product_count'))}")
@@ -651,12 +654,18 @@ def _market_size_text(candidate: dict[str, Any]) -> str:
         parts.append(f"市场月均销售额 USD {_fmt_number(demand.get('market_avg_monthly_revenue_usd'))}")
     if competition.get("top10_avg_monthly_units") is not None:
         parts.append(f"Top10 月均销量 {_fmt_number(competition.get('top10_avg_monthly_units'))}")
+    if isinstance(category_report, dict) and category_report.get("product_count"):
+        parts.append(
+            f"Sorftime category_report 样本 {category_report.get('product_count')} 个"
+            + (f"，总月销量 {_fmt_number(category_report.get('total_monthly_units'))}" if category_report.get("total_monthly_units") is not None else "")
+        )
     return "；".join(parts) if parts else "待填"
 
 
 def _price_band_text(candidate: dict[str, Any]) -> str:
     demand = candidate.get("demand_evidence", {})
     profit = candidate.get("preliminary_profit_space", {})
+    category_report = demand.get("sorftime_category_report", {})
     parts = []
     if profit.get("top_price_band_by_units"):
         parts.append(f"销量集中价格带 {profit.get('top_price_band_by_units')} USD")
@@ -664,11 +673,14 @@ def _price_band_text(candidate: dict[str, Any]) -> str:
         parts.append(f"该价格带销量占比 {_fmt_percent(profit.get('top_price_band_units_share'))}")
     if demand.get("market_avg_price_usd") is not None:
         parts.append(f"市场平均价 USD {_fmt_number(demand.get('market_avg_price_usd'))}")
+    if isinstance(category_report, dict) and category_report.get("avg_price_usd") is not None:
+        parts.append(f"Sorftime 均价 USD {_fmt_number(category_report.get('avg_price_usd'))}")
     return "；".join(parts) if parts else "待填"
 
 
 def _brand_concentration_text(candidate: dict[str, Any]) -> str:
     competition = candidate.get("competition_structure", {})
+    category_report = candidate.get("demand_evidence", {}).get("sorftime_category_report", {})
     top_brand = competition.get("top_brand")
     top_share = competition.get("top_brand_units_share")
     top10_share = competition.get("top10_product_units_share")
@@ -677,6 +689,8 @@ def _brand_concentration_text(candidate: dict[str, Any]) -> str:
         parts.append(f"头部品牌 {top_brand} 销量占比 {_fmt_percent(top_share)}")
     if top10_share is not None:
         parts.append(f"Top10 商品销量占比 {_fmt_percent(top10_share)}")
+    if isinstance(category_report, dict) and category_report.get("top10_units_share") is not None:
+        parts.append(f"Sorftime Top10 销量占比 {_fmt_percent(category_report.get('top10_units_share'))}")
     return "；".join(parts) if parts else "待填"
 
 
@@ -691,6 +705,7 @@ def _seller_concentration_text(candidate: dict[str, Any]) -> str:
 
 def _new_listing_text(candidate: dict[str, Any]) -> str:
     new_listing = candidate.get("new_listing_opportunity", {})
+    category_report = candidate.get("demand_evidence", {}).get("sorftime_category_report", {})
     parts = []
     if new_listing.get("new_listing_count_6m") is not None:
         parts.append(f"近半年新品 {new_listing.get('new_listing_count_6m')} 个")
@@ -698,6 +713,11 @@ def _new_listing_text(candidate: dict[str, Any]) -> str:
         parts.append(f"近半年新品月均销量 {_fmt_number(new_listing.get('new_listing_avg_monthly_units'))}")
     if new_listing.get("recent_6m_units_share") is not None:
         parts.append(f"近半年新品销量占比 {_fmt_percent(new_listing.get('recent_6m_units_share'))}")
+    if isinstance(category_report, dict) and category_report.get("new_product_count_6m") is not None:
+        parts.append(
+            f"Sorftime 近半年新品 {category_report.get('new_product_count_6m')} 个"
+            + (f"，销量占比 {_fmt_percent(category_report.get('new_product_units_share'))}" if category_report.get("new_product_units_share") is not None else "")
+        )
     return "；".join(parts) if parts else "待填"
 
 

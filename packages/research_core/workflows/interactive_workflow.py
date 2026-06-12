@@ -88,13 +88,17 @@ class RecommendedAction:
     action_type: ActionType
     label: str
     reason: str
+    mcp_tools: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "type": self.action_type,
             "label": self.label,
             "reason": self.reason,
         }
+        if self.mcp_tools:
+            d["mcp_tools"] = self.mcp_tools
+        return d
 
 
 @dataclass(frozen=True)
@@ -324,8 +328,29 @@ def _exploration_planning_card(state: WorkflowState) -> NextActionCard:
             question="下一步先用 MCP 做宽类目探索，还是让运营导出卖家精灵选市场数据？",
             recommended_action=RecommendedAction(
                 "mcp_call",
-                "调用 Sorftime broad/category",
-                "当前还没有可落地导出关键词，先用低成本类目探索拆 2-4 个方向。",
+                "调用 Sorftime 宽类目初探",
+                "当前还没有可落地导出关键词，先用低成本类目探索拆 2-4 个方向，与卖家精灵导出并行。",
+                mcp_tools=[
+                    {
+                        "tool": "search_categories_broadly",
+                        "purpose": "完全无方向时找细分类目入口",
+                        "params_hint": "keyword: 根据运营意图填写品类描述（英文）",
+                        "credits": 1,
+                    },
+                    {
+                        "tool": "category_report",
+                        "purpose": "拉取 2-3 个候选方向的实时 Top100，快速看月销量、价格、集中度和新品占比",
+                        "params_hint": "nodeId: 从 search_categories_broadly 返回结果获取",
+                        "credits": 1,
+                        "repeat": "每个候选方向各调一次",
+                    },
+                    {
+                        "tool": "keyword_list",
+                        "purpose": "获取推荐主方向的核心词搜索量量级",
+                        "params_hint": "keyword: 品类英文名",
+                        "credits": 1,
+                    },
+                ],
             ),
             options=[
                 NextActionOption("call_sorftime_broad", "先调 MCP 扫方向", "快速拆方向，避免盲导出。"),
@@ -335,15 +360,42 @@ def _exploration_planning_card(state: WorkflowState) -> NextActionCard:
     return NextActionCard(
         stage=state.stage,
         decision_required=False,
-        question="下一步生成卖家精灵导出清单，并可补一次关键词/趋势 MCP 验证。",
+        question="下一步先用 Sorftime 快验指定方向，再决定是否生成卖家精灵导出清单。",
         recommended_action=RecommendedAction(
-            "operator_export",
-            "生成卖家精灵导出清单",
-            "指定方向已明确，卖家精灵 Top100 和市场分析是正式深挖底座。",
+            "mcp_call",
+            "Sorftime 前置快验",
+            "指定方向深挖模式：卖家精灵导出前先用 4-6 积分验证方向是否值得继续，通过后给定向导出清单。",
+            mcp_tools=[
+                {
+                    "tool": "category_search_from_product_name",
+                    "purpose": "从产品名定位 Amazon 类目节点",
+                    "params_hint": "product_name: 运营给出的方向名称（英文）",
+                    "credits": 1,
+                },
+                {
+                    "tool": "category_report",
+                    "purpose": "拉取实时 Top100，判断销量体量、价格带、集中度、新品机会",
+                    "params_hint": "nodeId: 从 category_search_from_product_name 返回结果获取",
+                    "credits": 1,
+                },
+                {
+                    "tool": "keyword_detail",
+                    "purpose": "获取 2-3 个主词的搜索量 + CPC + 首页竞品数量",
+                    "params_hint": "keyword: 品类核心英文词（2-3 个，不给大词包）",
+                    "credits": 1,
+                    "repeat": "每个关键词各调一次",
+                },
+                {
+                    "tool": "ali1688_similar_product",
+                    "purpose": "获取 1688 粗采购价区间，提前判断是否存在利润空间",
+                    "params_hint": "searchName: 中文品类名",
+                    "credits": 1,
+                },
+            ],
         ),
         options=[
-            NextActionOption("request_seller_sprite", "导出卖家精灵数据", "进入数据盘点和候选池预审。"),
-            NextActionOption("call_keyword_mcp", "先调关键词趋势 MCP", "校验关键词是否值得导出。"),
+            NextActionOption("call_sorftime_quick_verify", "先调 MCP 快验", "若结论为放弃，直接止损不用导出。"),
+            NextActionOption("request_seller_sprite", "直接生成导出清单", "运营已有把握时跳过快验。"),
         ],
     )
 
@@ -423,14 +475,24 @@ def _voc_batch_planning_card(state: WorkflowState) -> NextActionCard:
     return NextActionCard(
         stage=state.stage,
         decision_required=True,
-        question="请确认评论抓取 ASIN 批次：标杆老品、新品、差评高发、功能差异和价格带代表。",
+        question="请确认评论抓取 ASIN 批次：标杆老品、新品、差评高发、功能差异和价格带代表。边界确认后可先调 potential_product 延展候选池。",
         recommended_action=RecommendedAction(
-            "review_crawl",
-            "抓取评论 VOC",
-            "VOC 是真实痛点和改品机会的证据，不确认 ASIN 批次容易抓偏。",
+            "mcp_call",
+            "候选延展 + 确认 VOC ASIN 批次",
+            "边界确认后可用 potential_product 发现周边机会，再给出 VOC ASIN 批次。",
+            mcp_tools=[
+                {
+                    "tool": "potential_product",
+                    "purpose": "找潜力新品、向周边延展发现相似机会品，补充候选池",
+                    "params_hint": "searchName: 品类英文名（如 'window squeegee'）；amzSite: 'US'（仅支持 US/GB/DE）",
+                    "credits": 1,
+                    "timing": "候选主线确认后调用一次",
+                },
+            ],
         ),
         options=[
-            NextActionOption("crawl_recommended_asins", "按推荐 ASIN 抓评论", "进入评论导入和 VOC 分析。"),
+            NextActionOption("call_sorftime_extend", "先调 MCP 延展候选", "用 potential_product 发现周边机会后再定 ASIN 批次。"),
+            NextActionOption("crawl_recommended_asins", "直接按推荐 ASIN 抓评论", "进入评论导入和 VOC 分析。"),
             NextActionOption("adjust_asin_batch", "调整 ASIN 批次", "运营可增删竞品后再抓评论。"),
         ],
         evidence_refs=_refs_from_known_inputs(state),
@@ -459,14 +521,44 @@ def _deep_dive_card(state: WorkflowState) -> NextActionCard:
     return NextActionCard(
         stage=state.stage,
         decision_required=False,
-        question="下一步综合市场、竞品、VOC，并按需要调用 Sorftime 深度验证。",
+        question="下一步综合市场、竞品、VOC，并调用 Sorftime 深度验证（流量词 + 竞品词包）。已在 exploration_planning 调过的 category_trend / keyword_detail 直接复用，不重复调用。",
         recommended_action=RecommendedAction(
             "mcp_call",
-            "做深度交叉验证",
+            "Sorftime 深度验证",
             "正式结论需要卖家精灵、VOC 和 MCP 趋势/流量词相互印证。",
+            mcp_tools=[
+                {
+                    "tool": "product_traffic_terms",
+                    "purpose": "查看重点竞品靠哪些词拿流量，找词位空隙",
+                    "params_hint": "asin: Top3-5 标杆竞品 ASIN（逐个调用）",
+                    "credits": 1,
+                    "repeat": "每个竞品 ASIN 各调一次，优先 Top3",
+                },
+                {
+                    "tool": "competitor_product_keywords",
+                    "purpose": "提取竞品词包，找可借鉴的流量词",
+                    "params_hint": "asin: 同 product_traffic_terms",
+                    "credits": 1,
+                    "repeat": "与 product_traffic_terms 搭配，优先同一批 ASIN",
+                },
+                {
+                    "tool": "keyword_trend",
+                    "purpose": "主词 24 个月趋势（已有 keyword_detail 时可跳过）",
+                    "params_hint": "keyword: 2-3 个主词",
+                    "credits": 1,
+                    "timing": "keyword_detail 未覆盖趋势数据时补调",
+                },
+                {
+                    "tool": "similar_product_feature",
+                    "purpose": "同类热销品共有特征，指导卖点提炼",
+                    "params_hint": "asin: 主线代表 ASIN",
+                    "credits": 5,
+                    "timing": "⚠️ 高积分，仅在方向确认、准备正式深挖报告时调用一次",
+                },
+            ],
         ),
         options=[
-            NextActionOption("call_competitor_keywords", "调竞品流量词 MCP", "补充卖家精灵看不到的流量结构。"),
+            NextActionOption("call_traffic_terms", "调竞品流量词 MCP", "补充卖家精灵看不到的流量结构。"),
             NextActionOption("build_research_package", "生成深挖数据包", "进入利润/合规和报告沉淀。"),
         ],
         evidence_refs=_refs_from_known_inputs(state),

@@ -612,7 +612,7 @@ REPORT_EXCEL_SHEET_MAP = (
     ("产品属性分布与交叉分析", "属性定义、Top商品打标、属性分布、属性交叉分析"),
     ("竞品池与竞品选择逻辑", "竞品池、竞品深拆卡、进入壁垒"),
     ("评论 VOC 与真实痛点", "评论VOC、VOC证据"),
-    ("利润复核", "利润测算输入、利润参考结果、利润成本拆分"),
+    ("利润复核", "利润测算输入、利润参考结果、利润成本拆分、供应链粗估"),
     ("知产/合规/退货风险", "知产合规复核、知产初筛、合规认证预判、退货风险"),
     ("Go/Wait/No-Go 决策检查", "Go_No-Go评分卡、决策检查、风险矩阵、状态卡"),
     ("下一步动作与证据附录", "状态卡、交互决策记录"),
@@ -638,6 +638,7 @@ def render_markdown(package: dict) -> str:
     ip_compliance_review = package.get("ip_compliance_review", {})
     competitor_deep_dive = package.get("competitor_deep_dive", [])
     workflow_trace = package.get("workflow_trace", {})
+    sorftime_traffic = candidate.get("demand_evidence", {}).get("sorftime_traffic_terms", {})
 
     lines = [
         f"# {display_title} 调研报告",
@@ -652,7 +653,7 @@ def render_markdown(package: dict) -> str:
         (FORMAL_REPORT_SECTION_TITLES[5], _attribute_analysis_markdown_lines(market_structure, currency_code)),
         (
             FORMAL_REPORT_SECTION_TITLES[6],
-            _competitor_selection_markdown_lines(package.get("competitor_selection_logic", []), competitors, competitor_deep_dive, currency_code),
+            _competitor_selection_markdown_lines(package.get("competitor_selection_logic", []), competitors, competitor_deep_dive, currency_code, sorftime_traffic),
         ),
         (FORMAL_REPORT_SECTION_TITLES[7], _voc_markdown_lines(voc) if voc else _empty_section_lines("评论插件导出未接入，需先补 review_voc_package。")),
         (FORMAL_REPORT_SECTION_TITLES[8], _profit_review_markdown_lines(profit, package.get("operator_inputs", {}), currency_code)),
@@ -1779,6 +1780,7 @@ def _build_workbook_sheets(package: dict) -> list[tuple[str, list[list[object]]]
         ("利润测算输入", _profit_input_rows(operator_inputs, currency_code)),
         ("利润参考结果", _dict_rows(profit)),
         ("利润成本拆分", _profit_breakdown_rows(profit)),
+        ("供应链粗估", _supply_chain_signal_rows(profit.get("supply_chain_signal", {}) if isinstance(profit, dict) else {})),
         ("决策检查", _decision_rows(decision)),
         ("风险矩阵", _risk_matrix_rows(decision.get("risk_matrix", []) if isinstance(decision, dict) else [])),
         ("交互决策记录", _workflow_trace_rows(package.get("workflow_trace", {}))),
@@ -1940,6 +1942,20 @@ def _market_quality_markdown_lines(market: dict, market_structure: dict, currenc
         f"- 退货率：{market.get('return_rate', '待填')}",
         "",
     ]
+    category_report = market.get("sorftime_category_report", {}) if isinstance(market, dict) else {}
+    if isinstance(category_report, dict) and category_report:
+        lines.extend(
+            [
+                "### Sorftime category_report 快照",
+                f"- 类目：{category_report.get('category_name', '待填')} / nodeId {category_report.get('node_id', '待填')}",
+                f"- Top 样本数：{category_report.get('product_count', '待填')}",
+                f"- 总月销量：{_format_number(category_report.get('total_monthly_units')) if category_report.get('total_monthly_units') is not None else '待填'}",
+                f"- 均价：{_format_money(category_report.get('avg_price_usd'), currency_code) if category_report.get('avg_price_usd') is not None else '待填'}",
+                f"- Top10 销量占比：{_format_percent_or_text(category_report.get('top10_units_share', '待填'))}",
+                f"- 近半年新品：{category_report.get('new_product_count_6m', '待填')} 个，销量占比 {_format_percent_or_text(category_report.get('new_product_units_share', '待填'))}",
+                "",
+            ]
+        )
     lines.extend(_market_structure_markdown_lines(market_structure))
     return lines
 
@@ -2096,6 +2112,19 @@ def _profit_review_markdown_lines(profit: dict, operator_inputs: dict, currency_
     ]
     lines.append(f"- 利润待补：{_join_or_default(missing_inputs, '暂无')}")
     lines.append("")
+    supply_chain = profit.get("supply_chain_signal", {}) if isinstance(profit, dict) else {}
+    if isinstance(supply_chain, dict) and supply_chain:
+        lines.extend(
+            [
+                "### 1688 粗估 COGS 信号",
+                f"- 搜索词：{supply_chain.get('search_name', '待填')}",
+                f"- 供应商样本：{supply_chain.get('supplier_count', '待填')}",
+                f"- 采购价区间：RMB {supply_chain.get('purchase_price_cny_min', '待填')} - {supply_chain.get('purchase_price_cny_max', '待填')}",
+                f"- 折美元均价：{_format_money(supply_chain.get('purchase_price_usd_avg'), currency_code) if supply_chain.get('purchase_price_usd_avg') is not None else '待汇率'}",
+                f"- 口径：{supply_chain.get('note', '只作早期粗估，不替代运营利润模板。')}",
+                "",
+            ]
+        )
     lines.extend(_profit_breakdown_markdown_lines(profit))
     return lines
 
@@ -2112,7 +2141,7 @@ def _risk_review_markdown_lines(return_risk: dict, ip_screening: dict, complianc
     return lines
 
 
-def _competitor_selection_markdown_lines(selection_logic: object, competitors: dict, cards: list, currency_code: str) -> list[str]:
+def _competitor_selection_markdown_lines(selection_logic: object, competitors: dict, cards: list, currency_code: str, sorftime_traffic: dict | None = None) -> list[str]:
     total_count = 0
     if isinstance(competitors, dict):
         total_count = sum(len(competitors.get(key, []) or []) for key in ("top10", "recent_winners", "structure_supplement"))
@@ -2146,7 +2175,7 @@ def _competitor_selection_markdown_lines(selection_logic: object, competitors: d
             )
         lines.append("")
     lines.extend(_competitor_markdown_lines(competitors, currency_code))
-    lines.extend(_competitor_deep_dive_markdown_lines(cards, currency_code))
+    lines.extend(_competitor_deep_dive_markdown_lines(cards, currency_code, sorftime_traffic))
     return lines
 
 
@@ -2236,6 +2265,43 @@ def _profit_breakdown_rows(profit: dict) -> list[list[object]]:
         rows.append([key, value])
     if len(rows) == 1:
         rows.append(["状态", profit.get("status", "未计算")])
+    return rows
+
+
+def _supply_chain_signal_rows(signal: dict) -> list[list[object]]:
+    rows: list[list[object]] = [["字段", "值"]]
+    if not signal:
+        rows.append(["状态", "未接入"])
+        return rows
+    for key, label in (
+        ("source_tool", "来源工具"),
+        ("search_name", "搜索词"),
+        ("supplier_count", "供应商样本数"),
+        ("purchase_price_cny_min", "采购价下限(RMB)"),
+        ("purchase_price_cny_max", "采购价上限(RMB)"),
+        ("purchase_price_cny_avg", "采购价均值(RMB)"),
+        ("purchase_price_usd_avg", "采购价均值(USD)"),
+        ("exchange_rate", "折算汇率"),
+        ("confidence", "置信度"),
+        ("note", "口径说明"),
+    ):
+        rows.append([label, _display_value(signal.get(key))])
+    sample_products = signal.get("sample_products", [])
+    rows.extend([[], ["样本商品", "供应商", "价格下限(RMB)", "价格上限(RMB)", "链接"]])
+    if isinstance(sample_products, list) and sample_products:
+        for item in sample_products:
+            if isinstance(item, dict):
+                rows.append(
+                    [
+                        item.get("title"),
+                        item.get("supplier"),
+                        item.get("price_cny_min"),
+                        item.get("price_cny_max"),
+                        item.get("url"),
+                    ]
+                )
+    else:
+        rows.append(["未提供", "", "", "", ""])
     return rows
 
 
@@ -3001,9 +3067,10 @@ def _competitor_deep_dive_rows(cards: list, currency_code: str = "USD") -> list[
     return rows
 
 
-def _competitor_deep_dive_markdown_lines(cards: list, currency_code: str = "USD") -> list[str]:
+def _competitor_deep_dive_markdown_lines(cards: list, currency_code: str = "USD", sorftime_traffic: dict | None = None) -> list[str]:
     if not cards:
         return []
+    traffic_asin = (sorftime_traffic or {}).get("asin", "")
     lines = ["", "### 重点竞品数据", ""]
     for card in cards:
         asin = card.get("asin", "")
@@ -3014,11 +3081,24 @@ def _competitor_deep_dive_markdown_lines(cards: list, currency_code: str = "USD"
         rating = card.get("rating")
         rating_count = card.get("rating_count")
         listing_days = card.get("listing_days")
+        if sorftime_traffic and asin == traffic_asin:
+            top_words = sorftime_traffic.get("top_traffic_words", [])
+            mixed_warnings = sorftime_traffic.get("mixed_pool_warning", [])
+            word_parts = [
+                f"{w.get('keyword')}（{_format_number(w.get('monthly_search', 0))}搜/月，{w.get('position', '—')}）"
+                for w in top_words[:6]
+            ]
+            traffic_line = "；".join(word_parts) if word_parts else "暂无数据"
+            if mixed_warnings:
+                warn_kws = "、".join(w.get("keyword", "") for w in mixed_warnings[:3])
+                traffic_line += f"⚠️ 混池词：{warn_kws}"
+        else:
+            traffic_line = "待 Sorftime product_traffic_terms 补充"
         lines += [
             f"### {card_type}：{asin}",
             f"- 标题：{title}",
             f"- 价格：{_format_money(price, currency_code)}　月销量：{_format_number(units)}　评分：{rating}（{_format_number(rating_count)} 条）　上架天数：{listing_days or '待补'}",
-            f"- 流量词：待 P19 Sorftime 补充",
+            f"- 流量词：{traffic_line}",
             "",
         ]
     return lines

@@ -37,9 +37,10 @@
 | `docs/plans/V1选品系统实施计划.md` | 唯一进度台账，下次恢复任务先看这里 |
 | `docs/选品系统方向锚点.md` | 项目方向主锚点，防止偏成“录入产品做报告” |
 | `docs/AI交互式选品流程引擎.md` | AI 与运营实时协作的主流程、状态机、决策点和报告沉淀规则 |
-| `skills/seller-sprite-product-research/SKILL.md` | Skill 主入口，定义流程、规则、输入输出 |
-| `skills/seller-sprite-product-research/references/` | 工具映射、数据包结构、决策规则、输出结构 |
-| `skills/seller-sprite-product-research/agents/` | 数据管道和洞察职责拆分 |
+| `skills/amazon-product-research/SKILL.md` | Master Skill 主入口，定义两种模式、阶段推进和 MCP 调用规则 |
+| `skills/market-scan/SKILL.md` | 候选发现和市场扫描 |
+| `skills/candidate-deep-dive/SKILL.md` | 重点候选深挖、Sorftime 验证和正式报告生成 |
+| `skills/review-voc-analysis/SKILL.md` | 评论 VOC 分析 |
 | `packages/research_core/workflows/` | 交互式状态推进和批量报告编排，可被 CLI/网页/API 复用 |
 | `packages/research_core/contracts/` | 核心数据包结构校验 |
 | `packages/research_core/` | 统一数据结构、Adapter、利润规则、状态规则 |
@@ -51,11 +52,11 @@
 | `docs/字段来源表.md` | 每个字段来自手动导出、MCP、手填、系统计算还是人工复核 |
 | `docs/卖家精灵手动导出数据清单.md` | 没有 MCP 时，AI 指挥用户从卖家精灵导出哪些数据 |
 | `docs/自有评论插件对接方案.md` | 自有评论插件 Excel/HTML 导出如何接入选品系统 |
-| `docs/静态报告Mock.md` | 报告、摘要、看板的静态样式骨架 |
+| `docs/多数据源适配器架构设计.md` | 新数据源接入 Adapter 的设计边界 |
+| `docs/sorftime-mcp-工具调用策略.md` | Sorftime MCP 调用时机、参数和数据写入口径 |
+| `docs/架构原则.md` | 脚本、Workflow、Skill、报告层的职责边界 |
+| `docs/分析模式库.md` | Claude 做市场/VOC/深挖判断时使用的分析模式 |
 | `docs/亚马逊选品全流程产品路线图.md` | 产品目标、阶段规划、V0-V5 演进路线 |
-| `docs/亚马逊运营选品自查工具速读版.md` | 快速理解项目方向和 V1 边界 |
-| `docs/亚马逊运营选品自查工具流程方案.md` | 业务流程、判断逻辑、利润/退货/合规规则 |
-| `docs/亚马逊运营选品自查工具技术方案.md` | 技术架构、目录规划、数据包、版本和验收 |
 | `docs/知产与合规检索入口库.md` | 知产、商标、合规早期筛查入口 |
 
 ## 交互式流程状态

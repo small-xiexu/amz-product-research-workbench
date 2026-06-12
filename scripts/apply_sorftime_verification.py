@@ -33,6 +33,33 @@ The sorftime_verification.json must follow this schema:
     "asin": "B0XXXXX",
     "top_traffic_words": ["window squeegee"],
     "gap_opportunities": ["2 in 1 window cleaning tool"]
+  },
+  "category_report_snapshot": {
+    "category_name": "Squeegees",
+    "nodeId": "2245500011",
+    "products": [
+      {
+        "asin": "B0XXXXX",
+        "title": "Sample product",
+        "brand": "Sample",
+        "price": 19.99,
+        "monthly_sales": 1200,
+        "rating": 4.5,
+        "rating_count": 300,
+        "listing_days": 120
+      }
+    ]
+  },
+  "supply_chain_signal": {
+    "searchName": "刮窗器",
+    "exchange_rate": 7.2,
+    "products": [
+      {
+        "title": "1688 sample",
+        "price": "12-18",
+        "supplier": "示例供应商"
+      }
+    ]
   }
 }
 
