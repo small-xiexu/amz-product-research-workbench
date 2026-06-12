@@ -51,6 +51,11 @@ FORMAL_REPORT_SECTION_TITLES = (
     "Go/Wait/No-Go 决策检查",
     "下一步动作与证据附录",
 )
+INTERACTIVE_REPORT_REQUIRED_TERMS = (
+    "交互式流程状态",
+    "交互式下一步动作",
+    "关键决策记录",
+)
 WAITING_TEMPLATE_TEXT = "待填写模板"
 TOP100_EXPECTED_ROWS = 100
 REQUIRED_SCORECARD_DIMENSIONS = (
@@ -113,6 +118,9 @@ def validate_workflow_output(input_dir: Path | str) -> ValidationResult:
         if data_workbook.exists():
             _check_voc_evidence_chain(data_workbook, result)
 
+    if _interactive_workflow_enabled(workflow_summary):
+        _check_required_sheets(result, sheet_names, ("交互决策记录",), "交互式流程")
+
     profit_review = _section(workflow_summary, "profit_review")
     if bool(profit_review.get("applied")):
         _check_required_sheets(result, sheet_names, PROFIT_REQUIRED_SHEETS, "利润复核")
@@ -126,6 +134,8 @@ def validate_workflow_output(input_dir: Path | str) -> ValidationResult:
         _check_waiting_template_status(result, ip_compliance, workflow_summary_text, "知产/合规初筛")
 
     _check_report_terms(result, report_text)
+    if _interactive_workflow_enabled(workflow_summary):
+        _check_interactive_report_terms(result, report_text)
     _check_report_sections(result, report_text)
     return result
 
@@ -400,6 +410,11 @@ def _review_voc_enabled(workflow_dir: Path, workflow_summary: dict[str, Any]) ->
     return bool(review_voc.get("enabled")) or (workflow_dir / "review_voc_package.json").exists()
 
 
+def _interactive_workflow_enabled(workflow_summary: dict[str, Any]) -> bool:
+    interactive = _section(workflow_summary, "interactive_workflow")
+    return bool(interactive.get("enabled"))
+
+
 def _section(data: dict[str, Any], key: str) -> dict[str, Any]:
     value = data.get(key)
     return value if isinstance(value, dict) else {}
@@ -426,6 +441,14 @@ def _check_report_terms(result: ValidationResult, report_text: str) -> None:
         result.errors.append(f"report.md 缺少正式交付锚点：{', '.join(missing)}")
     else:
         result.notes.append("report.md 已包含状态卡、下一步、待补项和数据来源说明")
+
+
+def _check_interactive_report_terms(result: ValidationResult, report_text: str) -> None:
+    missing = [term for term in INTERACTIVE_REPORT_REQUIRED_TERMS if term not in report_text]
+    if missing:
+        result.errors.append(f"report.md 缺少交互式流程锚点：{', '.join(missing)}")
+    else:
+        result.notes.append("report.md 已包含交互式流程状态、下一步动作和关键决策记录")
 
 
 def _check_report_sections(result: ValidationResult, report_text: str) -> None:

@@ -79,6 +79,19 @@ python3 scripts/plan_interactive_workflow.py \
 - AI 应该问运营的问题
 - 下一步动作卡
 
+交互推进后生成最终报告时，把当前状态文件传给批量重跑入口：
+
+```bash
+python3 scripts/run_research_workflow.py \
+  卖家精灵导出样例_美国站_宠物牵引绳_20260607 \
+  /tmp/research_workbench_workflow \
+  --site US \
+  --task-name 美国站宠物牵引绳样例 \
+  --workflow-state /tmp/workflow_state.json
+```
+
+最终 `report.md` 会在 12 章结构内记录交互式流程状态、下一步动作和关键决策记录；`data.xlsx` 会新增 `交互决策记录` Sheet。
+
 ## 本地验证
 
 一键完整流程用于数据齐全后的报告重跑和回归验证：
@@ -90,7 +103,8 @@ python3 scripts/run_research_workflow.py \
   --site US \
   --task-name 美国站宠物牵引绳样例 \
   --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07.xlsx \
-  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07-report.html
+  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07-report.html \
+  --workflow-state /tmp/workflow_state.json
 ```
 
 输出：

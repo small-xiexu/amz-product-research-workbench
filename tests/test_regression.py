@@ -16,14 +16,16 @@ from packages.research_core.contracts import (
     validate_candidate_pool,
     validate_import_manifest,
     validate_research_package,
+    validate_workflow_state,
 )
 from packages.research_core.workflows import WorkflowConfig, run_research_workflow
+from packages.research_core.workflows.product_research_workflow import build_workflow_trace
 from packages.research_core.workflows import DecisionRecord, advance_stage, create_initial_state
 from scripts.apply_ip_compliance_review import apply_ip_compliance_review, next_step_for
 from scripts.apply_profit_review import apply_profit_review
 from scripts.build_candidate_pool_from_import_manifest import build_candidate_pool
 from scripts.validate_research_outputs import validate_workflow_output
-from packages.report_renderer.render_report import FORMAL_REPORT_SECTION_TITLES, render_markdown
+from packages.report_renderer.render_report import FORMAL_REPORT_SECTION_TITLES, render_data_workbook, render_markdown
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -116,6 +118,22 @@ class RegressionTests(unittest.TestCase):
         self.assertTrue(result.ok, result.errors)
         self.assertFalse(result.warnings)
 
+    def test_validate_research_outputs_accepts_interactive_workflow(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workflow_dir = Path(tmp)
+            final_report = workflow_dir / "final_report"
+            final_report.mkdir()
+            _write_minimal_workflow_summary(workflow_dir, interactive=True)
+            (final_report / "report.md").write_text(_minimal_formal_report_markdown(interactive=True), encoding="utf-8")
+            (final_report / "summary.md").write_text("# 摘要\n", encoding="utf-8")
+            (final_report / "dashboard.html").write_text("<!doctype html><html></html>", encoding="utf-8")
+            write_xlsx(final_report / "data.xlsx", _minimal_delivery_sheets(top100_rows=100, interactive=True))
+
+            result = validate_workflow_output(workflow_dir)
+
+        self.assertTrue(result.ok, result.errors)
+        self.assertFalse(result.warnings)
+
     def test_validate_research_outputs_reports_missing_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workflow_dir = Path(tmp)
@@ -140,6 +158,29 @@ class RegressionTests(unittest.TestCase):
         self.assertIn("## Executive Summary / 当前结论", report)
         self.assertIn("## 下一步动作与证据附录", report)
 
+    def test_render_markdown_includes_interactive_workflow_trace(self) -> None:
+        package = _load_json("examples/minimal_research_package.json")
+        package["workflow_trace"] = _sample_workflow_trace()
+        report = render_markdown(package)
+
+        self.assertIn("### 交互式流程状态", report)
+        self.assertIn("workflow-001", report)
+        self.assertIn("确认主线为窗户清洁组合工具", report)
+        self.assertIn("### 关键决策记录", report)
+
+    def test_data_workbook_includes_interactive_decision_sheet(self) -> None:
+        package = _load_json("examples/minimal_research_package.json")
+        package["workflow_trace"] = _sample_workflow_trace()
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "data.xlsx"
+            render_data_workbook(package, output)
+            workbook = load_workbook(output, read_only=True, data_only=True)
+            sheet = workbook["交互决策记录"]
+            values = [row[0] for row in sheet.iter_rows(values_only=True)]
+
+        self.assertIn("流程状态", values)
+        self.assertIn("决策记录", values)
+
     def test_contract_validators_reject_missing_handoff_fields(self) -> None:
         with self.assertRaisesRegex(ContractValidationError, "metadata"):
             validate_import_manifest({"files": [], "data_quality": {}})
@@ -149,6 +190,9 @@ class RegressionTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ContractValidationError, "normalized_tables"):
             validate_research_package({"metadata": {"candidate_id": "cand-1"}})
+
+        with self.assertRaisesRegex(ContractValidationError, "workflow_id"):
+            validate_workflow_state({"mode": "targeted_deep_dive", "stage": "intent_intake"})
 
     def test_contract_validators_accept_minimal_handoff_packages(self) -> None:
         validate_import_manifest(
@@ -183,6 +227,7 @@ class RegressionTests(unittest.TestCase):
                 "status_card": {},
             }
         )
+        validate_workflow_state(_sample_workflow_state())
 
     def test_interactive_workflow_initial_broad_discovery_requires_operator_boundary(self) -> None:
         state = create_initial_state(
@@ -229,6 +274,14 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(next_state.stage, "exploration_planning")
         self.assertEqual(len(next_state.decision_log), 1)
         self.assertEqual(next_state.next_actions[0].recommended_action.action_type, "operator_export")
+
+    def test_build_workflow_trace_preserves_decision_log_for_report(self) -> None:
+        trace = build_workflow_trace(_sample_workflow_state(), Path("/tmp/workflow_state.json"))
+
+        self.assertEqual(trace["workflow_state"]["workflow_id"], "workflow-001")
+        self.assertEqual(trace["decision_log"][0]["decision"], "确认主线为窗户清洁组合工具")
+        self.assertEqual(trace["next_actions"][0]["recommended_action"]["type"], "operator_export")
+        self.assertTrue(trace["source_file"].endswith("/tmp/workflow_state.json"))
 
     def test_interactive_workflow_cli_writes_state_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -338,12 +391,21 @@ def _load_json(relative_path: str) -> dict:
     return json.loads((ROOT / relative_path).read_text(encoding="utf-8"))
 
 
-def _write_minimal_workflow_summary(workflow_dir: Path) -> None:
+def _write_minimal_workflow_summary(workflow_dir: Path, interactive: bool = False) -> None:
     summary = {
         "review_voc": {"enabled": False},
         "profit_review": {"applied": False, "status": "待填写模板"},
         "ip_compliance_review": {"applied": False, "status": "待填写模板"},
     }
+    if interactive:
+        summary["interactive_workflow"] = {
+            "enabled": True,
+            "workflow_id": "workflow-001",
+            "mode": "targeted_deep_dive",
+            "stage": "seller_sprite_request",
+            "decision_count": 1,
+            "source_file": "/tmp/workflow_state.json",
+        }
     (workflow_dir / "workflow_summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -354,7 +416,60 @@ def _write_minimal_workflow_summary(workflow_dir: Path) -> None:
     )
 
 
-def _minimal_delivery_sheets(top100_rows: int) -> list[tuple[str, list[list[object]]]]:
+def _sample_workflow_state() -> dict:
+    return {
+        "workflow_id": "workflow-001",
+        "mode": "targeted_deep_dive",
+        "stage": "seller_sprite_request",
+        "initial_intent": "窗户刮水器二合一工具",
+        "site": "US",
+        "known_inputs": {"confirmed_boundary": "刮条 + 海绵/布垫 + 窗户清洁组合工具"},
+        "missing_inputs": ["卖家精灵搜索结果", "市场分析 Top100"],
+        "decision_required": False,
+        "operator_question": "请按 2 个主关键词导出搜索结果和市场分析。",
+        "next_actions": [
+            {
+                "stage": "seller_sprite_request",
+                "decision_required": False,
+                "question": "请导出卖家精灵数据。",
+                "recommended_action": {
+                    "type": "operator_export",
+                    "label": "导出卖家精灵搜索结果和市场分析",
+                    "reason": "运营已确认产品边界，需要真实 Top100 数据进入候选池。",
+                },
+                "options": [
+                    {"id": "export_now", "label": "立即导出", "impact": "进入数据盘点"},
+                ],
+                "evidence_refs": [
+                    {"ref_type": "decision", "ref_id": "decision-001", "path": "", "note": "边界确认"},
+                ],
+            }
+        ],
+        "evidence_refs": [
+            {"ref_type": "selection_brief", "ref_id": "brief-001", "path": "/tmp/brief.json", "note": "初始意图"},
+        ],
+        "decision_log": [
+            {
+                "decision_id": "decision-001",
+                "stage": "intent_intake",
+                "actor": "operator",
+                "decision": "确认主线为窗户清洁组合工具",
+                "rationale": "排除单独清洁液，保留长杆和替换布垫。",
+                "evidence_refs": [
+                    {"ref_type": "conversation", "ref_id": "turn-001", "path": "", "note": "运营确认"},
+                ],
+                "created_at": "2026-06-12T00:00:00+00:00",
+            }
+        ],
+        "updated_at": "2026-06-12T00:05:00+00:00",
+    }
+
+
+def _sample_workflow_trace() -> dict:
+    return build_workflow_trace(_sample_workflow_state(), Path("/tmp/workflow_state.json"))
+
+
+def _minimal_delivery_sheets(top100_rows: int, interactive: bool = False) -> list[tuple[str, list[list[object]]]]:
     rows: list[list[object]] = [["ASIN", "标题", "价格", "月销量"]]
     for index in range(top100_rows):
         rows.append([f"B{index:09d}", f"测试商品 {index}", 19.99, 100 + index])
@@ -407,6 +522,20 @@ def _minimal_delivery_sheets(top100_rows: int) -> list[tuple[str, list[list[obje
         ("决策检查", [["字段", "值"], ["状态", "观察"]]),
         ("风险矩阵", [["维度", "等级"], ["数据", "低"]]),
         ("状态卡", [["字段", "值"], ["状态", "观察"]]),
+        *(
+            [
+                (
+                    "交互决策记录",
+                    [
+                        ["类型", "阶段", "动作/决策", "角色/动作类型", "理由/问题", "证据", "时间/来源"],
+                        ["流程状态", "seller_sprite_request", "workflow-001", "targeted_deep_dive", "请导出卖家精灵数据", "", "/tmp/workflow_state.json"],
+                        ["决策记录", "intent_intake", "确认主线为窗户清洁组合工具", "operator", "排除单独清洁液", "conversation/turn-001", "2026-06-12T00:00:00+00:00"],
+                    ],
+                )
+            ]
+            if interactive
+            else []
+        ),
         ("评论VOC", [["字段", "值"], ["未接入", ""]]),
         (
             "VOC证据",
@@ -423,11 +552,15 @@ def _minimal_delivery_sheets(top100_rows: int) -> list[tuple[str, list[list[obje
     ]
 
 
-def _minimal_formal_report_markdown() -> str:
+def _minimal_formal_report_markdown(interactive: bool = False) -> str:
     lines = ["# 测试调研报告", ""]
     for title in FORMAL_REPORT_SECTION_TITLES:
         lines.extend([f"## {title}", "", "- 测试内容", ""])
     lines.append("- 数据来源说明 / 状态卡 / 下一步 / 待补项")
+    if interactive:
+        lines.extend(["", "### 交互式流程状态", "- workflow_state 测试"])
+        lines.extend(["", "### 交互式下一步动作", "- 下一步测试"])
+        lines.extend(["", "### 关键决策记录", "- 决策测试"])
     return "\n".join(lines) + "\n"
 
 

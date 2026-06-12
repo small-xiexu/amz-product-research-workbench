@@ -607,7 +607,7 @@ FORMAL_REPORT_SECTION_TITLES = (
 )
 
 REPORT_EXCEL_SHEET_MAP = (
-    ("数据来源与口径", "数据来源说明、调研边界"),
+    ("数据来源与口径", "数据来源说明、调研边界、交互决策记录"),
     ("市场结构与数据质量", "市场结构、Top100原始明细、数据质量检查"),
     ("产品属性分布与交叉分析", "属性定义、Top商品打标、属性分布、属性交叉分析"),
     ("竞品池与竞品选择逻辑", "竞品池、竞品深拆卡、进入壁垒"),
@@ -615,6 +615,7 @@ REPORT_EXCEL_SHEET_MAP = (
     ("利润复核", "利润测算输入、利润参考结果、利润成本拆分"),
     ("知产/合规/退货风险", "知产合规复核、知产初筛、合规认证预判、退货风险"),
     ("Go/Wait/No-Go 决策检查", "Go_No-Go评分卡、决策检查、风险矩阵、状态卡"),
+    ("下一步动作与证据附录", "状态卡、交互决策记录"),
 )
 
 
@@ -636,6 +637,7 @@ def render_markdown(package: dict) -> str:
     compliance = package.get("compliance_screening", {})
     ip_compliance_review = package.get("ip_compliance_review", {})
     competitor_deep_dive = package.get("competitor_deep_dive", [])
+    workflow_trace = package.get("workflow_trace", {})
 
     lines = [
         f"# {display_title} 调研报告",
@@ -643,7 +645,7 @@ def render_markdown(package: dict) -> str:
     ]
     sections = (
         (FORMAL_REPORT_SECTION_TITLES[0], _executive_summary_markdown_lines(status, decision, package.get("report_summary", {}), currency_code)),
-        (FORMAL_REPORT_SECTION_TITLES[1], _data_source_markdown_lines(meta, package.get("raw_sources", {}))),
+        (FORMAL_REPORT_SECTION_TITLES[1], _data_source_markdown_lines(meta, package.get("raw_sources", {}), workflow_trace)),
         (FORMAL_REPORT_SECTION_TITLES[2], _candidate_boundary_markdown_lines(meta, constraints, candidate)),
         (FORMAL_REPORT_SECTION_TITLES[3], _market_quality_markdown_lines(market, market_structure, currency_code)),
         (FORMAL_REPORT_SECTION_TITLES[4], _keyword_demand_markdown_lines(candidate, package.get("keyword_analysis", {}))),
@@ -659,7 +661,7 @@ def render_markdown(package: dict) -> str:
             _risk_review_markdown_lines(return_risk, ip_screening, compliance, ip_compliance_review),
         ),
         (FORMAL_REPORT_SECTION_TITLES[10], _go_nogo_markdown_lines(decision, status, currency_code)),
-        (FORMAL_REPORT_SECTION_TITLES[11], _next_step_evidence_markdown_lines(status, decision)),
+        (FORMAL_REPORT_SECTION_TITLES[11], _next_step_evidence_markdown_lines(status, decision, workflow_trace)),
     )
     for title, body in sections:
         lines.extend(_formal_section(title, body))
@@ -1779,6 +1781,7 @@ def _build_workbook_sheets(package: dict) -> list[tuple[str, list[list[object]]]
         ("利润成本拆分", _profit_breakdown_rows(profit)),
         ("决策检查", _decision_rows(decision)),
         ("风险矩阵", _risk_matrix_rows(decision.get("risk_matrix", []) if isinstance(decision, dict) else [])),
+        ("交互决策记录", _workflow_trace_rows(package.get("workflow_trace", {}))),
         ("评论VOC", _voc_summary_rows(package.get("voc_analysis", {}))),
         ("VOC证据", _voc_evidence_rows(package.get("normalized_tables", {}).get("voc_evidence", []))),
         ("退货风险", _dict_rows(return_risk)),
@@ -1858,7 +1861,11 @@ def _decision_markdown_lines(decision: dict, currency_code: str = "USD") -> list
     return lines
 
 
-def _data_source_markdown_lines(meta: dict, raw_sources: dict | None = None) -> list[str]:
+def _data_source_markdown_lines(
+    meta: dict,
+    raw_sources: dict | None = None,
+    workflow_trace: dict | None = None,
+) -> list[str]:
     lines = ["### 数据来源说明"]
     sources = meta.get("data_sources", []) if isinstance(meta, dict) else []
     if sources:
@@ -1873,6 +1880,7 @@ def _data_source_markdown_lines(meta: dict, raw_sources: dict | None = None) -> 
     if isinstance(raw_sources, dict) and raw_sources.get("candidate_pool"):
         pool = raw_sources.get("candidate_pool", {})
         lines.append(f"- 候选池：{pool.get('pool_id', '待填')} / {pool.get('candidate_id', '待填')}")
+    lines.extend(["", *_workflow_status_markdown_lines(workflow_trace)])
     lines.extend(["", "### Excel 追溯"])
     for section, sheets in REPORT_EXCEL_SHEET_MAP:
         lines.append(f"- {section}：`data.xlsx` -> {sheets}")
@@ -2169,7 +2177,7 @@ def _go_nogo_markdown_lines(decision: dict, status: dict, currency_code: str) ->
     return lines
 
 
-def _next_step_evidence_markdown_lines(status: dict, decision: dict) -> list[str]:
+def _next_step_evidence_markdown_lines(status: dict, decision: dict, workflow_trace: dict | None = None) -> list[str]:
     actions = decision.get("action_items", []) if isinstance(decision, dict) else []
     missing_inputs = decision.get("missing_inputs", []) if isinstance(decision, dict) else []
     lines = [
@@ -2183,6 +2191,9 @@ def _next_step_evidence_markdown_lines(status: dict, decision: dict) -> list[str
             lines.append(f"- {item}")
     else:
         lines.append("- 待 Claude 结合当前数据补充具体动作。")
+    workflow_lines = _workflow_decision_markdown_lines(workflow_trace)
+    if workflow_lines:
+        lines.extend(["", *workflow_lines])
     lines.extend(["", "### 证据附录"])
     for section, sheets in REPORT_EXCEL_SHEET_MAP:
         lines.append(f"- {section}：`data.xlsx` -> {sheets}")
@@ -2471,6 +2482,157 @@ def _source_rows(meta: dict) -> list[list[object]]:
     if len(rows) == 1:
         rows.append(["待填", ""])
     return rows
+
+
+def _workflow_status_markdown_lines(workflow_trace: dict | None) -> list[str]:
+    trace = workflow_trace if isinstance(workflow_trace, dict) else {}
+    state = trace.get("workflow_state", {}) if isinstance(trace, dict) else {}
+    if not isinstance(state, dict) or not state:
+        return [
+            "### 交互式流程状态",
+            "- 未接入 workflow_state：本报告仅体现当前批处理数据结果，交互过程待补。",
+        ]
+
+    lines = [
+        "### 交互式流程状态",
+        f"- 流程 ID：{state.get('workflow_id', '待填')}",
+        f"- 模式：{state.get('mode', '待填')}",
+        f"- 当前阶段：{state.get('stage', '待填')}",
+        f"- 初始意图：{state.get('initial_intent', '待填')}",
+        f"- 站点：{state.get('site', '待填')}",
+        f"- 是否等待运营决策：{'是' if state.get('decision_required') else '否'}",
+    ]
+    if state.get("operator_question"):
+        lines.append(f"- 当前要问运营的问题：{state.get('operator_question')}")
+    missing_inputs = state.get("missing_inputs", [])
+    if missing_inputs:
+        lines.append(f"- 交互流程待补：{_join_or_default(missing_inputs[:10], '暂无')}")
+    if state.get("updated_at"):
+        lines.append(f"- 状态更新时间：{state.get('updated_at')}")
+    if trace.get("source_file"):
+        lines.append(f"- 状态来源文件：`{trace.get('source_file')}`")
+    return lines
+
+
+def _workflow_decision_markdown_lines(workflow_trace: dict | None) -> list[str]:
+    trace = workflow_trace if isinstance(workflow_trace, dict) else {}
+    state = trace.get("workflow_state", {}) if isinstance(trace, dict) else {}
+    if not isinstance(state, dict) or not state:
+        return []
+
+    lines: list[str] = ["### 交互式下一步动作"]
+    next_actions = trace.get("next_actions") or state.get("next_actions", [])
+    if isinstance(next_actions, list) and next_actions:
+        for action in next_actions[:5]:
+            if not isinstance(action, dict):
+                continue
+            recommended = action.get("recommended_action", {}) if isinstance(action.get("recommended_action"), dict) else {}
+            lines.append(
+                f"- {action.get('stage', state.get('stage', '待填'))}：{recommended.get('label', '待填')}；"
+                f"类型 {recommended.get('type', '待填')}；原因：{recommended.get('reason', '待填')}"
+            )
+            if action.get("question"):
+                lines.append(f"  - 运营问题：{action.get('question')}")
+            options = action.get("options", [])
+            if isinstance(options, list) and options:
+                option_text = "；".join(
+                    str(option.get("label", "")).strip()
+                    for option in options[:4]
+                    if isinstance(option, dict) and str(option.get("label", "")).strip()
+                )
+                if option_text:
+                    lines.append(f"  - 可选动作：{option_text}")
+    else:
+        lines.append("- 暂无下一步动作卡。")
+
+    decisions = trace.get("decision_log") or state.get("decision_log", [])
+    lines.extend(["", "### 关键决策记录"])
+    if isinstance(decisions, list) and decisions:
+        for item in decisions[:10]:
+            if not isinstance(item, dict):
+                continue
+            evidence_text = _format_evidence_refs(item.get("evidence_refs", []))
+            suffix = f"（证据：{evidence_text}）" if evidence_text else ""
+            lines.append(
+                f"- {item.get('stage', '待填')} / {item.get('actor', '待填')}："
+                f"{item.get('decision', '待填')}；理由：{item.get('rationale', '待填')}{suffix}"
+            )
+    else:
+        lines.append("- 暂无运营/AI 决策记录。")
+    return lines
+
+
+def _workflow_trace_rows(workflow_trace: dict) -> list[list[object]]:
+    rows: list[list[object]] = [["类型", "阶段", "动作/决策", "角色/动作类型", "理由/问题", "证据", "时间/来源"]]
+    trace = workflow_trace if isinstance(workflow_trace, dict) else {}
+    state = trace.get("workflow_state", {}) if isinstance(trace, dict) else {}
+    if not isinstance(state, dict) or not state:
+        rows.append(["状态", "未接入", "workflow_state 未接入", "", "", "", ""])
+        return rows
+
+    rows.append(
+        [
+            "流程状态",
+            state.get("stage"),
+            state.get("workflow_id"),
+            state.get("mode"),
+            state.get("operator_question"),
+            _format_evidence_refs(state.get("evidence_refs", [])),
+            state.get("updated_at") or trace.get("source_file"),
+        ]
+    )
+    next_actions = trace.get("next_actions") or state.get("next_actions", [])
+    if isinstance(next_actions, list):
+        for action in next_actions:
+            if not isinstance(action, dict):
+                continue
+            recommended = action.get("recommended_action", {}) if isinstance(action.get("recommended_action"), dict) else {}
+            rows.append(
+                [
+                    "下一步动作",
+                    action.get("stage"),
+                    recommended.get("label"),
+                    recommended.get("type"),
+                    recommended.get("reason") or action.get("question"),
+                    _format_evidence_refs(action.get("evidence_refs", [])),
+                    trace.get("source_file", ""),
+                ]
+            )
+    decisions = trace.get("decision_log") or state.get("decision_log", [])
+    if isinstance(decisions, list):
+        for item in decisions:
+            if not isinstance(item, dict):
+                continue
+            rows.append(
+                [
+                    "决策记录",
+                    item.get("stage"),
+                    item.get("decision"),
+                    item.get("actor"),
+                    item.get("rationale"),
+                    _format_evidence_refs(item.get("evidence_refs", [])),
+                    item.get("created_at"),
+                ]
+            )
+    return rows
+
+
+def _format_evidence_refs(evidence_refs: object) -> str:
+    if not isinstance(evidence_refs, list):
+        return ""
+    parts: list[str] = []
+    for item in evidence_refs[:6]:
+        if not isinstance(item, dict):
+            continue
+        ref_type = str(item.get("ref_type", "")).strip()
+        ref_id = str(item.get("ref_id", "")).strip()
+        note = str(item.get("note", "")).strip()
+        label = "/".join(part for part in (ref_type, ref_id) if part)
+        if note:
+            label = f"{label}({note})" if label else note
+        if label:
+            parts.append(label)
+    return "；".join(parts)
 
 
 def _data_quality_rows(data_quality: dict) -> list[list[object]]:

@@ -6,6 +6,7 @@ from .validators import (
     validate_import_manifest,
     validate_research_package,
     validate_review_voc_package,
+    validate_workflow_state,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "validate_import_manifest",
     "validate_research_package",
     "validate_review_voc_package",
+    "validate_workflow_state",
 ]

@@ -76,6 +76,34 @@ def validate_research_package(research_package: dict[str, Any]) -> None:
     _require_dict(decision_review.get("go_nogo_scorecard"), "research_package.decision_review.go_nogo_scorecard")
 
 
+def validate_workflow_state(workflow_state: dict[str, Any]) -> None:
+    _require_dict(workflow_state, "workflow_state")
+    _require_non_empty(workflow_state.get("workflow_id"), "workflow_state.workflow_id")
+    _require_non_empty(workflow_state.get("mode"), "workflow_state.mode")
+    _require_non_empty(workflow_state.get("stage"), "workflow_state.stage")
+    _require_non_empty(workflow_state.get("initial_intent"), "workflow_state.initial_intent")
+    _require_non_empty(workflow_state.get("site"), "workflow_state.site")
+    _require_dict(workflow_state.get("known_inputs", {}), "workflow_state.known_inputs")
+    _require_list(workflow_state.get("missing_inputs", []), "workflow_state.missing_inputs")
+    _require_list(workflow_state.get("next_actions", []), "workflow_state.next_actions")
+    _require_list(workflow_state.get("evidence_refs", []), "workflow_state.evidence_refs")
+    _require_list(workflow_state.get("decision_log", []), "workflow_state.decision_log")
+
+    for index, action in enumerate(workflow_state.get("next_actions", [])):
+        path = f"workflow_state.next_actions[{index}]"
+        _require_dict(action, path)
+        _require_non_empty(action.get("stage"), f"{path}.stage")
+        _require_dict(action.get("recommended_action"), f"{path}.recommended_action")
+
+    for index, decision in enumerate(workflow_state.get("decision_log", [])):
+        path = f"workflow_state.decision_log[{index}]"
+        _require_dict(decision, path)
+        _require_non_empty(decision.get("decision_id"), f"{path}.decision_id")
+        _require_non_empty(decision.get("stage"), f"{path}.stage")
+        _require_non_empty(decision.get("actor"), f"{path}.actor")
+        _require_non_empty(decision.get("decision"), f"{path}.decision")
+
+
 def _require_dict(value: Any, path: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ContractValidationError(f"{path} must be an object")

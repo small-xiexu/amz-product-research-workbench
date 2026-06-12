@@ -122,7 +122,12 @@ AI 每次推进后输出一个动作卡：
 
 ## 最终报告变化
 
-正式报告新增“决策过程记录”：
+正式报告保留 P20 固定 12 章结构，不额外拆新章；交互过程沉淀在两处：
+
+- `数据来源与口径`：展示 `workflow_state` 的当前阶段、模式、初始意图、是否等待运营决策、当前问题和状态来源文件。
+- `下一步动作与证据附录`：展示 `next_action_card` 和 `decision_log`，让运营能回看 AI 为什么暂停、让谁做了什么决策、证据来自哪里。
+
+`data.xlsx` 新增 `交互决策记录` Sheet。
 
 | 报告内容 | 数据来源 |
 |---|---|
@@ -145,3 +150,14 @@ AI 每次推进后输出一个动作卡：
 - 批量验证报告输出
 
 主产品体验使用 `interactive_workflow`，不是一键跑到底。
+
+如果要把交互过程写进最终报告，批量重跑入口需要传入当前 `workflow_state.json`：
+
+```bash
+python3 scripts/run_research_workflow.py \
+  <卖家精灵导出文件夹> \
+  <输出目录> \
+  --site US \
+  --task-name <任务名> \
+  --workflow-state /tmp/workflow_state.json
+```

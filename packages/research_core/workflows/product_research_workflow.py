@@ -14,6 +14,7 @@ from packages.research_core.contracts import (
     validate_import_manifest,
     validate_research_package,
     validate_review_voc_package,
+    validate_workflow_state,
 )
 from scripts.apply_ip_compliance_review import apply_ip_compliance_review, read_ip_compliance_review
 from scripts.apply_profit_review import apply_profit_review, read_profit_inputs
@@ -44,6 +45,7 @@ class WorkflowConfig:
     profit_template: Path | None = None
     ip_compliance_template: Path | None = None
     sorftime_verification: Path | None = None
+    workflow_state: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -115,6 +117,12 @@ def run_research_workflow(config: WorkflowConfig) -> WorkflowResult:
         research_package = apply_ip_compliance_review(research_package, ip_compliance_review)
         validate_research_package(research_package)
 
+    workflow_state = _load_optional_json(config.workflow_state, "Workflow state")
+    if workflow_state is not None:
+        validate_workflow_state(workflow_state)
+        research_package["workflow_trace"] = build_workflow_trace(workflow_state, config.workflow_state)
+        validate_research_package(research_package)
+
     research_package_path = output_dir / "research_package.json"
     write_json(research_package_path, research_package)
 
@@ -132,6 +140,7 @@ def run_research_workflow(config: WorkflowConfig) -> WorkflowResult:
         profit_applied=profit_inputs is not None,
         ip_compliance_template_path=ip_compliance_template_path,
         ip_compliance_applied=ip_compliance_review is not None,
+        workflow_trace=research_package.get("workflow_trace", {}),
     )
     workflow_summary_json_path = output_dir / "workflow_summary.json"
     workflow_summary_path = output_dir / "workflow_summary.md"
@@ -207,11 +216,14 @@ def build_workflow_summary(
     profit_applied: bool,
     ip_compliance_template_path: Path,
     ip_compliance_applied: bool,
+    workflow_trace: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     data_quality = manifest.get("data_quality", {})
     voc_summary = voc_package.get("summary", {}) if voc_package else {}
     profit_review = research_package.get("profit_review", {}) if profit_applied else {}
     ip_compliance_review = research_package.get("ip_compliance_review", {}) if ip_compliance_applied else {}
+    workflow_state = workflow_trace.get("workflow_state", {}) if isinstance(workflow_trace, dict) else {}
+    decision_log = workflow_trace.get("decision_log", []) if isinstance(workflow_trace, dict) else []
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "output_dir": str(output_dir),
@@ -245,6 +257,14 @@ def build_workflow_summary(
             "missing_fields": ip_compliance_review.get("missing_fields", []) if ip_compliance_applied else [],
             "pending_fields": ip_compliance_review.get("pending_fields", []) if ip_compliance_applied else [],
         },
+        "interactive_workflow": {
+            "enabled": bool(workflow_state),
+            "workflow_id": workflow_state.get("workflow_id"),
+            "mode": workflow_state.get("mode"),
+            "stage": workflow_state.get("stage"),
+            "decision_count": len(decision_log) if isinstance(decision_log, list) else 0,
+            "source_file": workflow_trace.get("source_file") if isinstance(workflow_trace, dict) else "",
+        },
         "outputs": {
             "import_manifest": str(output_dir / "import_manifest.json"),
             "candidate_pool": str(output_dir / "candidate_pool.json"),
@@ -265,6 +285,7 @@ def render_workflow_summary(summary: dict[str, Any]) -> str:
     voc = summary["review_voc"]
     profit = summary["profit_review"]
     ip_compliance = summary["ip_compliance_review"]
+    interactive = summary.get("interactive_workflow", {})
     outputs = summary["outputs"]
     lines = [
         "# 选品流程运行摘要",
@@ -277,6 +298,11 @@ def render_workflow_summary(summary: dict[str, Any]) -> str:
         f"- 知产/合规初筛：{ip_compliance.get('status') if ip_compliance.get('applied') else '待填写模板'}"
         + (f" / 整体风险 {ip_compliance.get('overall_level')}" if ip_compliance.get("applied") else ""),
     ]
+    if interactive.get("enabled"):
+        lines.append(
+            f"- 交互式流程：{interactive.get('workflow_id')} / {interactive.get('mode')} / "
+            f"{interactive.get('stage')}，决策记录 {interactive.get('decision_count', 0)} 条"
+        )
     if profit.get("missing_fields"):
         lines.append(f"- 利润待补：{', '.join(profit.get('missing_fields', []))}")
     unresolved_ip = [*ip_compliance.get("missing_fields", []), *ip_compliance.get("pending_fields", [])]
@@ -294,6 +320,20 @@ def render_workflow_summary(summary: dict[str, Any]) -> str:
     for label, path in outputs.items():
         lines.append(f"- {label}: `{path}`")
     return "\n".join(lines) + "\n"
+
+
+def build_workflow_trace(workflow_state: dict[str, Any], source_path: Path | None = None) -> dict[str, Any]:
+    state = dict(workflow_state)
+    decision_log = list(state.get("decision_log", []))
+    next_actions = list(state.get("next_actions", []))
+    evidence_refs = list(state.get("evidence_refs", []))
+    return {
+        "workflow_state": state,
+        "decision_log": decision_log,
+        "next_actions": next_actions,
+        "evidence_refs": evidence_refs,
+        "source_file": str(source_path.expanduser().resolve()) if source_path else "",
+    }
 
 
 def _load_optional_json(path: Path | None, label: str) -> dict[str, Any] | None:

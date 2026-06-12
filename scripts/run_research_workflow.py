@@ -44,6 +44,11 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Optional Sorftime verification JSON file. If provided, merged into candidate_pool without re-calling MCP.",
     )
+    parser.add_argument(
+        "--workflow-state",
+        default="",
+        help="Optional interactive workflow_state JSON file. If provided, merged into final report decision trace.",
+    )
     return parser.parse_args()
 
 
@@ -60,6 +65,7 @@ def main() -> int:
         profit_template=Path(args.profit_template) if args.profit_template else None,
         ip_compliance_template=Path(args.ip_compliance_template) if args.ip_compliance_template else None,
         sorftime_verification=Path(args.sorftime_verification) if args.sorftime_verification else None,
+        workflow_state=Path(args.workflow_state) if args.workflow_state else None,
     )
     try:
         result = run_research_workflow(config)
