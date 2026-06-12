@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from packages.research_core.rules.market_structure_rules import build_market_structure_analysis
-from packages.research_core.adapters import SellerSpriteAdapter, SortimeAdapter
+from packages.research_core.adapters import SellerSpriteAdapter, SorftimeAdapter
 from packages.research_core.adapters.merge_strategy import merge_products, sorftime_only_warnings
 
 from packages.research_core.ingestion.seller_sprite_reader import (
@@ -559,7 +559,7 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
     _sf_keywords: list = []
     _sf_category = None
     if _sorftime_snapshot:
-        _sf_adapter = SortimeAdapter(_sorftime_snapshot)
+        _sf_adapter = SorftimeAdapter(_sorftime_snapshot)
         _sf_products = _sf_adapter.fetch_products()
         _sf_keywords = _sf_adapter.fetch_keywords()
         _sf_category = _sf_adapter.fetch_category()

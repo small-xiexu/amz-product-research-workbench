@@ -14,7 +14,7 @@ from packages.research_core.schema import (
 )
 
 
-class SortimeAdapter(BaseDataAdapter):
+class SorftimeAdapter(BaseDataAdapter):
     """将 Sorftime MCP 快照 JSON 转为规范化 Schema。
 
     输入：manifest v2 的 sorftime_snapshot 字段，结构：
@@ -129,4 +129,6 @@ def _str(value: Any) -> str | None:
     return text if text else None
 
 
-ADAPTER_REGISTRY["sorftime"] = SortimeAdapter
+SortimeAdapter = SorftimeAdapter
+
+ADAPTER_REGISTRY["sorftime"] = SorftimeAdapter

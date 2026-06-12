@@ -281,8 +281,18 @@ def update_status_card(status: dict[str, Any], review: dict[str, Any]) -> dict[s
 
 
 def next_step_for(level: str, missing: list[str], pending: list[str]) -> str:
-    # Next step recommendation is Claude's work, not a hardcoded rule.
-    return ""
+    if missing:
+        return "补齐知产/合规初筛字段：" + "、".join(missing)
+    if pending:
+        return "先处理待复核项：" + "、".join(pending)
+    if level in {"强风险", "高"}:
+        action = RISK_ACTION.get(level, "暂停推进，先做专业复核。")
+        return f"{action} 复核完成前不要进入打样或备货。"
+    if level == "中":
+        return "保留当前候选，但在打样前补充证据链接、供应商资质和必要检测/专利复核。"
+    if level == "低":
+        return "保留检索记录，继续结合利润复核和供应链打样判断是否推进。"
+    return "继续补充人工初筛结果，并保留证据链接和复核备注。"
 
 
 def max_level(levels: list[str]) -> str:
