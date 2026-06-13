@@ -25,7 +25,7 @@
 | Workflow 应用层 | `packages/research_core/workflows/` | 交互式状态推进 + 批量报告编排 |
 | Contracts 契约层 | `packages/research_core/contracts/` | 在关键节点校验 `import_manifest`、`candidate_pool`、`research_package` 等数据包结构 |
 | Core 规则层 | `packages/research_core/` | Adapter、统一 Schema、字段合并、利润/市场结构等可复用规则 |
-| Renderer 输出层 | `packages/report_renderer/` | 生成 Markdown、HTML 看板、Excel 数据底表 |
+| Renderer 输出层 | `packages/report_renderer/` | 生成 Markdown、HTML 看板、Excel 数据底表；已按 `markdown` / `dashboard` / `workbook` / `formatting` / `constants` 分模块，`render_report.py` 仅为薄门面 |
 | Skills 分析层 | `skills/` | 约束 Claude 如何基于结构化数据做市场/VOC/深挖判断 |
 
 主体验优先调用 `packages.research_core.workflows.create_initial_state()` / `plan_next_action()` / `advance_stage()` 维护交互状态；`run_research_workflow()` 保留为批量重跑和回归工具。新增第三方数据源优先落在 `packages/research_core/adapters/` 和 `merge_strategy.py`。

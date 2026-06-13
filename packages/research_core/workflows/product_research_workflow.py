@@ -16,13 +16,13 @@ from packages.research_core.contracts import (
     validate_review_voc_package,
     validate_workflow_state,
 )
-from scripts.apply_ip_compliance_review import apply_ip_compliance_review, read_ip_compliance_review
-from scripts.apply_profit_review import apply_profit_review, read_profit_inputs
-from scripts.build_candidate_pool_from_import_manifest import build_candidate_pool
-from scripts.build_ip_compliance_template import render_ip_compliance_template
-from scripts.build_profit_template import render_profit_template
-from scripts.build_research_package_from_candidate import build_research_package
-from scripts.build_review_voc_from_plugin_export import (
+from packages.research_core.pipeline.apply_ip_compliance_review import apply_ip_compliance_review, read_ip_compliance_review
+from packages.research_core.pipeline.apply_profit_review import apply_profit_review, read_profit_inputs
+from packages.research_core.pipeline.build_candidate_pool_from_import_manifest import build_candidate_pool
+from packages.research_core.pipeline.build_ip_compliance_template import render_ip_compliance_template
+from packages.research_core.pipeline.build_profit_template import render_profit_template
+from packages.research_core.pipeline.build_research_package_from_candidate import build_research_package
+from packages.research_core.pipeline.build_review_voc_from_plugin_export import (
     build_voc_package,
     read_ai_report,
     read_review_excel,
@@ -30,7 +30,7 @@ from scripts.build_review_voc_from_plugin_export import (
     render_summary as render_voc_summary,
     render_workbook as render_voc_workbook,
 )
-from scripts.inspect_manual_exports import build_manifest
+from packages.research_core.pipeline.inspect_manual_exports import build_manifest
 
 
 @dataclass(frozen=True)

@@ -21,11 +21,11 @@ from packages.research_core.contracts import (
 from packages.research_core.workflows import WorkflowConfig, run_research_workflow
 from packages.research_core.workflows.product_research_workflow import build_workflow_trace
 from packages.research_core.workflows import DecisionRecord, advance_stage, create_initial_state
-from scripts.apply_ip_compliance_review import apply_ip_compliance_review, next_step_for
-from scripts.apply_profit_review import apply_profit_review
-from scripts.build_candidate_pool_from_import_manifest import build_candidate_pool
-from scripts.build_research_package_from_candidate import build_research_package
-from scripts.validate_research_outputs import validate_workflow_output
+from packages.research_core.pipeline.apply_ip_compliance_review import apply_ip_compliance_review, next_step_for
+from packages.research_core.pipeline.apply_profit_review import apply_profit_review
+from packages.research_core.pipeline.build_candidate_pool_from_import_manifest import build_candidate_pool
+from packages.research_core.pipeline.build_research_package_from_candidate import build_research_package
+from packages.research_core.pipeline.validate_research_outputs import validate_workflow_output
 from packages.report_renderer.render_report import FORMAL_REPORT_SECTION_TITLES, render_data_workbook, render_markdown
 
 
@@ -332,7 +332,7 @@ class RegressionTests(unittest.TestCase):
         "local SellerSprite sample folder is ignored and may be absent",
     )
     def test_manual_export_sample_builds_candidate_pool(self) -> None:
-        from scripts.inspect_manual_exports import build_manifest
+        from packages.research_core.pipeline.inspect_manual_exports import build_manifest
 
         source = ROOT / "卖家精灵导出样例_美国站_宠物牵引绳_20260607"
         with tempfile.TemporaryDirectory() as tmp:
