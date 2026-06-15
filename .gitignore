@@ -22,8 +22,14 @@ node_modules/
 .idea/
 __pycache__/
 *.pyc
+.runtime/
+
+# Web 后端运行时会话状态
+.sessions/
 
 # Local secrets/config
 .env
 .env.*
 *.local
+!.env.example
+!.env.local.example

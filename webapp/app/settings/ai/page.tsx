@@ -1,0 +1,18 @@
+import { AiConfigPanel } from "@/components/AiConfigPanel";
+import type { AppConfig } from "@/lib/types";
+
+async function loadConfig(): Promise<AppConfig | null> {
+  try {
+    const backend = process.env.BACKEND_URL || "http://localhost:8000";
+    const response = await fetch(`${backend}/api/config`, { cache: "no-store" });
+    if (!response.ok) return null;
+    return (await response.json()) as AppConfig;
+  } catch {
+    return null;
+  }
+}
+
+export default async function AiSettingsPage() {
+  const config = await loadConfig();
+  return <AiConfigPanel initialConfig={config} />;
+}
