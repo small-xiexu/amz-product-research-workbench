@@ -34,7 +34,7 @@ Sorftime MCP 在选品系统中的角色是**双阶段使用**：
 | `category_search_from_product_name` × 2-3 方向 | 定位各候选方向的类目节点，获取 nodeId | 1/次 |
 | `category_report` × 2-3 方向 | 拉取实时 Top100 完整数据（销量、价格、集中度、新品占比） | 1/次 |
 | `keyword_detail` × 主方向 2-3 主词 | 核心词搜索量 + CPC + 竞争密度 | 1/词 |
-| `ali1688_similar_product` × 主方向 | 粗估采购价 COGS，提前判断利润空间 | 1 |
+| `ali1688_similar_product` × 主方向 | 查询 1688 中国站人民币粗采购价，提前判断利润空间 | 1 |
 
 典型消耗：6-10 积分。
 
@@ -47,7 +47,7 @@ Sorftime MCP 在选品系统中的角色是**双阶段使用**：
 | `category_search_from_product_name` | 从产品名定位 Amazon 类目节点 | 1 |
 | `category_report` | 拉取实时 Top100（销量/价格/集中度/新品占比，一次替代多次 category_trend） | 1 |
 | `keyword_detail` × 2-3 主词 | 搜索量 + CPC + 首页竞品数量 | 1/词 |
-| `ali1688_similar_product` | 粗估采购价 COGS | 1 |
+| `ali1688_similar_product` | 1688 中国站采购价粗估 | 1 |
 
 典型消耗：5-7 积分。
 
@@ -264,14 +264,24 @@ Sorftime MCP 在选品系统中的角色是**双阶段使用**：
 ```
 
 #### `ali1688_similar_product` ⭐ 供应链 / 利润信号
-在 1688 上搜索同类采购货源，返回采购价区间和供应商信息。**用于早期粗估 COGS，提前判断利润空间是否存在，不替代运营手填的精确利润复核。**
+在 1688 中国站搜索同类采购货源，返回人民币采购价区间和供应商信息。**用于早期粗估采购价，提前判断利润空间是否存在，不替代运营手填的精确利润复核。**
+
+采购价口径：
+
+- 当前访问方式：通过 Sorftime MCP `ali1688_similar_product` 间接查询 1688，不在项目内直接抓取 `https://www.1688.com/` 页面。
+- 原始来源必须是 **1688 中国站**：入口口径为 `https://www.1688.com/`，商品详情页可接受 `https://detail.1688.com/offer/...` 等 `*.1688.com` 链接。
+- 默认只看 **1688 中国站 RMB 报价**。
+- 价格字段按人民币 RMB/CNY 解析；折 USD 只作报告展示，不作为原始采购价来源。
+- `searchName` 必须优先使用中文品类词，例如“免手持狗绳 腰带牵引绳”。
+- 优先筛“一件代发 / 现货 / 跨境 / 包邮 / 48 小时发货”等供应链信号。
+- 返回价不等于最终到手成本，还要补 SKU 实际价、运费、包装、头程、关税、质检、损耗。
+- **禁止用 Alibaba 国际站 USD 报价替代 1688 中国站采购价。** 非 `1688.com` 来源或币种不是 RMB/CNY 的样本，只能记录为待复核/无效样本，不进入采购价区间。
 
 ```
-必填：searchName: "刮窗器"            # 品类名，中英文均可
-                                     # 中文匹配更精准
+必填：searchName: "刮窗器"            # 中文品类名
 ```
 
-> ⚠️ 无站点参数。返回数据为 1688 人民币报价，需自行折算美元并估算头程/关税成本。
+> ⚠️ 无站点参数。返回数据为 1688 中国站人民币报价，需自行折算美元并估算头程/关税成本。
 
 ---
 
@@ -350,13 +360,19 @@ Sorftime 验证结论写入 candidate_pool 的 `sorftime_verification` 字段组
     },
     "supply_chain_signal": {
       "searchName": "1688 搜索词",
+      "source_site": "1688中国站",
+      "source_url": "https://www.1688.com/",
+      "quote_currency": "RMB",
       "exchange_rate": 7.2,
+      "rejected_sample_count": 0,
+      "rejection_reasons": [],
       "products": [
         {
           "title": "",
           "price": "12-18",
+          "quote_currency": "RMB",
           "supplier": "",
-          "url": ""
+          "url": "https://detail.1688.com/offer/..."
         }
       ]
     }
@@ -369,7 +385,7 @@ Sorftime 验证结论写入 candidate_pool 的 `sorftime_verification` 字段组
 | 字段 | 来源工具 | 下游用途 |
 |---|---|---|
 | `category_report_snapshot` | `category_report` | 生成 `demand_evidence.sorftime_category_report`，补市场规模、Top10 集中度、新品占比和报告市场章节 |
-| `supply_chain_signal` | `ali1688_similar_product` | 生成 `preliminary_profit_space.supply_chain_signal`，补利润章节的 1688 粗 COGS 信号 |
+| `supply_chain_signal` | `ali1688_similar_product` | 生成 `preliminary_profit_space.supply_chain_signal`，补利润章节的 1688 中国站人民币粗采购价信号 |
 
 ---
 

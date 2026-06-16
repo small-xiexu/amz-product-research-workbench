@@ -1,0 +1,17 @@
+{
+  "workflow_id": "minimal-codex-smoke",
+  "mode": "targeted_deep_dive",
+  "stage": "intent_intake",
+  "site": "US",
+  "initial_intent": "美国站宠物牵引绳方向",
+  "decision_required": true,
+  "current_question": "请确认指定方向的产品边界：包含哪些形态，排除哪些混池场景？",
+  "known_inputs": [],
+  "missing_inputs": [
+    "seller_sprite_export",
+    "review_voc_export",
+    "profit_review",
+    "ip_compliance_review"
+  ],
+  "decision_log": []
+}

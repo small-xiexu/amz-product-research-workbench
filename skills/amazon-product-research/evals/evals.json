@@ -1,0 +1,19 @@
+{
+  "suite": "amazon-product-research-codex",
+  "scope": "Codex mainline only; web is excluded",
+  "checks": [
+    {
+      "name": "compile_core",
+      "command": "python3 -m compileall -q packages scripts tests"
+    },
+    {
+      "name": "unit_regression",
+      "command": "python3 -m unittest discover -v"
+    },
+    {
+      "name": "delivery_validator_contract",
+      "command": "python3 scripts/validate_research_outputs.py <run_dir>",
+      "note": "Run after a real seller-sprite/review data run is generated."
+    }
+  ]
+}

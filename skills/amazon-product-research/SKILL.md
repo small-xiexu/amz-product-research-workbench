@@ -4,6 +4,29 @@
 
 ---
 
+## 当前执行口径
+
+当前先跑通 **Codex 版主链路**，暂不把 Web 页面作为主入口。
+
+主链路：
+
+```text
+Codex 对话 -> Sorftime MCP -> 卖家精灵导出 -> 本地脚本 -> 评论 VOC -> 利润/合规待补 -> 最终报告 -> 校验
+```
+
+执行时优先参考：
+
+- `README.md`：本 Skill 的最短使用说明
+- `references/codex_runbook.md`：Codex 跑通步骤
+- `references/artifact_contract.md`：每轮产物目录和命名规则
+- `agents/data-pipeline.md`：数据清洗和结构化边界
+- `agents/decision-coach.md`：运营决策暂停点
+- `agents/report-writer.md`：报告生成边界
+
+Web 页面只作为后续外壳，底层链路未跑通前不继续扩展 Web。
+
+---
+
 ## 角色定位
 
 你是运营的选品决策伙伴，有 5 年以上亚马逊跨境电商经验。
@@ -87,11 +110,11 @@ mcp__sorftime-server__keyword_detail
 **Step 1.4** 粗估采购成本（与以上并行，等待导出期间完成）：
 ```
 mcp__sorftime-server__ali1688_similar_product
-  searchName: "[候选品类中文名或英文名]"
+  searchName: "[候选品类中文名]"
 ```
-> 目的：拿到 1688 采购价区间，提前判断利润空间是否存在，无需等利润复核阶段。
+> 目的：通过 Sorftime MCP 间接查询 1688 中国站，拿到 RMB/CNY 采购价区间，优先识别一件代发/现货货源信号，提前判断利润空间是否存在。有效样本必须来自 `https://www.1688.com/` 或 `*.1688.com` 详情页；禁止用 Alibaba 国际站 USD 报价替代 1688 中国站采购价。
 
-产出：**多方向快探结论**（趋势 + Top100 均价/销量/集中度 + 关键词量级 + 粗估 COGS），等卖家精灵数据回来后合并。
+产出：**多方向快探结论**（趋势 + Top100 均价/销量/集中度 + 关键词量级 + 1688 中国站人民币粗采购价），等卖家精灵数据回来后合并。
 
 ---
 
@@ -123,7 +146,7 @@ mcp__sorftime-server__keyword_detail
 **Step 1.4** 粗估采购成本：
 ```
 mcp__sorftime-server__ali1688_similar_product
-  searchName: "[品类名称]"
+  searchName: "[品类中文名]"
 ```
 
 输出**快验结论**（固定格式，不可省略）：
@@ -133,7 +156,7 @@ mcp__sorftime-server__ali1688_similar_product
 - 市场体量：月销约 X 万单，均价 $Y，Top3 集中度 Z%
 - 趋势：增长 / 衰退 / 均衡（季节性）
 - 主词量级：「[词]」月搜 X 万，CPC $Y
-- 1688 粗估 COGS：¥X–¥Y（折合 $X–$Y）
+- 1688 中国站粗采购价：RMB X–Y/件（折合 $X–$Y；是否一件代发待筛）
 - 初步利润信号：空间存在 / 偏薄 / 待补充
 - 快验结论：值得继续 / 建议调整方向 / 建议放弃
 - 理由：[1-2 句，对应具体数据]
@@ -364,7 +387,8 @@ python3 scripts/apply_ip_compliance_review.py <合规模板> <research_package.j
 - **Top100 不完整，不出正式深挖结论**，可给初步判断但明确标注数据质量限制
 - **所有结论必须能回溯到具体数据来源**，不拍脑袋，不说"通常情况下"
 - **混池要主动识别**，不把不同产品形态（如浴室刮水器 vs 窗户刮水器）的数据加总分析
-- **利润字段只由运营手填**，AI 只提供粗估 COGS 信号（来自 ali1688）
+- **采购成本口径只看 1688 中国站人民币价**：当前通过 Sorftime MCP `ali1688_similar_product` 间接查询；有效样本必须来自 `https://www.1688.com/` 或 `*.1688.com` 详情页，价格原始币种必须是 RMB/CNY；`searchName` 必须用中文品类词；禁止用 Alibaba 国际站 USD 报价替代。
+- **利润字段只由运营手填**，AI 只提供 1688 中国站人民币粗采购价信号
 - **VOC 只在候选进入「继续看/试做」后接入**，不在候选池阶段提前做
 - **`similar_product_feature` 消耗 5 积分**，方向确认后每个方向只调一次
 - **知产/合规必须保留人工复核**，AI 不给终结性进入结论
@@ -387,7 +411,7 @@ python3 scripts/apply_ip_compliance_review.py <合规模板> <research_package.j
 | `keyword_search_results` | `keyword: "关键词"` | `keywordSupportSite: "US"` | 1 |
 | `product_traffic_terms` | `asin: "ASIN"` | `amzSite: "US"` | 1 |
 | `competitor_product_keywords` | `asin: "ASIN"` | `keywordSupportSite: "US"` | 1 |
-| `ali1688_similar_product` | `searchName: "品类名"` | — | 1 |
+| `ali1688_similar_product` | `searchName: "中文品类名"` | — | 1 |
 | `potential_product` | — | `amzSite: "US"` (仅US/GB/DE) | 1 |
 | `similar_product_feature` | `productName: "英文品类名"` | `amzSite: "US"` | **5** |
 
@@ -398,7 +422,7 @@ python3 scripts/apply_ip_compliance_review.py <合规模板> <research_package.j
 ## 完成标准（DoD）
 
 - [ ] Stage 0：初始候选假设卡已输出
-- [ ] Stage 1：Sorftime 快探已完成（category_report + keyword_detail + ali1688 粗估 COGS）
+- [ ] Stage 1：Sorftime 快探已完成（category_report + keyword_detail + 1688 中国站人民币采购价粗估）
 - [ ] Stage 1（模式二）：快验结论已用固定格式输出，放弃时已终止流程
 - [ ] Stage 2：精准导出清单已给出（含具体关键词）
 - [ ] Stage 3：数据盘点完成，Top100 完整性已确认
