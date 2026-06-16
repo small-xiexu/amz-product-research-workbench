@@ -431,10 +431,14 @@ def _profit_review_markdown_lines(profit: dict, operator_inputs: dict, currency_
     if isinstance(supply_chain, dict) and supply_chain:
         lines.extend(
             [
-                "### 1688 粗估 COGS 信号",
+                "### 1688 中国站人民币粗采购价信号",
                 f"- 搜索词：{supply_chain.get('search_name', '待填')}",
-                f"- 供应商样本：{supply_chain.get('supplier_count', '待填')}",
-                f"- 采购价区间：RMB {supply_chain.get('purchase_price_cny_min', '待填')} - {supply_chain.get('purchase_price_cny_max', '待填')}",
+                f"- 来源：{supply_chain.get('source_site', '1688中国站')} / {supply_chain.get('source_url', 'https://www.1688.com/')}",
+                f"- 有效供应商样本：{supply_chain.get('supplier_count', '待填')}",
+                f"- 相关供应商：{_format_number(supply_chain.get('relevant_supplier_count')) if supply_chain.get('relevant_supplier_count') is not None else '待填'}",
+                f"- 剔除样本：{_format_number(supply_chain.get('rejected_sample_count')) if supply_chain.get('rejected_sample_count') is not None else '0'}",
+                f"- 采购价区间：RMB {_format_number(supply_chain.get('purchase_price_cny_min')) if supply_chain.get('purchase_price_cny_min') is not None else '待填'} - {_format_number(supply_chain.get('purchase_price_cny_max')) if supply_chain.get('purchase_price_cny_max') is not None else '待填'}",
+                f"- 采购价中位数：RMB {_format_number(supply_chain.get('purchase_price_cny_median')) if supply_chain.get('purchase_price_cny_median') is not None else '待填'}",
                 f"- 折美元均价：{_format_money(supply_chain.get('purchase_price_usd_avg'), currency_code) if supply_chain.get('purchase_price_usd_avg') is not None else '待汇率'}",
                 f"- 口径：{supply_chain.get('note', '只作早期粗估，不替代运营利润模板。')}",
                 "",

@@ -75,6 +75,9 @@ def main() -> int:
     print(f"Wrote workflow outputs: {result.output_dir}")
     print(f"Selected candidate: {result.selected_candidate_id} / {result.selected_candidate_name}")
     print(f"Final report: {result.report_path}")
+    print(f"Web report: {result.report_path.with_name('report.html')}")
+    print(f"Dashboard: {result.report_path.with_name('dashboard.html')}")
+    print(f"Data workbook: {result.report_path.with_name('data.xlsx')}")
     return 0
 
 

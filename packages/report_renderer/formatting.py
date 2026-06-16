@@ -117,6 +117,10 @@ def _market_size_value_text(value: object, currency_code: str) -> str:
 def _display_value(value: object) -> str:
     if value is None:
         return ""
+    if isinstance(value, float):
+        return _format_number(value)
+    if isinstance(value, int):
+        return str(value)
     if isinstance(value, (dict, list)):
         return json.dumps(value, ensure_ascii=False)
     return str(value)

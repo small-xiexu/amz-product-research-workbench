@@ -26,7 +26,12 @@ from packages.research_core.pipeline.apply_profit_review import apply_profit_rev
 from packages.research_core.pipeline.build_candidate_pool_from_import_manifest import build_candidate_pool
 from packages.research_core.pipeline.build_research_package_from_candidate import build_research_package
 from packages.research_core.pipeline.validate_research_outputs import validate_workflow_output
-from packages.report_renderer.render_report import FORMAL_REPORT_SECTION_TITLES, render_data_workbook, render_markdown
+from packages.report_renderer.render_report import (
+    FORMAL_REPORT_SECTION_TITLES,
+    render_data_workbook,
+    render_markdown,
+    render_report_html,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -110,6 +115,7 @@ class RegressionTests(unittest.TestCase):
             final_report.mkdir()
             _write_minimal_workflow_summary(workflow_dir)
             (final_report / "report.md").write_text(_minimal_formal_report_markdown(), encoding="utf-8")
+            (final_report / "report.html").write_text(_minimal_formal_report_html(), encoding="utf-8")
             (final_report / "summary.md").write_text("# 摘要\n", encoding="utf-8")
             (final_report / "dashboard.html").write_text("<!doctype html><html></html>", encoding="utf-8")
             write_xlsx(final_report / "data.xlsx", _minimal_delivery_sheets(top100_rows=100))
@@ -126,6 +132,7 @@ class RegressionTests(unittest.TestCase):
             final_report.mkdir()
             _write_minimal_workflow_summary(workflow_dir, interactive=True)
             (final_report / "report.md").write_text(_minimal_formal_report_markdown(interactive=True), encoding="utf-8")
+            (final_report / "report.html").write_text(_minimal_formal_report_html(), encoding="utf-8")
             (final_report / "summary.md").write_text("# 摘要\n", encoding="utf-8")
             (final_report / "dashboard.html").write_text("<!doctype html><html></html>", encoding="utf-8")
             write_xlsx(final_report / "data.xlsx", _minimal_delivery_sheets(top100_rows=100, interactive=True))
@@ -147,6 +154,7 @@ class RegressionTests(unittest.TestCase):
             result = validate_workflow_output(workflow_dir)
 
         self.assertFalse(result.ok)
+        self.assertTrue(any("report.html" in item for item in result.errors))
         self.assertTrue(any("dashboard.html" in item for item in result.errors))
         self.assertTrue(any("data.xlsx" in item for item in result.errors))
 
@@ -158,6 +166,17 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(positions, sorted(positions))
         self.assertIn("## Executive Summary / 当前结论", report)
         self.assertIn("## 下一步动作与证据附录", report)
+
+    def test_render_report_html_contains_formal_report_links(self) -> None:
+        package = _load_json("examples/minimal_research_package.json")
+        report = render_report_html(package)
+
+        self.assertIn("<!doctype html>", report)
+        self.assertIn('<html lang="zh-CN">', report)
+        self.assertIn("网页报告", report)
+        self.assertIn("dashboard.html", report)
+        self.assertIn("data.xlsx", report)
+        self.assertIn("Executive Summary / 当前结论", report)
 
     def test_render_markdown_includes_interactive_workflow_trace(self) -> None:
         package = _load_json("examples/minimal_research_package.json")
@@ -243,8 +262,64 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(candidate["demand_evidence"]["sorftime_category_report"]["product_count"], 2)
         self.assertEqual(candidate["preliminary_profit_space"]["supply_chain_signal"]["supplier_count"], 2)
         self.assertIn("Sorftime category_report 快照", report)
-        self.assertIn("1688 粗估 COGS 信号", report)
+        self.assertIn("1688 中国站人民币粗采购价信号", report)
         self.assertEqual(research_package["profit_reference"]["supply_chain_signal"]["purchase_price_cny_min"], 12.0)
+
+    def test_ali1688_raw_result_flows_to_supply_chain_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            candidate_pool = build_candidate_pool(
+                _minimal_import_manifest(Path(tmp)),
+                sorftime_verification=_sample_ali1688_raw_verification(),
+            )
+        candidate = candidate_pool["candidates"][0]
+        signal = candidate["preliminary_profit_space"]["supply_chain_signal"]
+        research_package = build_research_package(candidate_pool, candidate["candidate_id"])
+        report = render_markdown(research_package)
+
+        self.assertEqual(signal["supplier_count"], 2)
+        self.assertEqual(signal["relevant_supplier_count"], 2.0)
+        self.assertEqual(signal["quote_currency"], "RMB")
+        self.assertEqual(signal["source_site"], "1688中国站")
+        self.assertEqual(signal["rejected_sample_count"], 0)
+        self.assertEqual(signal["purchase_price_cny_min"], 8.5)
+        self.assertEqual(signal["purchase_price_cny_max"], 37.0)
+        self.assertEqual(signal["sample_products"][0]["supplier"], "义乌市隋媲电子商务商行")
+        self.assertIn("1688 中国站人民币粗采购价信号", report)
+        self.assertIn("免手持狗绳 腰带牵引绳", report)
+
+    def test_ali1688_filters_non_china_1688_or_non_rmb_samples(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            candidate_pool = build_candidate_pool(
+                _minimal_import_manifest(Path(tmp)),
+                sorftime_verification=_sample_mixed_ali1688_verification(),
+            )
+        candidate = candidate_pool["candidates"][0]
+        signal = candidate["preliminary_profit_space"]["supply_chain_signal"]
+
+        self.assertEqual(signal["raw_supplier_count"], 4)
+        self.assertEqual(signal["supplier_count"], 1)
+        self.assertEqual(signal["rejected_sample_count"], 3)
+        self.assertEqual(signal["purchase_price_cny_min"], 14.0)
+        self.assertEqual(signal["purchase_price_cny_max"], 14.0)
+        self.assertIn("非1688中国站链接", signal["rejection_reasons"])
+        self.assertIn("币种不是RMB/CNY", signal["rejection_reasons"])
+        self.assertIn("价格字段疑似非人民币", signal["rejection_reasons"])
+        self.assertEqual(len(signal["sample_products"]), 1)
+        self.assertTrue(signal["sample_products"][0]["url"].startswith("https://detail.1688.com/"))
+
+    def test_ali1688_all_invalid_samples_do_not_create_price_range(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            candidate_pool = build_candidate_pool(
+                _minimal_import_manifest(Path(tmp)),
+                sorftime_verification=_sample_invalid_ali1688_verification(),
+            )
+        candidate = candidate_pool["candidates"][0]
+        signal = candidate["preliminary_profit_space"]["supply_chain_signal"]
+
+        self.assertEqual(signal["supplier_count"], 0)
+        self.assertEqual(signal["rejected_sample_count"], 2)
+        self.assertNotIn("purchase_price_cny_min", signal)
+        self.assertIn("禁止用Alibaba国际站USD报价替代", signal["note"])
 
     def test_interactive_workflow_initial_broad_discovery_requires_operator_boundary(self) -> None:
         state = create_initial_state(
@@ -538,12 +613,107 @@ def _sample_sorftime_verification() -> dict:
         },
         "supply_chain_signal": {
             "searchName": "刮窗器",
+            "source_url": "https://www.1688.com/",
+            "quote_currency": "RMB",
             "exchange_rate": 7.2,
             "products": [
-                {"title": "刮窗器套装", "price": "12-18", "supplier": "供应商A"},
-                {"title": "伸缩刮窗器", "price": "16-22", "supplier": "供应商B"},
+                {"title": "刮窗器套装", "price": "12-18", "quote_currency": "RMB", "supplier": "供应商A", "url": "https://detail.1688.com/offer/10001.html"},
+                {"title": "伸缩刮窗器", "price": "16-22", "quote_currency": "RMB", "supplier": "供应商B", "url": "https://detail.1688.com/offer/10002.html"},
             ],
         },
+    }
+
+
+def _sample_ali1688_raw_verification() -> dict:
+    return {
+        "verified_at": "2026-06-15",
+        "supply_chain_signal": {
+            "search_name": "免手持狗绳 腰带牵引绳",
+            "relevant_supplier_count": 2,
+            "purchase_price_usd_avg": 2.8,
+        },
+        "ali1688_similar_product": [
+            {
+                "Title": "现货解放双手反光斜跨肩挎牵引绳多功能跑步牵引绳宠物牵引带防丢",
+                "Price": "15.6",
+                "Currency": "RMB",
+                "WholesalePriceRange": [{"Price": "8.50", "PurchaseQuantity": "≥1个"}],
+                "StoreName": "义乌市隋媲电子商务商行",
+                "Url": "https://detail.1688.com/offer/651810362213.html",
+            },
+            {
+                "Title": "亚马逊狗绳子狗链防爆冲中型大型犬弹力牵引绳反光运动遛狗腰包",
+                "Price": "37.0",
+                "Currency": "RMB",
+                "WholesalePriceRange": [
+                    {"Price": "37.00", "PurchaseQuantity": "2~49个"},
+                    {"Price": "36.50", "PurchaseQuantity": "50~499个"},
+                    {"Price": "36.00", "PurchaseQuantity": "≥500个"},
+                ],
+                "StoreName": "保定君乐途箱包制造有限公司",
+                "Url": "https://detail.1688.com/offer/671808165514.html",
+            },
+        ],
+    }
+
+
+def _sample_mixed_ali1688_verification() -> dict:
+    return {
+        "verified_at": "2026-06-16",
+        "supply_chain_signal": {
+            "search_name": "免手持狗绳 腰带牵引绳",
+            "purchase_price_usd_avg": 1.9,
+        },
+        "ali1688_similar_product": [
+            {
+                "Title": "有效1688人民币货源",
+                "Price": "14.00",
+                "Currency": "RMB",
+                "StoreName": "义乌供应商",
+                "Url": "https://detail.1688.com/offer/700000000001.html",
+            },
+            {
+                "Title": "Alibaba international USD source",
+                "Price": "$2.30",
+                "Currency": "USD",
+                "StoreName": "Alibaba Supplier",
+                "Url": "https://www.alibaba.com/product-detail/dog-leash.html",
+            },
+            {
+                "Title": "非1688站点人民币报价",
+                "Price": "13.00",
+                "Currency": "RMB",
+                "StoreName": "外部站点",
+                "Url": "https://supplier.example.com/item/1",
+            },
+            {
+                "Title": "1688链接但价格带美元符号",
+                "Price": "$1.99",
+                "StoreName": "币种异常供应商",
+                "Url": "https://detail.1688.com/offer/700000000002.html",
+            },
+        ],
+    }
+
+
+def _sample_invalid_ali1688_verification() -> dict:
+    return {
+        "verified_at": "2026-06-16",
+        "supply_chain_signal": {"search_name": "免手持狗绳 腰带牵引绳"},
+        "ali1688_similar_product": [
+            {
+                "Title": "Alibaba国际站样本",
+                "Price": "$2.30",
+                "Currency": "USD",
+                "Url": "https://www.alibaba.com/product-detail/dog-leash.html",
+            },
+            {
+                "Title": "外部站点样本",
+                "Price": "12.00",
+                "Currency": "RMB",
+                "Url": "https://example.com/dog-leash",
+            },
+        ],
     }
 
 
@@ -640,6 +810,13 @@ def _minimal_formal_report_markdown(interactive: bool = False) -> str:
         lines.extend(["", "### 交互式下一步动作", "- 下一步测试"])
         lines.extend(["", "### 关键决策记录", "- 决策测试"])
     return "\n".join(lines) + "\n"
+
+
+def _minimal_formal_report_html() -> str:
+    return (
+        '<!doctype html><html lang="zh-CN"><head><title>网页报告</title></head>'
+        "<body><h2>Executive Summary / 当前结论</h2></body></html>"
+    )
 
 
 if __name__ == "__main__":

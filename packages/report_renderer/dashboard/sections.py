@@ -109,6 +109,7 @@ def _dashboard_model(package: dict[str, Any]) -> dict[str, Any]:
         "risks": decision.get("risk_matrix", []) if isinstance(decision, dict) else [],
         "links": {
             "markdown": "report.md",
+            "html_report": "report.html",
             "summary": "summary.md",
             "excel": "data.xlsx",
         },
@@ -133,7 +134,8 @@ def _dashboard_hero(model: dict[str, Any]) -> str:
         f"金额口径 {currency_code}",
     ]
     links = [
-        f'<a class="link-chip" href="{model["links"]["markdown"]}">报告正文</a>',
+        f'<a class="link-chip" href="{model["links"]["html_report"]}">网页版报告</a>',
+        f'<a class="link-chip" href="{model["links"]["markdown"]}">Markdown</a>',
         f'<a class="link-chip" href="{model["links"]["excel"]}">Excel 底表</a>',
         f'<a class="link-chip" href="{model["links"]["summary"]}">摘要</a>',
     ]
@@ -676,7 +678,8 @@ def _dashboard_footer(model: dict[str, Any]) -> str:
     <div>生成时间：{escape(str(generated_at))}</div>
   </div>
   <div class="footer-links">
-    <a class="link-chip" href="{model['links']['markdown']}">报告正文</a>
+    <a class="link-chip" href="{model['links']['html_report']}">网页版报告</a>
+    <a class="link-chip" href="{model['links']['markdown']}">Markdown</a>
     <a class="link-chip" href="{model['links']['summary']}">摘要</a>
     <a class="link-chip" href="{model['links']['excel']}">Excel 明细</a>
   </div>

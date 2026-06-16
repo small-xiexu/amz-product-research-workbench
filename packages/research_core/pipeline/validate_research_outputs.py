@@ -9,7 +9,7 @@ from typing import Any
 from openpyxl import load_workbook
 
 
-REQUIRED_FINAL_FILES = ("report.md", "summary.md", "dashboard.html", "data.xlsx")
+REQUIRED_FINAL_FILES = ("report.md", "report.html", "summary.md", "dashboard.html", "data.xlsx")
 REQUIRED_WORKFLOW_FILES = ("workflow_summary.md", "workflow_summary.json")
 BASE_REQUIRED_SHEETS = (
     "数据来源说明",
@@ -102,6 +102,7 @@ def validate_workflow_output(input_dir: Path | str) -> ValidationResult:
     workflow_summary = _load_json(workflow_dir / "workflow_summary.json", result)
     workflow_summary_text = _read_text(workflow_dir / "workflow_summary.md")
     report_text = _read_text(final_report_dir / "report.md")
+    report_html = _read_text(final_report_dir / "report.html")
 
     sheet_names: set[str] = set()
     data_workbook = final_report_dir / "data.xlsx"
@@ -134,6 +135,7 @@ def validate_workflow_output(input_dir: Path | str) -> ValidationResult:
         _check_waiting_template_status(result, ip_compliance, workflow_summary_text, "知产/合规初筛")
 
     _check_report_terms(result, report_text)
+    _check_report_html(result, report_html)
     if _interactive_workflow_enabled(workflow_summary):
         _check_interactive_report_terms(result, report_text)
     _check_report_sections(result, report_text)
@@ -441,6 +443,18 @@ def _check_report_terms(result: ValidationResult, report_text: str) -> None:
         result.errors.append(f"report.md 缺少正式交付锚点：{', '.join(missing)}")
     else:
         result.notes.append("report.md 已包含状态卡、下一步、待补项和数据来源说明")
+
+
+def _check_report_html(result: ValidationResult, report_html: str) -> None:
+    if not report_html:
+        result.errors.append("report.html 内容为空或不存在")
+        return
+    required_terms = ("<!doctype html>", '<html lang="zh-CN">', "网页报告", "Executive Summary / 当前结论")
+    missing = [term for term in required_terms if term not in report_html]
+    if missing:
+        result.errors.append(f"report.html 缺少关键内容：{', '.join(missing)}")
+    else:
+        result.notes.append("report.html 已生成完整网页版报告")
 
 
 def _check_interactive_report_terms(result: ValidationResult, report_text: str) -> None:

@@ -117,6 +117,7 @@ python3 scripts/run_research_workflow.py \
 - `/tmp/research_workbench_workflow/profit_review_template.xlsx`
 - `/tmp/research_workbench_workflow/ip_compliance_review_template.xlsx`
 - `/tmp/research_workbench_workflow/final_report/report.md`
+- `/tmp/research_workbench_workflow/final_report/report.html`
 - `/tmp/research_workbench_workflow/final_report/summary.md`
 - `/tmp/research_workbench_workflow/final_report/dashboard.html`
 - `/tmp/research_workbench_workflow/final_report/data.xlsx`
@@ -128,7 +129,7 @@ python3 scripts/run_research_workflow.py \
 python3 scripts/validate_research_outputs.py /tmp/research_workbench_workflow
 ```
 
-校验器会检查正式报告四件套、`workflow_summary`、Excel 关键 Sheet、Top100 行数、12 章报告结构、属性/交叉分析、竞品选择逻辑、VOC 证据链和七维 Go/Wait/No-Go 评分卡。利润或知产/合规未回填时，评分卡只能输出 Wait/观察/待补，不能给强 Go。
+校验器会检查正式报告五件套、`workflow_summary`、Excel 关键 Sheet、Top100 行数、12 章报告结构、网页版报告结构、属性/交叉分析、竞品选择逻辑、VOC 证据链和七维 Go/Wait/No-Go 评分卡。利润或知产/合规未回填时，评分卡只能输出 Wait/观察/待补，不能给强 Go。
 
 利润模板填好并保存后，再回填生成带利润测算的报告。`--profit-template` 传入的是已填写保存后的模板路径，可以是原模板直接填写保存，也可以另存为一份：
 

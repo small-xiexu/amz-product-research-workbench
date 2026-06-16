@@ -272,6 +272,7 @@ def build_workflow_summary(
             "profit_template": str(profit_template_path),
             "ip_compliance_template": str(ip_compliance_template_path),
             "final_report": str(final_report_dir / "report.md"),
+            "web_report": str(final_report_dir / "report.html"),
             "summary": str(final_report_dir / "summary.md"),
             "dashboard": str(final_report_dir / "dashboard.html"),
             "data_workbook": str(final_report_dir / "data.xlsx"),
