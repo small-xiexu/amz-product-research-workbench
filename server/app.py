@@ -222,6 +222,23 @@ def _normalize_site(site: str | None, *, reject_invalid: bool = True) -> str:
     return "US"
 
 
+def _build_session_summary(session: Session) -> str:
+    workflow_state = session.workflow_state or {}
+    mode = session.mode or "mode_pending"
+    if mode == "mode_pending" and workflow_state.get("mode"):
+        mode = str(workflow_state.get("mode"))
+
+    return (
+        f"会话摘要："
+        f"session_id={session.session_id}；"
+        f"站点={session.site}；"
+        f"当前模式={mode}；"
+        f"意图={session.intent or '未填写'}；"
+        f"workflow_state={'已存在' if workflow_state else '未初始化'}；"
+        f"已上传文件={len(session.artifacts.get('uploaded_files', []))} 个。"
+    )
+
+
 @app.post("/api/upload")
 async def upload_files(session_id: str = Form(...), files: list[UploadFile] = File(...)) -> dict[str, Any]:
     session = store.get(session_id)
@@ -263,7 +280,7 @@ def chat(payload: ChatRequest) -> dict[str, Any]:
     session.messages.append({"role": "user", "content": payload.message})
     result = run_agent_turn(
         provider=provider,
-        system=SYSTEM_PROMPT,
+        system=f"{SYSTEM_PROMPT}\n\n{_build_session_summary(session)}",
         messages=session.messages,
         tools=ALL_TOOLS,
         dispatch=make_dispatch(session),
@@ -297,7 +314,7 @@ def chat_stream(payload: ChatRequest) -> StreamingResponse:
         try:
             for event in run_agent_turn_streaming(
                 provider=provider,
-                system=SYSTEM_PROMPT,
+                system=f"{SYSTEM_PROMPT}\n\n{_build_session_summary(session)}",
                 messages=session.messages,
                 tools=ALL_TOOLS,
                 dispatch=make_dispatch(session),

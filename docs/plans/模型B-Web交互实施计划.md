@@ -45,7 +45,7 @@ docker-compose.yml
   - 验收：`npm run build` 类型检查 + 编译成功
 - [x] M3 候选方向选择台 + 决策按钮 + 报告预览，打通完整交互式流程
   - 状态：已完成
-  - 产物：`SessionSetup`（两种模式选择）、`DirectionCards`（候选方向选择台，点选→发消息给 AI）、`DecisionBar`（Go/Wait/No-Go→发消息）、`ArtifactPreview`（盘点/候选池摘要）、`SettingsDialog`（Provider/模型切换）
+  - 产物：`DirectionCards`（候选方向选择台，点选→发消息给 AI）、`DecisionBar`（Go/Wait/No-Go→发消息）、`ArtifactPreview`（盘点/候选池摘要）、`SettingsDialog`（Provider/模型切换）
   - 设计：工作台操作统一转成「发给 AI 的消息」，保持对话为核心
   - 验收：随 M2 一并 `npm run build` 通过
 - [x] M4 docker-compose 一键本地起服务
@@ -87,3 +87,20 @@ docker-compose.yml
 - 后端：`LLMProvider.stream()`（默认回退 + Anthropic `messages.stream` / OpenAI `stream=True` 真流式 + Mock 逐字）；`run_agent_turn_streaming` 生成器逐事件 yield（text / tool_start / tool_result / done / session / error）；`/api/chat/stream` 用 `StreamingResponse` 推 SSE
 - 前端：`api.chatStream` 用 fetch + ReadableStream 解析 SSE；`page.tsx` 逐 delta 更新助手气泡、工具事件并入、流式光标
 - 验收：后端 `server/tests` 6 项全过（新增流式事件测试）；前端 `npm run build` 通过
+
+## Agent 化路线（进行中）
+
+- [x] P0 删除前端模式选择，改为 AI 自动识别模式
+  - 状态：已完成
+  - 验收：工作台首屏不再展示模式选择；`mode_pending` 仅作为内部过渡态；新增 `set_research_mode` 工具，首轮对话可自动写回模式与 workflow_state；后端系统提示与会话摘要已改为“AI 自动识别模式”
+  - 补充验收：对话气泡支持轻量 Markdown 展示（加粗、标题、有序列表、无序列表）；已用浏览器打开历史会话 `c72709796331` 验证不再裸露 `**`；`npm run lint && npm run build`、`server/tests` 15 项通过
+- [ ] P1 Skill Loader + Prompt Builder
+  - 待开始：后端读取 `skills/*.md`，按阶段注入 Master Skill / market-scan / candidate-deep-dive / review-voc-analysis
+- [ ] P2 Sorftime MCP 工具化
+  - 待开始：后端代理 MCP 并把工具注册进 Agent Loop
+- [ ] P3 评论任务队列
+  - 待开始：Web 创建任务，插件领取并回传状态
+- [ ] P4 插件回传评论 + VOC 分析
+  - 待开始：评论 JSON 入库并自动触发 VOC Skill
+- [ ] P5 报告闭环
+  - 待开始：最终报告包含交互决策、MCP 证据和评论 VOC 证据

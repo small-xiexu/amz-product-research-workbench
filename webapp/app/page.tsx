@@ -3,8 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import type { AppConfig, Mode, SessionState } from "@/lib/types";
-import { SessionSetup } from "@/components/SessionSetup";
+import type { AppConfig, SessionState } from "@/lib/types";
 import { ChatPanel, DisplayMessage, toDisplayMessages } from "@/components/ChatPanel";
 import { StateCard } from "@/components/StateCard";
 import { FileUploadCard } from "@/components/FileUploadCard";
@@ -62,7 +61,6 @@ export default function Home() {
   const [config, setConfig] = React.useState<AppConfig | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [mobilePanel, setMobilePanel] = React.useState<MobilePanel>("chat");
-  const [pendingIntent, setPendingIntent] = React.useState("");
   const [siteDraft, setSiteDraft] = React.useState("US");
   const [siteSaving, setSiteSaving] = React.useState(false);
   const sendingRef = React.useRef(false);
@@ -156,53 +154,17 @@ export default function Home() {
     }
   }, []);
 
-  const createSession = async (mode: Mode = "mode_pending", intent = "", site = "US") => {
+  const createSession = async (site = "US") => {
     setCreating(true);
     setError(null);
     const selectedSite = normalizeSite(site);
     try {
-      const s = await api.createSession(mode, intent, selectedSite);
+      const s = await api.createSession("mode_pending", "", selectedSite);
       setSession(s);
       setSiteDraft(s.site);
       setMessages([]);
-      setPendingIntent("");
       setMobilePanel("chat");
       syncSessionPointer(s.session_id);
-      if (mode !== "mode_pending") {
-        await send(`我要做选品，模式：${mode === "broad_discovery" ? "无方向探索" : "指定方向深挖"}，意图：${intent || "暂未明确"}，站点：${selectedSite}。请先问我必须确认的问题，再给出第一步。`, s.session_id);
-      }
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const updateModeAndStart = async ({
-    mode,
-    intent,
-    site,
-    starter,
-  }: {
-    mode: Exclude<Mode, "mode_pending">;
-    intent: string;
-    site: string;
-    starter?: string;
-  }) => {
-    if (!session || sendingRef.current) return;
-    setCreating(true);
-    setError(null);
-    const selectedSite = normalizeSite(site);
-    try {
-      const updated = await api.updateSession(session.session_id, { mode, intent, site: selectedSite });
-      setSession(updated);
-      setPendingIntent("");
-      syncSessionPointer(updated.session_id);
-      await send(
-        starter ||
-          `我要做选品，模式：${mode === "broad_discovery" ? "无方向探索" : "指定方向深挖"}，意图：${intent || "暂未明确"}，站点：${selectedSite}。请先问我必须确认的问题，再给出第一步。`,
-        updated.session_id,
-      );
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -234,11 +196,6 @@ export default function Home() {
 
   const sendFromComposer = async (text: string) => {
     if (!session) return;
-    if (session.mode === "mode_pending") {
-      setPendingIntent(text);
-      if (mobilePanel === "chat") setMobilePanel("workbench");
-      return;
-    }
     await send(text);
   };
 
@@ -316,12 +273,11 @@ export default function Home() {
   };
 
   const startNewSession = () => {
-    if (session?.mode !== "mode_pending" && !window.confirm("确定要重新开始一轮选品吗？当前会话会从页面上移除。")) {
+    if ((messages.length > 0 || Object.keys(artifacts).length > 0) && !window.confirm("确定要重新开始一轮选品吗？当前会话会从页面上移除。")) {
       return;
     }
     setSession(null);
     setMessages([]);
-    setPendingIntent("");
     setSiteDraft("US");
     setError(null);
     setMobilePanel("chat");
@@ -347,9 +303,7 @@ export default function Home() {
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface px-4 py-2.5">
         <div className="flex items-center gap-2">
           <span className="text-sm font-bold text-primary">AMZ 选品工作台</span>
-          <span className="text-xs text-slate-400">
-            {session.mode === "mode_pending" ? "等待选择模式" : "运营 × AI 交互式选品"}
-          </span>
+          <span className="text-xs text-slate-400">运营 × AI 交互式选品</span>
         </div>
         <div className="order-3 grid w-full grid-cols-2 rounded-lg bg-muted p-1 lg:hidden">
           {[
@@ -384,11 +338,9 @@ export default function Home() {
           >
             数据源配置
           </Link>
-          {session.mode !== "mode_pending" ? (
-            <Button size="sm" variant="ghost" onClick={startNewSession} disabled={creating}>
-              {creating ? "创建中" : "重新开始"}
-            </Button>
-          ) : null}
+          <Button size="sm" variant="ghost" onClick={startNewSession} disabled={creating}>
+            {creating ? "创建中" : "重新开始"}
+          </Button>
         </div>
       </header>
 
@@ -406,16 +358,6 @@ export default function Home() {
             onSiteDraftChange={setSiteDraft}
             onSiteSave={saveSite}
           />
-          {session.mode === "mode_pending" ? (
-            <SessionSetup
-              key={session.session_id}
-              compact
-              busy={busy || creating}
-              initialIntent={pendingIntent}
-              site={siteDraft}
-              onStart={(payload) => updateModeAndStart(payload)}
-            />
-          ) : null}
           <FileUploadCard
             sessionId={session.session_id}
             uploadedFiles={artifacts.uploaded_files || []}
@@ -433,13 +375,9 @@ export default function Home() {
           } lg:flex`}
         >
           <ChatPanel
-            messages={session.mode === "mode_pending" ? [] : messages}
+            messages={messages}
             busy={busy || creating}
-            placeholder={
-              session.mode === "mode_pending"
-                ? "先输入你的选品想法，Enter 换行，⌘/Ctrl+Enter 记录到左侧"
-                : "继续和 AI 聊，Enter 换行，⌘/Ctrl+Enter 发送"
-            }
+            placeholder="直接输入选品想法，Enter 换行，⌘/Ctrl+Enter 发送；AI 会自动识别本轮模式"
             onSend={sendFromComposer}
           />
         </section>

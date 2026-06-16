@@ -11,8 +11,8 @@ from pathlib import Path
 
 from server.config import ProviderConfig, build_provider, load_provider_config, merge_provider_config, public_config, save_provider_config
 from server.data_sources.sorftime import build_sorftime_mcp_url
-from server.llm.openai_provider import normalize_openai_base_url
-from server.llm.base import AssistantTurn, ToolCall
+from server.llm.openai_provider import OpenAIProvider, normalize_openai_base_url
+from server.llm.base import AssistantTurn, TextDelta, ToolCall, TurnComplete
 from server.llm.loop import run_agent_turn, run_agent_turn_streaming
 from server.llm.mock_provider import MockProvider
 from server.sessions.store import Session, SessionStore
@@ -25,9 +25,30 @@ WINDOW_SAMPLE = ROOT / "卖家精灵导出_刮窗器_20260608"
 class ToolRegistryTests(unittest.TestCase):
     def test_tools_exposed(self) -> None:
         names = {t.name for t in ALL_TOOLS}
-        self.assertEqual(names, {"inspect_manual_exports", "build_candidate_pool"})
+        self.assertEqual(names, {"set_research_mode", "inspect_manual_exports", "build_candidate_pool"})
         for tool in ALL_TOOLS:
             self.assertIn("type", tool.input_schema)
+
+    def test_set_research_mode_writes_session_state(self) -> None:
+        session = Session(session_id="s2", mode="mode_pending", site="CA")
+        dispatch = make_dispatch(session)
+        result = dispatch(
+            "set_research_mode",
+            {
+                "mode": "targeted_deep_dive",
+                "intent": "窗户刮水器二合一工具",
+                "site": "US",
+                "reason": "用户已经给出明确产品方向",
+            },
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(session.mode, "targeted_deep_dive")
+        self.assertEqual(session.intent, "窗户刮水器二合一工具")
+        self.assertEqual(session.site, "US")
+        self.assertIsNotNone(session.workflow_state)
+        self.assertEqual(session.workflow_state["mode"], "targeted_deep_dive")
+        self.assertEqual(session.workflow_state["site"], "US")
 
     def test_build_candidate_pool_requires_manifest(self) -> None:
         session = Session(session_id="s1")
@@ -149,6 +170,35 @@ class ProviderConfigTests(unittest.TestCase):
         self.assertEqual(normalize_openai_base_url("https://gateway.example/api"), "https://gateway.example/api/v1")
         self.assertEqual(normalize_openai_base_url("https://gateway.example/api?token=x"), "https://gateway.example/api/v1")
         self.assertIsNone(normalize_openai_base_url(""))
+
+    def test_openai_stream_skips_empty_choices_chunks(self) -> None:
+        import types
+
+        provider = object.__new__(OpenAIProvider)
+        provider.model = "gpt-test"
+
+        empty_chunk = types.SimpleNamespace(choices=[])
+        text_chunk = types.SimpleNamespace(
+            choices=[
+                types.SimpleNamespace(
+                    delta=types.SimpleNamespace(content="OK", tool_calls=[]),
+                )
+            ]
+        )
+
+        class FakeCompletions:
+            def create(self, **kwargs):  # noqa: ANN003
+                return iter([empty_chunk, text_chunk])
+
+        provider._client = types.SimpleNamespace(  # type: ignore[attr-defined]
+            chat=types.SimpleNamespace(completions=FakeCompletions())
+        )
+
+        events = list(provider.stream("sys", [{"role": "user", "content": "hi"}], []))
+        self.assertIsInstance(events[0], TextDelta)
+        self.assertEqual(events[0].text, "OK")
+        self.assertIsInstance(events[-1], TurnComplete)
+        self.assertEqual(events[-1].turn.text, "OK")
 
     def test_anthropic_base_url_round_trip(self) -> None:
         import tempfile

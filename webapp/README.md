@@ -44,7 +44,6 @@ docker compose up --build
 | 文件 | 职责 |
 |---|---|
 | `app/page.tsx` | 状态编排：会话、消息、配置 |
-| `components/SessionSetup.tsx` | 两种模式选择 + 意图录入 |
 | `components/ChatPanel.tsx` | 对话面板 + 工具调用气泡 |
 | `components/StateCard.tsx` | 会话信息 + 流程进度条 |
 | `components/FileUploadCard.tsx` | 卖家精灵/评论导出上传 |

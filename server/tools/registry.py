@@ -17,6 +17,7 @@ from server.sessions.store import Session
 # 复用现有数据逻辑
 from packages.research_core.pipeline.inspect_manual_exports import build_manifest
 from packages.research_core.pipeline.build_candidate_pool_from_import_manifest import build_candidate_pool
+from packages.research_core.workflows import create_initial_state
 
 ToolHandler = Callable[[Session, dict[str, Any]], dict[str, Any]]
 
@@ -38,6 +39,28 @@ INSPECT_MANUAL_EXPORTS = ToolSpec(
             "site": {"type": "string", "description": "站点，仅支持 US、CA、MX（可选，默认 US）"},
         },
         "required": [],
+    },
+)
+
+SET_RESEARCH_MODE = ToolSpec(
+    name="set_research_mode",
+    description=(
+        "根据运营的自然语言意图，自动确定本轮选品模式并写回会话。"
+        "仅在你已判断本轮更接近无方向探索或指定方向深挖时调用。"
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["broad_discovery", "targeted_deep_dive"],
+                "description": "本轮内部模式",
+            },
+            "intent": {"type": "string", "description": "对运营当前选品意图的简短归纳"},
+            "site": {"type": "string", "description": "站点，仅支持 US、CA、MX（可选）"},
+            "reason": {"type": "string", "description": "为何判断成该模式（可选）"},
+        },
+        "required": ["mode", "intent"],
     },
 )
 
@@ -75,6 +98,40 @@ def _handle_inspect_manual_exports(session: Session, args: dict[str, Any]) -> di
     }
 
 
+def _handle_set_research_mode(session: Session, args: dict[str, Any]) -> dict[str, Any]:
+    mode = str(args.get("mode") or "").strip()
+    if mode not in {"broad_discovery", "targeted_deep_dive"}:
+        raise ValueError("mode 必须是 broad_discovery 或 targeted_deep_dive")
+
+    intent = str(args.get("intent") or session.intent or "").strip()
+    if not intent:
+        raise ValueError("intent 不能为空")
+
+    site = str(args.get("site") or session.site or "US").strip().upper() or "US"
+    if site not in {"US", "CA", "MX"}:
+        site = session.site or "US"
+
+    session.mode = mode
+    session.intent = intent
+    session.site = site
+    session.workflow_state = create_initial_state(
+        workflow_id=session.session_id,
+        mode=mode,  # type: ignore[arg-type]
+        initial_intent=intent,
+        site=site,
+    ).to_dict()
+
+    return {
+        "ok": True,
+        "mode": mode,
+        "intent": intent,
+        "site": site,
+        "stage": session.workflow_state.get("stage") if session.workflow_state else None,
+        "question": session.workflow_state.get("operator_question") if session.workflow_state else None,
+        "hint": "模式已写回会话，接下来可继续问运营问题或调用数据盘点工具。",
+    }
+
+
 def _handle_build_candidate_pool(session: Session, args: dict[str, Any]) -> dict[str, Any]:
     manifest = session.artifacts.get("manifest")
     if not manifest:
@@ -98,11 +155,12 @@ def _handle_build_candidate_pool(session: Session, args: dict[str, Any]) -> dict
 
 
 _HANDLERS: dict[str, ToolHandler] = {
+    SET_RESEARCH_MODE.name: _handle_set_research_mode,
     INSPECT_MANUAL_EXPORTS.name: _handle_inspect_manual_exports,
     BUILD_CANDIDATE_POOL.name: _handle_build_candidate_pool,
 }
 
-ALL_TOOLS: list[ToolSpec] = [INSPECT_MANUAL_EXPORTS, BUILD_CANDIDATE_POOL]
+ALL_TOOLS: list[ToolSpec] = [SET_RESEARCH_MODE, INSPECT_MANUAL_EXPORTS, BUILD_CANDIDATE_POOL]
 
 
 def make_dispatch(session: Session) -> Callable[[str, dict[str, Any]], dict[str, Any]]:

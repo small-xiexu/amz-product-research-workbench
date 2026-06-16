@@ -14,6 +14,169 @@ export interface DisplayMessage {
   streaming?: boolean;
 }
 
+function InlineMarkdown({ text }: { text: string }) {
+  const nodes = React.useMemo(() => {
+    const parts: React.ReactNode[] = [];
+    const boldPattern = /\*\*([^\n*]+?)\*\*/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = boldPattern.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      parts.push(
+        <strong key={`strong-${match.index}`} className="font-semibold">
+          {match[1]}
+        </strong>,
+      );
+      lastIndex = boldPattern.lastIndex;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+
+    return parts;
+  }, [text]);
+
+  return <>{nodes}</>;
+}
+
+type MarkdownList = {
+  type: "ol" | "ul";
+  items: Array<{
+    main: string;
+    details: Array<{ text: string; bullet: boolean }>;
+  }>;
+};
+
+function MessageContent({ content, role }: { content: string; role: DisplayMessage["role"] }) {
+  const blocks = React.useMemo(() => {
+    const rendered: React.ReactNode[] = [];
+    const lines = content.split("\n");
+    let paragraph: string[] = [];
+    let list: MarkdownList | null = null;
+
+    const clean = (value: string) => value.trim().replace(/\s{2,}$/g, "");
+
+    const flushParagraph = () => {
+      const text = paragraph.map(clean).filter(Boolean).join("\n");
+      if (text) {
+        rendered.push(
+          <p key={`p-${rendered.length}`} className="whitespace-pre-wrap">
+            <InlineMarkdown text={text} />
+          </p>,
+        );
+      }
+      paragraph = [];
+    };
+
+    const flushList = () => {
+      if (!list || list.items.length === 0) return;
+      const ListTag = list.type;
+      rendered.push(
+        <ListTag
+          key={`list-${rendered.length}`}
+          className={`ml-4 space-y-2 ${list.type === "ol" ? "list-decimal" : "list-disc"}`}
+        >
+          {list.items.map((item, itemIndex) => (
+            <li key={itemIndex}>
+              <InlineMarkdown text={clean(item.main)} />
+              {item.details.length > 0 ? (
+                <div className="mt-1 space-y-1 text-slate-600">
+                  {item.details.map((detail, detailIndex) => (
+                    <div key={detailIndex} className={detail.bullet ? "flex gap-2" : "whitespace-pre-wrap"}>
+                      {detail.bullet ? <span className="select-none text-slate-400">-</span> : null}
+                      <span>
+                        <InlineMarkdown text={clean(detail.text)} />
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </li>
+          ))}
+        </ListTag>,
+      );
+      list = null;
+    };
+
+    for (const rawLine of lines) {
+      const line = rawLine.trimEnd();
+      const trimmed = line.trim();
+      if (!trimmed) {
+        flushParagraph();
+        continue;
+      }
+
+      const heading = trimmed.match(/^(#{1,4})\s+(.+)$/);
+      if (heading) {
+        flushParagraph();
+        flushList();
+        const levelClass = heading[1].length <= 2 ? "text-base" : "text-sm";
+        rendered.push(
+          <h3 key={`h-${rendered.length}`} className={`${levelClass} font-semibold text-foreground`}>
+            <InlineMarkdown text={clean(heading[2])} />
+          </h3>,
+        );
+        continue;
+      }
+
+      const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+      if (ordered) {
+        flushParagraph();
+        if (!list || list.type !== "ol") {
+          flushList();
+          list = { type: "ol", items: [] };
+        }
+        list.items.push({ main: ordered[1], details: [] });
+        continue;
+      }
+
+      const unordered = line.match(/^\s*[-*]\s+(.+)$/);
+      if (unordered) {
+        flushParagraph();
+        const isNested = Boolean(list && /^\s+/.test(rawLine) && list.items.length > 0);
+        if (isNested && list) {
+          list.items[list.items.length - 1].details.push({ text: unordered[1], bullet: true });
+        } else {
+          if (!list || list.type !== "ul") {
+            flushList();
+            list = { type: "ul", items: [] };
+          }
+          list.items.push({ main: unordered[1], details: [] });
+        }
+        continue;
+      }
+
+      if (list && /^\s+/.test(rawLine) && list.items.length > 0) {
+        list.items[list.items.length - 1].details.push({ text: trimmed, bullet: false });
+        continue;
+      }
+
+      flushList();
+      paragraph.push(line);
+    }
+
+    flushParagraph();
+    flushList();
+
+    return rendered;
+  }, [content]);
+  const isUser = role === "user";
+
+  if (isUser) {
+    return (
+      <div className="whitespace-pre-wrap">
+        <InlineMarkdown text={content} />
+      </div>
+    );
+  }
+
+  return <div className="space-y-3">{blocks}</div>;
+}
+
 export function ChatPanel({
   messages,
   busy,
@@ -71,10 +234,10 @@ export function ChatPanel({
               className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
                 m.role === "user"
                   ? "bg-primary text-primary-fg"
-                  : "border border-border bg-surface text-foreground"
+                : "border border-border bg-surface text-foreground"
               }`}
             >
-              {m.content ? <div className="whitespace-pre-wrap">{m.content}</div> : null}
+              {m.content ? <MessageContent content={m.content} role={m.role} /> : null}
               {m.streaming ? (
                 <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-secondary align-middle" />
               ) : null}
@@ -118,7 +281,7 @@ export function ChatPanel({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey || e.shiftKey)) {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
                 e.preventDefault();
                 submit();
               }

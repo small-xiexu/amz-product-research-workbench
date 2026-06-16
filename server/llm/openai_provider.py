@@ -39,6 +39,8 @@ class OpenAIProvider(LLMProvider):
             messages=self._messages_to_openai(system, messages),
             tools=[self._tool_to_openai(t) for t in tools],
         )
+        if not resp.choices:
+            raise RuntimeError("OpenAI 兼容接口返回了空 choices，请检查网关或模型名称")
         choice = resp.choices[0].message
         tool_calls: list[ToolCall] = []
         for call in getattr(choice, "tool_calls", None) or []:
@@ -65,7 +67,10 @@ class OpenAIProvider(LLMProvider):
         # 按 index 累积工具调用片段
         partial: dict[int, dict[str, Any]] = {}
         for chunk in stream:
-            delta = chunk.choices[0].delta
+            choices = getattr(chunk, "choices", None) or []
+            if not choices:
+                continue
+            delta = choices[0].delta
             if getattr(delta, "content", None):
                 text_parts.append(delta.content)
                 yield TextDelta(delta.content)

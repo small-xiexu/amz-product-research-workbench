@@ -7,7 +7,7 @@ import { SITE_OPTIONS, normalizeSite } from "@/lib/sites";
 import type { SessionState } from "@/lib/types";
 
 const MODE_LABEL: Record<string, string> = {
-  mode_pending: "待选择模式",
+  mode_pending: "AI 自动识别中",
   broad_discovery: "无方向探索",
   targeted_deep_dive: "指定方向深挖",
 };
@@ -37,17 +37,19 @@ export function StateCard({
   const artifacts = session.artifacts || {};
   const normalizedDraft = normalizeSite(siteDraft);
   const siteChanged = normalizedDraft !== session.site;
+  const statusLabel = MODE_LABEL[session.mode] || "AI 自动识别中";
   return (
     <Card>
       <CardHeader
         title="当前会话"
-        subtitle={session.intent || (session.mode === "mode_pending" ? "先和 AI 对齐本轮选品方式" : "未填写意图")}
-        action={<Badge tone={session.mode === "mode_pending" ? "warning" : "primary"}>{MODE_LABEL[session.mode] || session.mode}</Badge>}
+        subtitle={session.intent || (session.mode === "mode_pending" ? "先直接和 AI 对话，它会自动判断本轮怎么走" : "未填写意图")}
       />
       <CardBody>
         <div className="mb-3 space-y-3">
-          <div className="text-xs text-slate-500">
+          <div className="flex items-center gap-2 text-xs text-slate-500">
             会话 <span className="font-mono text-foreground">{session.session_id}</span>
+            <span className="text-slate-300">·</span>
+            <Badge tone={session.mode === "mode_pending" ? "warning" : "primary"}>{statusLabel}</Badge>
           </div>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-slate-600">站点</span>
