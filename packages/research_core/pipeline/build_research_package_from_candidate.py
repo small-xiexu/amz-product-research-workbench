@@ -1476,7 +1476,7 @@ def _contains_any(text: str, needles: tuple[str, ...]) -> bool:
 def _looks_like_core_candidate(text: str) -> bool:
     if not text.strip():
         return False
-    adjacent_terms = ("配件", "替换", "清洁液", "清洁剂", "accessory", "replacement", "liquid")
+    adjacent_terms = ("配件", "替换", "accessory", "replacement")
     if _contains_any(text, adjacent_terms):
         return False
     return True
