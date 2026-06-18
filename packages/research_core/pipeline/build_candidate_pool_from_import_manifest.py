@@ -315,6 +315,12 @@ def _number_from_any(value: Any) -> float | None:
     return float(match.group(0)) if match else None
 
 
+def _price_high_from_range(low: float | None, high: float | None) -> float | None:
+    if high is not None:
+        return high
+    return low
+
+
 def _category_report_data(sorftime_verification: dict[str, Any]) -> Any:
     return (
         sorftime_verification.get("category_report_snapshot")
@@ -327,19 +333,19 @@ def _category_report_data(sorftime_verification: dict[str, Any]) -> Any:
 def _normalize_category_report_product(item: dict[str, Any]) -> dict[str, Any]:
     return {
         "asin": _first_value(item, ("asin", "ASIN")),
-        "title": _first_value(item, ("title", "商品标题", "product_name", "productName", "name")),
+        "title": _first_value(item, ("title", "标题", "商品标题", "product_name", "productName", "name")),
         "brand": _first_value(item, ("brand", "品牌")),
         "price": _number_from_any(_first_value(item, ("price", "price_usd", "价格", "价格($)", "sale_price"))),
         "monthly_units": _number_from_any(
             _first_value(item, ("monthly_units", "monthly_sales", "month_sales_volume", "sales_volume", "月销量"))
         ),
         "monthly_revenue_usd": _number_from_any(
-            _first_value(item, ("monthly_revenue_usd", "monthly_revenue", "month_sales_amount", "月销售额($)", "月销售额"))
+            _first_value(item, ("monthly_revenue_usd", "monthly_revenue", "month_sales_amount", "月销额", "月销售额($)", "月销售额"))
         ),
         "rating": _number_from_any(_first_value(item, ("rating", "review_rating", "评分", "星级"))),
-        "rating_count": _number_from_any(_first_value(item, ("rating_count", "review_count", "评分数", "评论数"))),
+        "rating_count": _number_from_any(_first_value(item, ("rating_count", "review_count", "评分数", "评价数量", "评论数"))),
         "listing_days": _number_from_any(_first_value(item, ("listing_days", "上架天数"))),
-        "listing_date": _first_value(item, ("listing_date", "listed_at", "上架时间")),
+        "listing_date": _first_value(item, ("listing_date", "listed_at", "上架日期", "上架时间")),
         "url": _first_value(item, ("url", "商品详情页链接")),
     }
 
@@ -362,13 +368,14 @@ def _listing_within_180_days(product: dict[str, Any]) -> bool:
 
 def _category_report_summary(sorftime_verification: dict[str, Any]) -> dict[str, Any]:
     report = _category_report_data(sorftime_verification)
-    records = _extract_records(report, ("products", "product_list", "top100", "items", "records", "data"))
+    records = _extract_records(report, ("products", "product_list", "Top100产品", "top100", "items", "records", "data"))
     products = [
         product
         for product in (_normalize_category_report_product(item) for item in records)
         if product.get("asin") or product.get("title")
     ]
-    if not products:
+    stats = report.get("类目统计报告", {}) if isinstance(report, dict) and isinstance(report.get("类目统计报告"), dict) else {}
+    if not products and not stats:
         return {}
 
     units = [item["monthly_units"] for item in products if isinstance(item.get("monthly_units"), (int, float))]
@@ -390,20 +397,37 @@ def _category_report_summary(sorftime_verification: dict[str, Any]) -> dict[str,
     recent_units = sum(item.get("monthly_units") or 0 for item in recent_products)
 
     category_name = _first_value(report, ("category_name", "categoryName", "name", "类目名称")) if isinstance(report, dict) else None
-    node_id = _first_value(report, ("node_id", "nodeId", "category_id", "类目节点")) if isinstance(report, dict) else None
+    node_id = _first_value(report, ("node_id", "nodeid", "nodeId", "category_id", "类目节点")) if isinstance(report, dict) else None
+    if stats:
+        category_name = category_name or _first_value(stats, ("category_name", "categoryName", "name", "类目名称"))
+        node_id = node_id or _first_value(stats, ("node_id", "nodeid", "nodeId", "category_id", "类目节点"))
+    stats_total_units = _number_from_any(_first_value(stats, ("top100产品月销量", "total_monthly_units", "month_sales_volume")))
+    stats_total_revenue = _number_from_any(_first_value(stats, ("top100产品月销额", "total_monthly_revenue_usd", "month_sales_amount")))
+    stats_avg_price = _number_from_any(_first_value(stats, ("average_price", "平均价格", "销量前的80%产品平均价格")))
+    stats_product_count = _number_from_any(_first_value(stats, ("product_count", "top100_product_count", "样本产品数")))
+    if stats_total_units is not None:
+        total_units = stats_total_units
+    if stats_total_revenue is not None:
+        total_revenue = stats_total_revenue
+    top3_product_share = _number_from_any(_first_value(stats, ("top3_product_sales_volume_share", "销量前3的产品月销量占比")))
+    top3_brand_share = _number_from_any(_first_value(stats, ("top3_brands_sales_volume_share", "销量前三的品牌月销量占比")))
+    first_brand = _first_value(stats, ("first_brand", "销量最大品牌"))
+    if isinstance(first_brand, str) and ":" in first_brand:
+        first_brand = first_brand.split(":", 1)[1]
     summary = {
         "source_tool": "category_report",
         "category_name": category_name,
         "node_id": node_id,
-        "product_count": len(products),
+        "product_count": int(stats_product_count) if stats_product_count is not None else len(products),
         "total_monthly_units": total_units,
         "total_monthly_revenue_usd": total_revenue,
         "avg_monthly_units": round(total_units / len(units), 2) if total_units is not None and units else None,
         "avg_monthly_revenue_usd": round(total_revenue / len(revenues), 2) if total_revenue is not None and revenues else None,
-        "avg_price_usd": round(sum(prices) / len(prices), 2) if prices else None,
+        "avg_price_usd": round(stats_avg_price, 2) if stats_avg_price is not None else (round(sum(prices) / len(prices), 2) if prices else None),
         "top10_units_share": round(top10_units / total_units, 4) if total_units else None,
-        "top_brand": top_brand,
-        "top_brand_units_share": round(brand_units[top_brand] / total_units, 4) if top_brand and total_units else None,
+        "top3_product_units_share": round(top3_product_share / 100, 4) if top3_product_share is not None else None,
+        "top_brand": first_brand or top_brand,
+        "top_brand_units_share": round(top3_brand_share / 100, 4) if top3_brand_share is not None else (round(brand_units[top_brand] / total_units, 4) if top_brand and total_units else None),
         "new_product_count_6m": len(recent_products),
         "new_product_units_share": round(recent_units / total_units, 4) if total_units else None,
         "sample_asins": [str(item.get("asin")) for item in products[:10] if item.get("asin")],
@@ -552,6 +576,7 @@ def _normalize_supply_chain_sample_product(item: dict[str, Any]) -> dict[str, An
         "title": _first_value(item, ("title", "Title", "name", "product_name", "商品标题", "名称")),
         "price_cny_min": low,
         "price_cny_max": high,
+        "conservative_price_cny": _price_high_from_range(low, high),
         "quote_currency": _currency_text(item) or "RMB",
         "supplier": _first_value(item, ("supplier", "supplier_name", "StoreName", "store_name", "shop_name", "供应商", "店铺")),
         "url": _supply_chain_url(item),
@@ -573,6 +598,11 @@ def _supply_chain_signal_summary(sorftime_verification: dict[str, Any]) -> dict[
     ranges = [_price_range_cny(item) for item in valid_records]
     lows = [low for low, _ in ranges if low is not None]
     highs = [high for _, high in ranges if high is not None]
+    conservative_prices = [
+        _price_high_from_range(low, high)
+        for low, high in ranges
+        if _price_high_from_range(low, high) is not None
+    ]
     if not records and not lows and not highs and isinstance(existing_summary, dict):
         existing_source_url = str(_first_value(existing_summary, ("source_url", "sourceUrl", "url")) or "https://www.1688.com/").strip()
         existing_currency = str(_first_value(existing_summary, ("quote_currency", "currency", "currency_code")) or "RMB").strip()
@@ -613,6 +643,22 @@ def _supply_chain_signal_summary(sorftime_verification: dict[str, Any]) -> dict[
         rejected_sample_count = int(_number_from_any(existing_summary.get("rejected_sample_count")) or 0)
         if raw_sample_count:
             rejected_sample_count = max(rejected_sample_count, raw_sample_count - len(sample_products))
+        existing_exchange_rate = _number_from_any(_first_value(existing_summary, ("exchange_rate", "usd_cny_rate", "cny_per_usd")))
+        existing_conservative_cny = _number_from_any(
+            _first_value(existing_summary, ("conservative_purchase_price_cny", "conservative_price_cny"))
+        ) or max(
+            [
+                item["conservative_price_cny"]
+                for item in sample_products
+                if item.get("conservative_price_cny") is not None
+            ],
+            default=None,
+        )
+        existing_conservative_usd = _number_from_any(
+            _first_value(existing_summary, ("conservative_purchase_price_usd", "conservative_price_usd"))
+        )
+        if existing_conservative_usd is None and existing_conservative_cny is not None and existing_exchange_rate:
+            existing_conservative_usd = round(existing_conservative_cny / existing_exchange_rate, 2)
         summary = {
             "source_tool": existing_summary.get("source_tool") or "ali1688_similar_product",
             "source_site": existing_summary.get("source_site") or "1688中国站",
@@ -640,10 +686,14 @@ def _supply_chain_signal_summary(sorftime_verification: dict[str, Any]) -> dict[
             "purchase_price_cny_median": _number_from_any(
                 _first_value(existing_summary, ("purchase_price_cny_median", "price_cny_median"))
             ),
+            "conservative_purchase_price_cny": existing_conservative_cny,
+            "conservative_purchase_price_usd": existing_conservative_usd,
+            "conservative_purchase_price_basis": existing_summary.get("conservative_purchase_price_basis")
+            or "1688区间报价按上限做保守估算；利润复核默认使用该字段，不使用最低SKU价。",
             "purchase_price_usd_avg": _number_from_any(
                 _first_value(existing_summary, ("purchase_price_usd_avg", "price_usd_avg"))
             ),
-            "exchange_rate": _number_from_any(_first_value(existing_summary, ("exchange_rate", "usd_cny_rate", "cny_per_usd"))),
+            "exchange_rate": existing_exchange_rate,
             "confidence": existing_summary.get("confidence") or "粗估，仅供早期筛选",
             "note": existing_summary.get("note") or "1688中国站人民币报价不含头程、关税、质检、包装和损耗，不替代利润模板。",
             "sample_products": [item for item in sample_products if any(value not in (None, "") for value in item.values())],
@@ -715,6 +765,8 @@ def _supply_chain_signal_summary(sorftime_verification: dict[str, Any]) -> dict[
     )
     if relevant_supplier_count is not None:
         relevant_supplier_count = min(relevant_supplier_count, float(len(valid_records)))
+    conservative_cny = round(max(conservative_prices), 2) if conservative_prices else None
+    conservative_usd = round(conservative_cny / exchange_rate, 2) if conservative_cny is not None and exchange_rate else None
     summary = {
         "source_tool": "ali1688_similar_product",
         "source_site": "1688中国站",
@@ -740,6 +792,9 @@ def _supply_chain_signal_summary(sorftime_verification: dict[str, Any]) -> dict[
         )
         if isinstance(existing_summary, dict)
         else None,
+        "conservative_purchase_price_cny": conservative_cny,
+        "conservative_purchase_price_usd": conservative_usd,
+        "conservative_purchase_price_basis": "1688区间报价按上限做保守估算；利润复核默认使用该字段，不使用最低SKU价。",
         "purchase_price_usd_avg": (
             round(avg_cny / exchange_rate, 2)
             if avg_cny is not None and exchange_rate
@@ -1060,12 +1115,17 @@ def _apply_sorftime_verification_signals(candidate: dict[str, Any], sorftime_ver
     supply_chain_signal = _supply_chain_signal_summary(sorftime_verification)
     if supply_chain_signal:
         profit_space["supply_chain_signal"] = supply_chain_signal
+        conservative_cny = supply_chain_signal.get("conservative_purchase_price_cny") or supply_chain_signal.get("purchase_price_cny_max")
+        conservative_text = f"；保守估算按 RMB {conservative_cny}" if conservative_cny is not None else ""
         profit_space["cogs_signal"] = (
-            f"1688中国站人民币粗采购价 RMB {supply_chain_signal.get('purchase_price_cny_min', '待补')}"
+            f"1688中国站人民币采购价区间 RMB {supply_chain_signal.get('purchase_price_cny_min', '待补')}"
             f"-{supply_chain_signal.get('purchase_price_cny_max', '待补')}；"
+            f"{conservative_text.lstrip('；') if conservative_text else '保守估算价待补'}；"
             f"有效样本 {supply_chain_signal.get('supplier_count', 0)} 个供应商"
         )
-        if supply_chain_signal.get("purchase_price_usd_avg") is not None:
+        if supply_chain_signal.get("conservative_purchase_price_usd") is not None:
+            profit_space["estimated_purchase_cost_usd"] = supply_chain_signal.get("conservative_purchase_price_usd")
+        elif supply_chain_signal.get("purchase_price_usd_avg") is not None:
             profit_space["estimated_purchase_cost_usd"] = supply_chain_signal.get("purchase_price_usd_avg")
         data_quality["supply_chain_signal"] = {
             "enabled": True,
@@ -1301,6 +1361,11 @@ def merge_sorftime_signals(candidate: dict[str, Any], sorftime_verification: dic
     candidate["competition_structure"] = competition
     _apply_sorftime_verification_signals(candidate, sorftime_verification)
     candidate["sorftime_verification"] = sorftime_verification
+    refs = list(candidate.get("source_refs") or [])
+    for source in _sorftime_source_refs(sorftime_verification):
+        if source not in refs:
+            refs.append(source)
+    candidate["source_refs"] = refs
     return candidate
 
 
@@ -1308,12 +1373,17 @@ def build_candidate_pool(manifest: dict[str, Any], sorftime_verification: dict[s
     candidate = build_candidate(manifest)
     if sorftime_verification:
         candidate = merge_sorftime_signals(candidate, sorftime_verification)
+    data_sources = list(manifest.get("data_quality", {}).get("available_source_types", []))
+    if sorftime_verification:
+        for source in _sorftime_source_refs(sorftime_verification):
+            if source not in data_sources:
+                data_sources.append(source)
     pool_metadata: dict[str, Any] = {
         "pool_id": "pool-manual-export-" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
         "site": manifest.get("metadata", {}).get("site") or "US",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "discovery_mode": "manual_export" if not sorftime_verification else "mixed",
-        "data_sources": manifest.get("data_quality", {}).get("available_source_types", []),
+        "data_sources": data_sources,
         "import_manifest": manifest.get("metadata", {}).get("manifest_id"),
     }
     if sorftime_verification:
@@ -1340,6 +1410,23 @@ def build_candidate_pool(manifest: dict[str, Any], sorftime_verification: dict[s
         },
         "candidates": [candidate],
     }
+
+
+def _sorftime_source_refs(sorftime_verification: dict[str, Any]) -> list[str]:
+    refs: list[str] = []
+    if sorftime_verification.get("keyword_verification"):
+        refs.append("sorftime:keyword_detail")
+    if sorftime_verification.get("traffic_terms"):
+        refs.append("sorftime:product_traffic_terms")
+    if sorftime_verification.get("category_search"):
+        refs.append("sorftime:category_search_from_product_name")
+    if sorftime_verification.get("category_report_snapshot"):
+        refs.append("sorftime:category_report")
+    if sorftime_verification.get("category_trend"):
+        refs.append("sorftime:category_trend")
+    if sorftime_verification.get("category_keywords"):
+        refs.append("sorftime:category_keywords")
+    return refs
 
 
 def parse_args() -> argparse.Namespace:

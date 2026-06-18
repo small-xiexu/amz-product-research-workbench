@@ -81,7 +81,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from build_candidate_pool_from_import_manifest import merge_sorftime_signals
+from packages.research_core.pipeline.build_candidate_pool_from_import_manifest import (
+    _sorftime_source_refs,
+    merge_sorftime_signals,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -129,6 +132,11 @@ def main() -> int:
     metadata = pool.get("metadata", {})
     metadata["discovery_mode"] = "mixed"
     metadata["sorftime_verified_at"] = sorftime_verification.get("verified_at", datetime.now(timezone.utc).date().isoformat())
+    data_sources = list(metadata.get("data_sources") or [])
+    for source in _sorftime_source_refs(sorftime_verification):
+        if source not in data_sources:
+            data_sources.append(source)
+    metadata["data_sources"] = data_sources
     pool["metadata"] = metadata
 
     pool_path.write_text(json.dumps(pool, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

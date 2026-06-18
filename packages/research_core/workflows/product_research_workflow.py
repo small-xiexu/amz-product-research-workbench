@@ -26,6 +26,7 @@ from packages.research_core.pipeline.build_review_voc_from_plugin_export import 
     build_voc_package,
     read_ai_report,
     read_review_excel,
+    read_reviews_from_json,
     render_markdown as render_voc_markdown,
     render_summary as render_voc_summary,
     render_workbook as render_voc_workbook,
@@ -184,9 +185,10 @@ def build_review_outputs(
     candidate_name: str,
 ) -> dict[str, Any]:
     excel_paths = [path for path in input_paths if path.suffix.lower() == ".xlsx"]
+    json_paths = [path for path in input_paths if path.suffix.lower() == ".json"]
     html_paths = [path for path in input_paths if path.suffix.lower() in {".html", ".htm"}]
-    if not excel_paths:
-        raise ValueError("--review-input 至少需要包含一个评论插件 Excel 文件")
+    if not excel_paths and not json_paths:
+        raise ValueError("--review-input 至少需要包含一个评论插件 Excel 或 JSON 文件")
     for path in input_paths:
         if not path.exists() or not path.is_file():
             raise ValueError(f"Review input does not exist or is not a file: {path}")
@@ -194,6 +196,8 @@ def build_review_outputs(
     reviews: list[dict[str, Any]] = []
     for path in excel_paths:
         reviews.extend(read_review_excel(path))
+    for path in json_paths:
+        reviews.extend(read_reviews_from_json(path))
     ai_reports = [read_ai_report(path) for path in html_paths]
     package = build_voc_package(reviews, ai_reports, input_paths, candidate_id, candidate_name)
 

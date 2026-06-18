@@ -19,7 +19,6 @@ from packages.report_renderer.formatting import (
     _site_currency_code,
     _format_money,
     _normalize_money_text,
-    _format_generated_at,
     _format_percent_or_text,
     _market_size_value_text,
     _display_value,
@@ -670,12 +669,10 @@ def _dashboard_profit_risk_section(model: dict[str, Any]) -> str:
 
 
 def _dashboard_footer(model: dict[str, Any]) -> str:
-    meta = model.get("meta", {})
-    generated_at = _format_generated_at(meta.get("generated_at", "待填"))
     return f"""
 <footer class="footer">
   <div>
-    <div>生成时间：{escape(str(generated_at))}</div>
+    <div>需要追溯时看 Excel 和 Markdown，页面先保留判断重点。</div>
   </div>
   <div class="footer-links">
     <a class="link-chip" href="{model['links']['html_report']}">网页版报告</a>

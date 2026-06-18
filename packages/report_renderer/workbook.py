@@ -87,6 +87,8 @@ def _build_workbook_sheets(package: dict) -> list[tuple[str, list[list[object]]]
         ("竞品选择逻辑", _competitor_selection_logic_rows(package.get("competitor_selection_logic", []), currency_code)),
         ("竞品池", _competitor_rows(competitors, currency_code)),
         ("竞品深拆卡", _competitor_deep_dive_rows(package.get("competitor_deep_dive", []), currency_code)),
+        ("产品路线矩阵", _product_route_matrix_rows(package.get("product_route_matrix", []))),
+        ("路线深挖计划", _route_deep_dive_plan_rows(package.get("route_deep_dive_plan", []))),
         ("进入壁垒", _entry_barriers_rows(package.get("entry_barriers", []))),
         ("Go_No-Go评分卡", _go_nogo_scorecard_rows(package.get("decision_review", {}).get("go_nogo_scorecard", {}) if isinstance(package.get("decision_review"), dict) else {})),
         ("利润测算输入", _profit_input_rows(operator_inputs, currency_code)),
@@ -145,14 +147,27 @@ def _supply_chain_signal_rows(signal: dict) -> list[list[object]]:
         ("quote_currency", "原始报价币种"),
         ("search_name", "搜索词"),
         ("raw_supplier_count", "原始样本数"),
-        ("supplier_count", "供应商样本数"),
-        ("relevant_supplier_count", "相关供应商数"),
+        ("text_screened_candidate_count", "文本初筛候选数"),
+        ("detail_structured_review_count", "详情结构化复核样本数"),
+        ("detail_structured_pass_count", "详情结构化通过数"),
+        ("detail_structured_partial_count", "详情结构化部分通过数"),
+        ("detail_structured_fail_count", "详情结构化失败数"),
+        ("supplier_count", "RMB报价有效样本数"),
+        ("visual_review_queue_count", "待视觉复核队列数"),
+        ("visual_confirmed_count", "视觉确认通过数"),
+        ("visual_partial_count", "视觉观察待核数"),
+        ("visual_rejected_count", "视觉剔除数"),
+        ("relevant_supplier_count", "最终可继续验证供应商数"),
         ("rejected_sample_count", "剔除样本数"),
         ("rejection_reasons", "剔除原因"),
-        ("purchase_price_cny_min", "采购价下限(RMB)"),
-        ("purchase_price_cny_max", "采购价上限(RMB)"),
-        ("purchase_price_cny_avg", "采购价均值(RMB)"),
-        ("purchase_price_cny_median", "采购价中位数(RMB)"),
+        ("purchase_price_cny_min", "文本初筛采购价下限(RMB)"),
+        ("purchase_price_cny_max", "文本初筛采购价上限(RMB)"),
+        ("conservative_purchase_price_cny", "保守采购价(RMB，区间上限)"),
+        ("conservative_purchase_price_usd", "保守采购价(USD)"),
+        ("conservative_purchase_price_basis", "保守价口径"),
+        ("purchase_price_cny_avg", "文本初筛采购价均值(RMB)"),
+        ("conservative_purchase_price_cny_median", "保守采购价中位数(RMB)"),
+        ("purchase_price_cny_median", "文本初筛采购价中位数(RMB)"),
         ("purchase_price_usd_avg", "采购价均值(USD)"),
         ("exchange_rate", "折算汇率"),
         ("confidence", "置信度"),
@@ -160,7 +175,7 @@ def _supply_chain_signal_rows(signal: dict) -> list[list[object]]:
     ):
         rows.append([label, _display_value(signal.get(key))])
     sample_products = signal.get("sample_products", [])
-    rows.extend([[], ["样本商品", "供应商", "价格下限(RMB)", "价格上限(RMB)", "链接"]])
+    rows.extend([[], ["样本商品", "供应商", "价格下限(RMB)", "价格上限(RMB)", "保守价(RMB)", "链接"]])
     if isinstance(sample_products, list) and sample_products:
         for item in sample_products:
             if isinstance(item, dict):
@@ -170,11 +185,12 @@ def _supply_chain_signal_rows(signal: dict) -> list[list[object]]:
                         item.get("supplier"),
                         item.get("price_cny_min"),
                         item.get("price_cny_max"),
+                        item.get("conservative_price_cny"),
                         item.get("url"),
                     ]
                 )
     else:
-        rows.append(["未提供", "", "", "", ""])
+        rows.append(["未提供", "", "", "", "", ""])
     return rows
 
 
@@ -275,6 +291,91 @@ def _risk_matrix_rows(risks: list[dict]) -> list[list[object]]:
         rows.append([item.get("dimension"), item.get("level"), item.get("basis"), item.get("next_check")])
     if len(rows) == 1:
         rows.append(["未生成", "", "", ""])
+    return rows
+
+
+def _product_route_matrix_rows(routes: object) -> list[list[object]]:
+    rows: list[list[object]] = [
+        ["路线", "类型", "候选数", "优先联系", "观察待核", "价格区间", "机会", "风险", "下一步验证", "代表商品"],
+    ]
+    if isinstance(routes, list):
+        for route in routes:
+            if not isinstance(route, dict):
+                continue
+            representatives = route.get("representative_items") if isinstance(route.get("representative_items"), list) else []
+            rep_text = "；".join(
+                str(item.get("title") or "")
+                for item in representatives
+                if isinstance(item, dict) and item.get("title")
+            )
+            actions = route.get("validation_actions") if isinstance(route.get("validation_actions"), list) else []
+            rows.append(
+                [
+                    route.get("route_name"),
+                    route.get("route_type"),
+                    route.get("candidate_count"),
+                    route.get("priority_count"),
+                    route.get("watchlist_count"),
+                    route.get("price_text"),
+                    route.get("opportunity"),
+                    route.get("risks"),
+                    "；".join(str(item) for item in actions[:3]),
+                    rep_text,
+                ]
+            )
+    if len(rows) == 1:
+        rows.append(["未生成", "", "", "", "", "", "", "", "", ""])
+    return rows
+
+
+def _route_deep_dive_plan_rows(plan: object) -> list[list[object]]:
+    rows: list[list[object]] = [
+        [
+            "路线",
+            "类型",
+            "深挖优先级",
+            "当前证据",
+            "为什么要看",
+            "卖家精灵补数",
+            "Sorftime检查",
+            "评价ASIN",
+            "评价覆盖",
+            "1688搜索词",
+            "当前缺口",
+            "判断门槛",
+            "下一步",
+        ],
+    ]
+    if isinstance(plan, list):
+        for item in plan:
+            if not isinstance(item, dict):
+                continue
+            coverage = item.get("review_coverage") if isinstance(item.get("review_coverage"), dict) else {}
+            asins = item.get("review_voc_asin_plan") if isinstance(item.get("review_voc_asin_plan"), list) else []
+            asin_text = "；".join(
+                f"{asin.get('asin')} {asin.get('competitor_type', '')} {asin.get('title', '')}"
+                for asin in asins
+                if isinstance(asin, dict) and asin.get("asin")
+            )
+            rows.append(
+                [
+                    item.get("route_name"),
+                    item.get("route_type"),
+                    item.get("recommended_depth"),
+                    item.get("current_evidence_level"),
+                    item.get("why"),
+                    "；".join(str(x) for x in item.get("seller_sprite_exports", []) if x),
+                    "；".join(str(x) for x in item.get("sorftime_checks", []) if x),
+                    asin_text,
+                    f"{coverage.get('matched_review_count', 0)} 条 / {len(coverage.get('matched_asins', []) if isinstance(coverage.get('matched_asins'), list) else [])} 个 ASIN",
+                    "；".join(str(x) for x in item.get("supply_chain_search_terms", []) if x),
+                    "；".join(str(x) for x in item.get("data_gaps", []) if x),
+                    "；".join(str(x) for x in item.get("decision_gate", []) if x),
+                    item.get("next_step"),
+                ]
+            )
+    if len(rows) == 1:
+        rows.append(["未生成", "", "", "", "", "", "", "", "", "", "", "", ""])
     return rows
 
 

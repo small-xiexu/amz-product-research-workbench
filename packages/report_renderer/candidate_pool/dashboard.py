@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -32,7 +31,6 @@ def render_dashboard(candidate_pool: dict[str, Any]) -> str:
     candidates = _sorted_candidates(candidate_pool)
     primary = candidates[0] if candidates else {}
     site = escape(str(metadata.get("site", "待填")))
-    generated_at = escape(_format_precheck_generated_at(metadata.get("generated_at", "待填")))
     direction_cards = "\n".join(_direction_panel_html(card) for card in primary.get("direction_cards", []))
     stat_cards = "\n".join(_precheck_stat_card(label, value, note) for label, value, note in _precheck_stats(candidate_pool, primary))
     boundary_panel = _boundary_dashboard_html(primary)
@@ -430,7 +428,6 @@ def render_dashboard(candidate_pool: dict[str, Any]) -> str:
           <p class="lead">这页是正式深挖前的方向选择台：先把主线、旁支、混池和排除项摆清楚，再决定抓哪批评论、补哪些判断。</p>
           <div class="meta">
             <span class="chip">站点 {site}</span>
-            <span class="chip">生成时间 {generated_at}</span>
           </div>
         </div>
         <ol class="step-list">
@@ -691,14 +688,3 @@ def _candidate_card_html(candidate: dict[str, Any]) -> str:
     <ul>{missing or "<li>暂无</li>"}</ul>
   </section>
 </article>"""
-
-
-def _format_precheck_generated_at(value: Any) -> str:
-    if value in (None, "", "待填"):
-        return "待填"
-    text = str(value)
-    try:
-        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError:
-        return text
-    return parsed.strftime("%Y-%m-%d %H:%M:%S")

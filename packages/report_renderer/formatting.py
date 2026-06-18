@@ -84,6 +84,17 @@ def _normalize_money_text(value: object, currency_code: str) -> str:
     return text.strip()
 
 
+def _polish_punctuation(value: object) -> str:
+    text = str(value or "")
+    if not text:
+        return text
+    text = text.replace("。；", "；")
+    text = text.replace("；。", "。")
+    text = text.replace("。;", ";")
+    text = text.replace(";。", ".")
+    return text
+
+
 def _format_generated_at(value: object) -> str:
     text = str(value or "").strip()
     if not text or text == "待填":

@@ -5,12 +5,165 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import sys
 from typing import Any
 import argparse
 
 
 PREFERRED_STATUSES = ("继续看", "试做", "观察", "先放弃")
+
+PRODUCT_ROUTE_DEFINITIONS: tuple[dict[str, Any], ...] = (
+    {
+        "route_id": "core_hands_free_waist",
+        "route_name": "基础款：腰包/腰带 + 单牵引绳",
+        "route_type": "主线",
+        "priority": 10,
+        "opportunity": "最贴近 hands free dog leash 主需求，适合先拿样确认腰带、防滑、弹力绳和腰包细节。",
+        "risks": "容易同质化，不能只比低价；腰带下滑、扣具强度和弹力寿命会直接影响差评。",
+        "validation_actions": [
+            "让供应商分别报基础款和升级款真实阶梯价。",
+            "样品重点测腰带防滑、弹力段回弹、扣具拉力和腰包容量。",
+        ],
+        "decision_hint": "可以作为主推基准款，但必须和升级款一起比较利润和差异化。",
+    },
+    {
+        "route_id": "dual_leash_waist_bag",
+        "route_name": "升级款：双牵引绳 + 腰包/腰带",
+        "route_type": "升级",
+        "priority": 20,
+        "opportunity": "对应多狗家庭和更高客单价场景，和基础免手持款有明显区分，值得单独验证。",
+        "risks": "双犬同时拉拽时更考验防缠绕、两侧受力、腰带防滑和双扣强度，不能只看图片像不像。",
+        "validation_actions": [
+            "让供应商确认单体/双体、单套/双套是否同链接可选，并拆分报价。",
+            "样品要测两犬拉拽、防缠绕、腰带位移、双扣和缝线强度。",
+        ],
+        "decision_hint": "不要混在普通腰包款里看；作为升级路线单独算成本、售价和样品测试。",
+    },
+    {
+        "route_id": "multi_dog_without_waist",
+        "route_name": "旁支：一拖二/双头多狗绳",
+        "route_type": "旁支",
+        "priority": 30,
+        "opportunity": "能覆盖多狗需求和防缠绕卖点，可作为副方向观察。",
+        "risks": "如果没有腰包/腰带/免手持结构，就不是当前主线，混进去会拉偏选品判断。",
+        "validation_actions": [
+            "确认是否真的能腰部佩戴；不能免手持的只进旁支，不进主推。",
+            "重点看旋转扣、防缠绕结构和两犬长度差。",
+        ],
+        "decision_hint": "只作多狗变体池观察，除非补齐腰包/免手持证据。",
+    },
+    {
+        "route_id": "safety_upgrade",
+        "route_name": "安全升级：反光/双手柄/防爆冲",
+        "route_type": "功能升级",
+        "priority": 40,
+        "opportunity": "反光、双手柄、防爆冲和加强扣具可以转成页面卖点，也能解释为什么比低价款贵。",
+        "risks": "这些功能如果只停留在标题词，样品不达标反而容易被差评打回来。",
+        "validation_actions": [
+            "把反光面积、双手柄位置、弹力段长度、扣具材质写进打样清单。",
+            "让供应商提供细节图、视频或测试说明。",
+        ],
+        "decision_hint": "适合作为基础/升级路线的必验卖点，不建议单独作为产品路线。",
+    },
+    {
+        "route_id": "adjacent_or_watch",
+        "route_name": "观察：斜挎/六合一/普通弹力绳",
+        "route_type": "观察",
+        "priority": 50,
+        "opportunity": "可能有可借鉴结构或低价供给，可留作备选。",
+        "risks": "形态容易偏离跑步腰包免手持，不能因为有牵引绳关键词就纳入主线。",
+        "validation_actions": [
+            "打开详情确认佩戴方式、适用场景和是否支持腰部免手持。",
+            "证据不足时只留观察，不进入优先询价。",
+        ],
+        "decision_hint": "除非后续补到清晰腰包/免手持证据，否则不作为主线。",
+    },
+)
+
+ROUTE_DEEP_DIVE_CONFIG: dict[str, dict[str, Any]] = {
+    "core_hands_free_waist": {
+        "seller_sprite_exports": [
+            "用 hands free dog leash / dog running leash 跑搜索结果、市场分析 Top100 和 ABA。",
+            "挑 3-5 个基础腰包/腰带款 ASIN 做关键词反查，看成交词是不是免手持跑步场景。",
+        ],
+        "sorftime_checks": [
+            "keyword_detail：hands free dog leash、dog running leash。",
+            "product_traffic_terms：基础腰带款 Top3 ASIN，确认流量词是不是腰部免手持。",
+            "keyword_extends：排掉普通 dog leash、斜挎包、单独腰包等混池词。",
+        ],
+        "supply_chain_search_terms": ["跑步牵引绳 腰包", "免手持 狗绳 腰带", "宠物跑步牵引绳 腰包", "腰带 弹力 牵引绳"],
+        "review_terms": ("hands free", "waist", "belt", "pouch", "bungee", "running", "jogging", "腰", "免手持"),
+        "decision_gate": [
+            "基础款样品能解决腰带下滑、扣具强度和弹力寿命。",
+            "真实最高规格采购价 + 包装重量回填后，利润仍能接受。",
+            "核心流量词与免手持跑步场景一致，不是普通 dog leash 混池。",
+        ],
+    },
+    "dual_leash_waist_bag": {
+        "seller_sprite_exports": [
+            "用 double dog leash / dual dog leash / two dog leash 补搜索结果和关键词反查。",
+            "单独拉双牵引 + 腰包款竞品 ASIN，不和普通腰包款混在一个 VOC 批次里判断。",
+        ],
+        "sorftime_checks": [
+            "keyword_detail：double dog leash、dual dog leash、hands free leash for two dogs。",
+            "product_traffic_terms：双狗腰包款代表 ASIN，确认是否有 two dogs / dual dog 成交流量。",
+            "competitor_product_keywords：看升级款是否能避开普通低价 dog leash 竞争。",
+        ],
+        "supply_chain_search_terms": ["双牵引绳 腰包", "双狗 跑步 腰带", "一拖二 腰包 牵引绳", "双体 牵引绳 腰包"],
+        "review_terms": (
+            "double",
+            "dual dog",
+            "dual leash",
+            "two dog",
+            "two dogs",
+            "2 dog",
+            "2 dogs",
+            "multiple dogs",
+            "双",
+            "两只",
+            "多狗",
+            "一拖二",
+        ),
+        "decision_gate": [
+            "双犬同时拉拽时，腰带、防缠绕、双扣和缝线强度能过样品测试。",
+            "评价插件覆盖双狗路线 ASIN，能看清真实差评是不是可解决。",
+            "1688 供应商能拆分单体/双体、单套/双套报价，并确认最高规格真实价格。",
+        ],
+    },
+    "multi_dog_without_waist": {
+        "seller_sprite_exports": [
+            "用 dual dog leash / no tangle dog leash 补旁支竞品，不和免手持腰包款合并判断。",
+            "看一拖二路线是否只是低价配件，还是能形成独立需求。",
+        ],
+        "sorftime_checks": [
+            "keyword_detail：dual dog leash、no tangle dog leash。",
+            "product_traffic_terms：普通一拖二代表 ASIN，确认它是否抢的是多狗词而非免手持词。",
+        ],
+        "supply_chain_search_terms": ["一拖二 狗绳", "双头 狗狗牵引绳", "双狗 防缠绕 牵引绳", "多狗 牵引绳"],
+        "review_terms": ("dual dog", "dual leash", "two dog", "2 dog", "no tangle", "tangle free", "一拖二", "双头", "防缠绕"),
+        "decision_gate": [
+            "确认它是否真的能腰部佩戴；不能免手持的，不进主推路线。",
+            "若只覆盖多狗防缠绕需求，作为旁支观察，不抢主线资源。",
+        ],
+    },
+    "safety_upgrade": {
+        "seller_sprite_exports": [
+            "不用单独立一条大盘，放进基础款和升级款竞品反查里看功能词。",
+            "重点看 reflective / no pull / bungee / padded handle 是否真实带来转化。",
+        ],
+        "sorftime_checks": [
+            "keyword_extends：查 reflective、no pull、bungee、padded handle 等功能长尾。",
+            "similar_product_feature：方向确定后再用一次，确认热销品共有功能点。",
+        ],
+        "supply_chain_search_terms": ["反光 狗绳", "防爆冲 牵引绳", "双手柄 狗绳", "弹力 缓冲 牵引绳"],
+        "review_terms": ("reflective", "no pull", "bungee", "padded handle", "handle", "tangle", "反光", "防爆冲", "弹力", "手柄"),
+        "decision_gate": [
+            "这些功能必须落到样品检查项，不能只停留在标题词。",
+            "基础款和升级款都要验证反光面积、手柄位置、弹力段和扣具材质。",
+        ],
+    },
+}
 
 
 def build_research_package(
@@ -26,6 +179,7 @@ def build_research_package(
     competitor_candidates = candidate.get("competitor_candidates", {})
     market_structure = candidate.get("market_structure", {})
     status = candidate.get("status", "观察")
+    supply_chain_signal = profit_space.get("supply_chain_signal", {}) if isinstance(profit_space, dict) else {}
     voc_analysis = _build_voc_analysis(voc_package)
     voc_review_sources = _build_review_sources(voc_package)
     voc_opportunities = _build_voc_opportunities(voc_package, candidate.get("candidate_id"))
@@ -33,6 +187,15 @@ def build_research_package(
     entry_barriers = _build_entry_barriers(candidate)
     go_nogo_scorecard = _build_go_nogo_scorecard(candidate, entry_barriers, voc_package)
     decision_review = _build_decision_review(candidate, voc_package, go_nogo_scorecard)
+    product_route_matrix = _build_product_route_matrix(candidate, supply_chain_signal)
+    route_deep_dive_plan = _build_route_deep_dive_plan(candidate, product_route_matrix, voc_package)
+    ai_analysis = _build_ai_analysis_brief(
+        candidate,
+        voc_package,
+        go_nogo_scorecard,
+        product_route_matrix,
+        route_deep_dive_plan,
+    )
 
     package = {
         "metadata": {
@@ -50,7 +213,7 @@ def build_research_package(
         },
         "operator_inputs": {
             "target_price_range": profit_space.get("price_band", "待补"),
-            "purchase_cost": "待补",
+            "purchase_cost": _supply_chain_purchase_cost_text(supply_chain_signal),
             "exchange_rate": "待补",
             "fba_fee": "待补",
             "storage_fee": "按建议售价 3% 待算",
@@ -120,6 +283,9 @@ def build_research_package(
             "next_step": _status_next_step(decision_review, candidate),
         },
         "decision_review": decision_review,
+        "ai_analysis": ai_analysis,
+        "product_route_matrix": product_route_matrix,
+        "route_deep_dive_plan": route_deep_dive_plan,
         "validation_actions": {},
         "entry_barriers": entry_barriers,
         "competitor_deep_dive": _build_competitor_deep_dive(competitor_candidates),
@@ -522,6 +688,755 @@ def _build_decision_review(
     }
 
 
+def _build_ai_analysis_brief(
+    candidate: dict[str, Any],
+    voc_package: dict[str, Any] | None,
+    go_nogo_scorecard: dict[str, Any],
+    product_route_matrix: list[dict[str, Any]] | None = None,
+    route_deep_dive_plan: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    profit = candidate.get("preliminary_profit_space", {})
+    supply_chain_signal = profit.get("supply_chain_signal", {}) if isinstance(profit, dict) else {}
+    voc_summary = _voc_summary(voc_package)
+    data_source_scope = [
+        "卖家精灵：先看市场大不大、头部强不强、价格好不好打",
+        "Sorftime：看实时词和竞品流量，别只信一份历史表",
+        "评价插件：看买家到底在吐槽什么",
+        "1688 插件：看有没有货、多少钱、供应商能不能聊",
+    ]
+    gating = go_nogo_scorecard.get("gating_reasons") if isinstance(go_nogo_scorecard.get("gating_reasons"), list) else []
+    supply_price = _supply_chain_purchase_cost_text(supply_chain_signal)
+    supplier_count = supply_chain_signal.get("visual_confirmed_count") or supply_chain_signal.get("supplier_count") or 0
+    review_count = _positive_count(voc_summary.get("review_count"))
+    low_rating_count = _positive_count(voc_summary.get("low_rating_count"))
+    asin_count = _positive_count(voc_summary.get("asin_count"))
+    top_keyword = _top_sorftime_keyword_summary(candidate)
+    route_summary = _product_route_plain_summary(product_route_matrix or [])
+
+    return {
+        "persona": "资深亚马逊运营专家",
+        "role_scope": "先说人话结论，再看证据：这块就是先告诉你能不能继续、还差什么、卡在哪。",
+        "data_source_scope": data_source_scope,
+        "decision_principle": "数据越多越好，但不是拿来堆字。利润、合规、供应商没闭环前，不直接开干。",
+        "thesis": {
+            "title": _expert_thesis_title(go_nogo_scorecard),
+            "body": _expert_thesis_body(review_count, supplier_count, gating),
+        },
+        "insights": [
+            {
+                "label": "市场能不能进",
+                "title": "有量，但不能拿普通款硬冲",
+                "body": _market_plain_summary(candidate),
+            },
+            {
+                "label": "产品路线怎么走",
+                "title": "先把路铺开，再挑主推款",
+                "body": route_summary,
+            },
+            {
+                "label": "需求和关键词",
+                "title": "先盯准用户到底拿它来干嘛",
+                "body": top_keyword or "关键词还要继续校准，别用泛词直接判断需求。",
+            },
+            {
+                "label": "评论里在说啥",
+                "title": "评论里最要命的是稳不稳、好不好用",
+                "body": _voc_plain_summary(voc_package, review_count, asin_count, low_rating_count),
+            },
+            {
+                "label": "供应链能不能接",
+                "title": "先问清能不能稳定做，再谈卖点",
+                "body": _supply_plain_summary(supplier_count, supply_price),
+            },
+            {
+                "label": "现在卡哪",
+                "title": "现在还差几块拼图",
+                "body": _gating_plain_summary(gating),
+            },
+        ],
+        "product_spec_actions": [
+            "样品先测稳定性：腰带会不会滑、扣具会不会断、弹力绳会不会拉垮。",
+            "把差评里的问题写成打样清单，让供应商逐条回答能不能改。",
+            "页面不要只喊“免手持”，要把适合什么体型、什么场景讲清楚。",
+            "如果做升级款，优先验证双手柄、反光、腰包容量和防滑结构。",
+            "双牵引绳 + 腰包款要单独测防缠绕、两犬受力、腰带防滑和双扣强度。",
+        ],
+        "supplier_validation_actions": [
+            "先从 3-5 家开始聊，别一上来海问几十家。",
+            "直接问四件事：真实阶梯价、包装重量、能不能改款、样品多久到。",
+            "让供应商拍细节图或视频，重点看扣具、缝线、腰带防滑和弹力段。",
+            "基础款和升级款都要报价，别只看最低价把利润算歪。",
+        ],
+        "next_operator_actions": [
+            "先补利润模板：售价、FBA、头程、入库配置费、广告费率和退货假设。",
+            "再过一遍知产/合规：商标、外观/结构专利、材质安全和站点要求。",
+            "把 1688 优先联系清单压缩到 3-5 家，拿到真实报价和样品证据后再决策。",
+        ],
+        "product_route_matrix": product_route_matrix or [],
+        "route_deep_dive_plan": route_deep_dive_plan or [],
+    }
+
+
+def _expert_thesis_title(go_nogo_scorecard: dict[str, Any]) -> str:
+    decision = str(go_nogo_scorecard.get("decision") or "WAIT").upper()
+    if decision == "GO":
+        return "可以进入试单准备，但仍要保留费用和合规复核。"
+    if decision == "NO-GO":
+        return "暂不建议立项，先止损或换方向。"
+    return "继续看，但不要直接立项。"
+
+
+def _expert_thesis_body(review_count: int, supplier_count: Any, gating: list[Any]) -> str:
+    evidence = [
+        f"评价样本 {review_count} 条" if review_count else "",
+        f"1688 优先联系款 {supplier_count} 个" if supplier_count else "",
+    ]
+    gating_text = "；".join(map(str, gating[:3])) if gating else "利润、合规、样品和供应商真实确认仍需闭环"
+    return _join_text(
+        "我的判断是：可以继续看，但现在还不到立项的时候。",
+        "；".join(item for item in evidence if item),
+        f"还没闭环的是：{gating_text}",
+    )
+
+
+def _market_plain_summary(candidate: dict[str, Any]) -> str:
+    demand = candidate.get("demand_evidence", {})
+    competition = candidate.get("competition_structure", {})
+    avg_units = demand.get("market_avg_monthly_units")
+    top10_share = competition.get("top10_product_units_share")
+    new_listing = candidate.get("new_listing_opportunity", {})
+    recent_share = new_listing.get("recent_6m_units_share")
+    parts = []
+    if avg_units is not None:
+        parts.append(f"平均每个商品月销约 {_fmt_number(avg_units)}，说明不是冷门小池子")
+    else:
+        parts.append("市场体量还要继续确认")
+    if top10_share is not None:
+        parts.append(f"但 Top10 吃掉约 {_fmt_percent(top10_share)} 销量，不能只靠低价硬打")
+    if recent_share is not None:
+        parts.append(f"近半年新品销量占比约 {_fmt_percent(recent_share)}，新品机会有但不算轻松")
+    return "；".join(parts[:3])
+
+
+def _top_sorftime_keyword_summary(candidate: dict[str, Any]) -> str:
+    demand = candidate.get("demand_evidence", {})
+    keywords = demand.get("sorftime_keyword_verification", [])
+    if isinstance(keywords, list) and keywords:
+        top_keyword = next((item for item in keywords if isinstance(item, dict) and item.get("monthly_search_volume")), keywords[0])
+        if isinstance(top_keyword, dict):
+            keyword = top_keyword.get("keyword") or "Sorftime 关键词"
+            volume = top_keyword.get("monthly_search_volume") or top_keyword.get("weekly_search_volume")
+            if volume is not None:
+                return f"核心词「{keyword}」月搜约 {_fmt_number(volume)}，需求是有的；但要围绕具体使用场景筛，别被泛词带偏。"
+            return f"已接入 Sorftime 关键词「{keyword}」，还要结合 ABA 和竞品词判断购买意图。"
+    top_keyword = demand.get("top_keyword")
+    if top_keyword:
+        return f"卖家精灵核心词是「{top_keyword}」，下一步要确认它是不是目标形态的成交词。"
+    return "关键词还要继续校准，别用泛词直接判断需求。"
+
+
+def _voc_plain_summary(
+    voc_package: dict[str, Any] | None,
+    review_count: int,
+    asin_count: int,
+    low_rating_count: int,
+) -> str:
+    first_pain = _first_pain_name(voc_package)
+    if review_count:
+        base = f"已经看了 {review_count} 条评论、{asin_count} 个 ASIN，其中低分 {low_rating_count} 条"
+        if first_pain:
+            return f"{base}；优先解决「{first_pain}」，否则后面容易吃差评。"
+        return f"{base}；下一步要把差评里的高频问题整理成打样检查表。"
+    return "评论还没进来前，不要急着定产品方案。"
+
+
+def _supply_plain_summary(supplier_count: Any, supply_price: str) -> str:
+    parts = []
+    if supplier_count:
+        parts.append(f"现在有 {supplier_count} 个供应链候选，说明不是找不到货")
+    else:
+        parts.append("供应链候选还不够，需要继续找货")
+    if supply_price != "待补":
+        parts.append(f"采购价大致在 {supply_price}")
+    parts.append("但真实报价、包装重量和能不能改款，必须问到供应商再算数")
+    return "；".join(parts)
+
+
+def _gating_plain_summary(gating: list[Any]) -> str:
+    if not gating:
+        return "继续把利润、合规、样品和供应商确认补齐，再决定是否 Go。"
+    friendly = []
+    for item in gating[:4]:
+        text = str(item)
+        if "利润" in text:
+            friendly.append("利润还没算完整")
+        elif "合规" in text or "知产" in text:
+            friendly.append("合规/知产还没查完")
+        else:
+            friendly.append(text)
+    return "；".join(friendly) + "。这些没补齐前，最多是继续看，不是直接开干。"
+
+
+def _build_product_route_matrix(candidate: dict[str, Any], supply_chain_signal: dict[str, Any]) -> list[dict[str, Any]]:
+    review = supply_chain_signal.get("visual_review_candidates") if isinstance(supply_chain_signal, dict) else {}
+    review = review if isinstance(review, dict) else {}
+    route_buckets = {definition["route_id"]: [] for definition in PRODUCT_ROUTE_DEFINITIONS}
+    for group_key, group_label in (("priority_candidates", "优先联系"), ("watchlist_candidates", "观察待核")):
+        items = review.get(group_key)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            item_with_group = {**item, "route_source_group": group_label}
+            for route_id in _classify_supply_route(item_with_group):
+                route_buckets.setdefault(route_id, []).append(item_with_group)
+
+    if not any(route_buckets.values()):
+        for item in _market_route_reference_items(candidate):
+            route_buckets.setdefault("adjacent_or_watch", []).append(item)
+
+    routes: list[dict[str, Any]] = []
+    for definition in PRODUCT_ROUTE_DEFINITIONS:
+        items = route_buckets.get(definition["route_id"], [])
+        if not items and definition["route_id"] != "dual_leash_waist_bag":
+            continue
+        price_min, price_max = _route_price_range(_route_price_items(items))
+        priority_count = sum(1 for item in items if item.get("route_source_group") == "优先联系")
+        watchlist_count = sum(1 for item in items if item.get("route_source_group") == "观察待核")
+        routes.append(
+            {
+                "route_id": definition["route_id"],
+                "route_name": definition["route_name"],
+                "route_type": definition["route_type"],
+                "candidate_count": len(items),
+                "priority_count": priority_count,
+                "watchlist_count": watchlist_count,
+                "price_cny_min": price_min,
+                "price_cny_max": price_max,
+                "price_text": _route_price_text(price_min, price_max),
+                "representative_items": [_route_item_summary(item) for item in items[:3]],
+                "opportunity": definition["opportunity"],
+                "risks": definition["risks"],
+                "validation_actions": definition["validation_actions"],
+                "decision_hint": definition["decision_hint"],
+            }
+        )
+    routes.sort(key=lambda item: _route_priority(item.get("route_id")))
+    return routes
+
+
+def _classify_supply_route(item: dict[str, Any]) -> list[str]:
+    text = _route_item_text(item)
+    shape_text = _route_shape_text(item)
+    review_text = _route_review_text(item)
+    waist_terms = (
+        "腰包",
+        "腰带",
+        "腰部",
+        "束腰",
+        "zipper pouch",
+        "pouch",
+    )
+    has_waist = _contains_any(shape_text, waist_terms) or (
+        _contains_any(review_text, waist_terms) and not _negates_waist_signal(review_text)
+    )
+    if _negates_waist_signal(review_text):
+        has_waist = False
+    has_dual = _contains_any(
+        shape_text,
+        (
+            "一拖二",
+            "双牵",
+            "双头",
+            "双钩",
+            "双体",
+            "双套",
+            "两根牵引绳",
+            "两犬",
+            "两只狗",
+            "多狗",
+            "多犬",
+            "two dog",
+            "dual leash",
+        ),
+    ) or bool(re.search(r"(?:\*2|x2|×2)\s*(?:双体|双套|牵引|狗|犬)?", shape_text, flags=re.IGNORECASE))
+    has_safety = _contains_any(
+        text,
+        (
+            "反光",
+            "夜跑",
+            "防爆冲",
+            "防冲",
+            "弹力",
+            "缓冲",
+            "双手柄",
+            "双把手",
+            "近控",
+            "防缠绕",
+            "旋转扣",
+            "金属扣",
+            "耐用扣",
+            "加固",
+        ),
+    )
+    routes: list[str] = []
+    if has_dual and has_waist:
+        routes.append("dual_leash_waist_bag")
+    elif has_waist:
+        routes.append("core_hands_free_waist")
+    elif has_dual:
+        routes.append("multi_dog_without_waist")
+    if has_safety:
+        routes.append("safety_upgrade")
+    if not routes:
+        routes.append("adjacent_or_watch")
+    return _dedupe_strings(routes)
+
+
+def _route_item_text(item: dict[str, Any], include_review_notes: bool = True) -> str:
+    fields: list[Any] = [
+        item.get("title"),
+        item.get("stock_text"),
+        item.get("customization_text"),
+        item.get("detail_summary"),
+        item.get("detail_text_excerpt"),
+        item.get("moq_text"),
+    ]
+    if include_review_notes:
+        fields.append(item.get("rationale"))
+    for key in ("sku_texts", "sku_options", "supplier_tags", "risk_notes"):
+        value = item.get(key)
+        if isinstance(value, list):
+            fields.extend(value)
+    return " ".join(str(field).lower() for field in fields if field not in (None, ""))
+
+
+def _route_shape_text(item: dict[str, Any]) -> str:
+    fields: list[Any] = [
+        item.get("title"),
+        item.get("stock_text"),
+        item.get("moq_text"),
+        item.get("customization_text"),
+    ]
+    for key in ("sku_texts", "sku_options"):
+        value = item.get(key)
+        if isinstance(value, list):
+            fields.extend(value)
+    return " ".join(str(field).lower() for field in fields if field not in (None, ""))
+
+
+def _route_review_text(item: dict[str, Any]) -> str:
+    fields: list[Any] = [item.get("rationale")]
+    risks = item.get("risk_notes")
+    if isinstance(risks, list):
+        fields.extend(risks)
+    return " ".join(str(field).lower() for field in fields if field not in (None, ""))
+
+
+def _negates_waist_signal(text: str) -> bool:
+    return bool(
+        re.search(r"(?:没有|无|缺少|不是|不显示|不明显|未见|不含).{0,8}(?:腰包|腰带|腰部|免手持|解放双手)", text)
+        or re.search(r"(?:核实|确认|需确认|需核实|待确认).{0,10}(?:是否有|有无)?.{0,8}(?:腰包|腰带|腰部|免手持|解放双手)", text)
+    )
+
+
+def _contains_any(text: str, needles: tuple[str, ...]) -> bool:
+    return any(needle.lower() in text for needle in needles)
+
+
+def _dedupe_strings(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for item in items:
+        if item in seen:
+            continue
+        seen.add(item)
+        result.append(item)
+    return result
+
+
+def _route_price_range(items: list[dict[str, Any]]) -> tuple[Any, Any]:
+    lows: list[float] = []
+    highs: list[float] = []
+    for item in items:
+        low = _first_numeric(
+            item.get("detail_price_cny_min"),
+            item.get("price_cny_min"),
+            item.get("conservative_price_cny"),
+        )
+        high = _first_numeric(
+            item.get("conservative_price_cny"),
+            item.get("detail_price_cny_max"),
+            item.get("price_cny_max"),
+            item.get("price_cny_min"),
+        )
+        if low is not None:
+            lows.append(low)
+        if high is not None:
+            highs.append(high)
+    return (min(lows) if lows else None, max(highs) if highs else None)
+
+
+def _route_price_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    priority_items = [item for item in items if item.get("route_source_group") == "优先联系"]
+    return priority_items or items
+
+
+def _first_numeric(*values: Any) -> float | None:
+    for value in values:
+        if isinstance(value, bool) or value in (None, ""):
+            continue
+        if isinstance(value, (int, float)):
+            return float(value)
+        try:
+            return float(str(value).replace(",", "").strip())
+        except ValueError:
+            continue
+    return None
+
+
+def _route_price_text(low: Any, high: Any) -> str:
+    if low is None and high is None:
+        return "待询价"
+    if low is not None and high is not None and low != high:
+        return f"¥{_compact_number(low)}-{_compact_number(high)}"
+    value = low if low is not None else high
+    return f"¥{_compact_number(value)}"
+
+
+def _compact_number(value: Any) -> str:
+    if isinstance(value, (int, float)):
+        return str(int(value)) if float(value).is_integer() else f"{float(value):.2f}".rstrip("0").rstrip(".")
+    return str(value)
+
+
+def _route_item_summary(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "title": item.get("title") or "未命名商品",
+        "url": item.get("url"),
+        "price_text": _route_item_price_text(item),
+        "status": item.get("route_source_group") or item.get("status_label") or "待确认",
+        "rationale": item.get("rationale") or item.get("detail_summary") or "",
+    }
+
+
+def _route_item_price_text(item: dict[str, Any]) -> str:
+    low = _first_numeric(item.get("detail_price_cny_min"), item.get("price_cny_min"))
+    high = _first_numeric(item.get("conservative_price_cny"), item.get("detail_price_cny_max"), item.get("price_cny_max"))
+    return _route_price_text(low, high)
+
+
+def _route_priority(route_id: Any) -> int:
+    for definition in PRODUCT_ROUTE_DEFINITIONS:
+        if definition["route_id"] == route_id:
+            return int(definition["priority"])
+    return 999
+
+
+def _market_route_reference_items(candidate: dict[str, Any], limit: int = 5) -> list[dict[str, Any]]:
+    tagged = candidate.get("market_structure", {}).get("tagged_products", [])
+    if not isinstance(tagged, list):
+        return []
+    result: list[dict[str, Any]] = []
+    for item in tagged:
+        if not isinstance(item, dict):
+            continue
+        result.append(
+            {
+                "title": item.get("title"),
+                "url": item.get("url"),
+                "price_cny_min": None,
+                "price_cny_max": None,
+                "route_source_group": "市场样本",
+                "rationale": "卖家精灵 Top 商品样本，供应链路线待 1688 进一步验证。",
+            }
+        )
+        if len(result) >= limit:
+            break
+    return result
+
+
+def _product_route_plain_summary(routes: list[dict[str, Any]]) -> str:
+    if not routes:
+        return "供应链路线还没拆开，下一步先把 1688 候选按基础款、升级款和旁支款分组。"
+    dual = next((route for route in routes if route.get("route_id") == "dual_leash_waist_bag"), {})
+    core = next((route for route in routes if route.get("route_id") == "core_hands_free_waist"), {})
+    parts = []
+    if core.get("candidate_count"):
+        parts.append(f"基础腰包/腰带款有 {core.get('candidate_count')} 个候选，可做主线基准")
+    if dual.get("candidate_count"):
+        parts.append(f"双牵引绳 + 腰包款有 {dual.get('candidate_count')} 个候选，必须作为升级路线单独验证")
+    else:
+        parts.append("双牵引绳 + 腰包款目前证据不足，后续找货要主动补这个路线")
+    parts.append("普通一拖二/双头绳如果没有腰包结构，只能放旁支观察，不能混进主线。")
+    return "；".join(parts)
+
+
+def _build_route_deep_dive_plan(
+    candidate: dict[str, Any],
+    product_route_matrix: list[dict[str, Any]],
+    voc_package: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    if not product_route_matrix:
+        return []
+    plan: list[dict[str, Any]] = []
+    for route in product_route_matrix:
+        if not isinstance(route, dict):
+            continue
+        item = _route_deep_dive_item(candidate, route, voc_package)
+        if item:
+            plan.append(item)
+    plan.sort(key=lambda item: (int(item.get("sort_priority", 999)), str(item.get("route_name") or "")))
+    return plan
+
+
+def _route_deep_dive_item(
+    candidate: dict[str, Any],
+    route: dict[str, Any],
+    voc_package: dict[str, Any] | None,
+) -> dict[str, Any]:
+    route_id = str(route.get("route_id") or "")
+    config = ROUTE_DEEP_DIVE_CONFIG.get(route_id, {})
+    route_type = str(route.get("route_type") or "路线")
+    candidate_count = _positive_count(route.get("candidate_count"))
+    priority_count = _positive_count(route.get("priority_count"))
+    representative_items = route.get("representative_items") if isinstance(route.get("representative_items"), list) else []
+    competitor_asins = _route_competitor_asins(candidate, route_id)
+    review_summary = _route_review_evidence_summary(voc_package, route_id)
+    recommended_depth = _route_recommended_depth(route_type, candidate_count, priority_count, competitor_asins)
+    current_evidence_level = _route_current_evidence_level(candidate_count, priority_count, competitor_asins, review_summary)
+    data_gap = _route_data_gaps(route_type, candidate_count, competitor_asins, review_summary)
+    return {
+        "route_id": route_id,
+        "route_name": route.get("route_name"),
+        "route_type": route_type,
+        "recommended_depth": recommended_depth,
+        "current_evidence_level": current_evidence_level,
+        "why": _route_plan_why(route, recommended_depth, competitor_asins),
+        "seller_sprite_exports": list(config.get("seller_sprite_exports", [])),
+        "sorftime_checks": list(config.get("sorftime_checks", [])),
+        "review_voc_asin_plan": competitor_asins,
+        "review_coverage": review_summary,
+        "supply_chain_search_terms": list(config.get("supply_chain_search_terms", [])),
+        "decision_gate": list(config.get("decision_gate", [])) or _default_route_decision_gate(route),
+        "data_gaps": data_gap,
+        "next_step": _route_next_step(recommended_depth, data_gap, route),
+        "representative_1688_items": representative_items[:3],
+        "sort_priority": _route_plan_priority(route_type, recommended_depth, route_id),
+    }
+
+
+def _route_recommended_depth(
+    route_type: str,
+    candidate_count: int,
+    priority_count: int,
+    competitor_asins: list[dict[str, Any]],
+) -> str:
+    if route_type in {"主线", "升级"}:
+        if candidate_count or competitor_asins:
+            return "必须路线小深挖"
+        return "必须主动补数"
+    if route_type == "旁支":
+        return "小深挖观察" if candidate_count or competitor_asins else "低优先补数"
+    if route_type == "功能升级":
+        return "作为规格维度验证"
+    if priority_count:
+        return "小深挖观察"
+    return "观察，不进主推"
+
+
+def _route_current_evidence_level(
+    candidate_count: int,
+    priority_count: int,
+    competitor_asins: list[dict[str, Any]],
+    review_summary: dict[str, Any],
+) -> str:
+    review_count = _positive_count(review_summary.get("matched_review_count"))
+    if priority_count >= 3 and len(competitor_asins) >= 2 and review_count >= 20:
+        return "强"
+    if candidate_count or competitor_asins or review_count:
+        return "中"
+    return "弱"
+
+
+def _route_data_gaps(
+    route_type: str,
+    candidate_count: int,
+    competitor_asins: list[dict[str, Any]],
+    review_summary: dict[str, Any],
+) -> list[str]:
+    gaps: list[str] = []
+    if candidate_count <= 0:
+        gaps.append("1688 还没有明确候选，需要按这条路线重新搜。")
+    if not competitor_asins:
+        gaps.append("还缺这条路线的代表 ASIN，评价和 Sorftime 流量词无法单独判断。")
+    matched_review_count = _positive_count(review_summary.get("matched_review_count"))
+    matched_asins = review_summary.get("matched_asins") if isinstance(review_summary.get("matched_asins"), list) else []
+    if matched_review_count < 30:
+        gaps.append("评价样本还不够，至少补到 30 条以上再归纳痛点。")
+    if route_type in {"主线", "升级"} and len(matched_asins) < 2:
+        gaps.append("VOC 覆盖的 ASIN 太少，容易把单个竞品问题当成整条路线问题。")
+    return gaps
+
+
+def _route_plan_why(
+    route: dict[str, Any],
+    recommended_depth: str,
+    competitor_asins: list[dict[str, Any]],
+) -> str:
+    route_name = str(route.get("route_name") or "这条路线")
+    count = _positive_count(route.get("candidate_count"))
+    price = str(route.get("price_text") or "待询价")
+    if "必须" in recommended_depth:
+        return f"{route_name}不能混在大方向里看；现在有 {count} 个 1688 候选、价格 {price}，还要单独看竞品、评价和最高规格成本。"
+    if competitor_asins:
+        return f"{route_name}已有可参考 ASIN，但还要确认它是主线机会还是旁支需求。"
+    return f"{route_name}先保留观察，不要因为关键词相近就直接放进主推判断。"
+
+
+def _route_next_step(recommended_depth: str, data_gaps: list[str], route: dict[str, Any]) -> str:
+    if data_gaps:
+        return data_gaps[0]
+    if "规格维度" in recommended_depth:
+        return "把这条路线的功能点写进基础款/升级款样品检查表。"
+    if "必须" in recommended_depth:
+        return "先补路线专属 ASIN、评价和 1688 定向搜索，再决定是否进完整深挖。"
+    return str(route.get("decision_hint") or "先作为旁支观察，等证据变强再升级。")
+
+
+def _route_plan_priority(route_type: str, recommended_depth: str, route_id: str) -> int:
+    if "必须" in recommended_depth:
+        return 10 + _route_priority(route_id)
+    if route_type == "旁支":
+        return 200 + _route_priority(route_id)
+    if route_type == "功能升级":
+        return 300 + _route_priority(route_id)
+    return 500 + _route_priority(route_id)
+
+
+def _route_competitor_asins(candidate: dict[str, Any], route_id: str, limit: int = 5) -> list[dict[str, Any]]:
+    terms = _route_competitor_terms(route_id)
+    groups = candidate.get("competitor_candidates", {})
+    if not isinstance(groups, dict):
+        return []
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for group_key, group_label in (
+        ("top10", "标杆老品"),
+        ("recent_winners", "近半年新品"),
+        ("structure_supplement", "结构补充"),
+    ):
+        items = groups.get(group_key)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            title = str(item.get("title") or "")
+            if not _route_competitor_match(title, route_id, terms):
+                continue
+            asin = str(item.get("asin") or "").strip()
+            if not asin or asin in seen:
+                continue
+            seen.add(asin)
+            result.append(
+                {
+                    "asin": asin,
+                    "title": title,
+                    "competitor_type": group_label,
+                    "price_usd": item.get("price"),
+                    "monthly_units": item.get("monthly_units"),
+                    "rating_count": item.get("rating_count"),
+                    "reason": _route_competitor_reason(route_id, title),
+                    "url": item.get("url"),
+                }
+            )
+            if len(result) >= limit:
+                return result
+    return result
+
+
+def _route_competitor_terms(route_id: str) -> tuple[str, ...]:
+    if route_id == "core_hands_free_waist":
+        return ("hands free", "waist", "belt", "pouch", "bungee", "running", "jogging")
+    if route_id == "dual_leash_waist_bag":
+        return ("double", "dual dog", "dual leash", "two dog", "2 dog", "multiple dogs", "waist", "belt", "pouch")
+    if route_id == "multi_dog_without_waist":
+        return ("dual dog", "dual leash", "two dog", "2 dog", "no-tangle", "tangle free", "splitter")
+    if route_id == "safety_upgrade":
+        return ("reflective", "no pull", "bungee", "padded", "handle", "tangle")
+    return ()
+
+
+def _route_competitor_match(title: str, route_id: str, terms: tuple[str, ...]) -> bool:
+    text = title.lower()
+    if route_id == "core_hands_free_waist":
+        return "hands free" in text and ("waist" in text or "belt" in text or "pouch" in text)
+    if route_id == "dual_leash_waist_bag":
+        has_dual = any(term in text for term in ("double", "dual dog", "dual leash", "two dog", "two dogs", "2 dog", "2 dogs"))
+        has_waist = any(term in text for term in ("waist", "belt", "pouch", "fanny pack", "hands free"))
+        return has_dual and has_waist
+    if route_id == "multi_dog_without_waist":
+        has_dual = any(term in text for term in ("dual dog", "dual leash", "two dog", "two dogs", "2 dog", "2 dogs", "no-tangle", "tangle free"))
+        has_waist = any(term in text for term in ("waist", "belt", "pouch", "fanny pack", "hands free"))
+        return has_dual and not has_waist
+    if route_id == "safety_upgrade":
+        return any(term in text for term in terms)
+    return bool(terms and any(term in text for term in terms))
+
+
+def _route_competitor_reason(route_id: str, title: str) -> str:
+    if route_id == "dual_leash_waist_bag":
+        return "标题同时命中双狗/双牵引和腰部免手持结构，适合单独抓评价。"
+    if route_id == "core_hands_free_waist":
+        return "标题命中 hands free + waist/belt/pouch，可作为基础主线标杆。"
+    if route_id == "multi_dog_without_waist":
+        return "标题命中双狗/防缠绕，但没有明确腰包结构，适合旁支观察。"
+    if route_id == "safety_upgrade":
+        return "标题命中反光、防冲、弹力或手柄等功能词，可用于规格验证。"
+    return f"标题与路线关键词匹配：{title[:80]}"
+
+
+def _route_review_evidence_summary(voc_package: dict[str, Any] | None, route_id: str) -> dict[str, Any]:
+    config = ROUTE_DEEP_DIVE_CONFIG.get(route_id, {})
+    terms = tuple(str(term).lower() for term in config.get("review_terms", ()) if term)
+    reviews = [item for item in (voc_package or {}).get("normalized_reviews", []) if isinstance(item, dict)]
+    if not terms or not reviews:
+        return {
+            "matched_review_count": 0,
+            "matched_asins": [],
+            "note": "评价插件尚未覆盖这条路线，或还没有可匹配的评论文本。",
+        }
+    matched: list[dict[str, Any]] = []
+    matched_asins: set[str] = set()
+    for review in reviews:
+        text = " ".join(
+            str(review.get(key) or "").lower()
+            for key in ("review_text", "review_text_zh", "variant", "color", "size")
+        )
+        if any(term in text for term in terms):
+            matched.append(review)
+            asin = str(review.get("asin") or "").strip()
+            if asin:
+                matched_asins.add(asin)
+    sample_ids = [str(item.get("review_id") or "") for item in matched[:5] if item.get("review_id")]
+    return {
+        "matched_review_count": len(matched),
+        "matched_asins": sorted(matched_asins),
+        "sample_review_ids": sample_ids,
+        "note": "仅按路线关键词粗筛评论，后续仍要由 Claude 结合原文判断真实痛点。",
+    }
+
+
+def _default_route_decision_gate(route: dict[str, Any]) -> list[str]:
+    return [
+        "这条路线有独立竞品、独立需求词和可承接供应商。",
+        "评论痛点能被样品或供应商改款动作解决。",
+        "按最高规格采购价测算后仍有合理利润空间。",
+    ]
+
+
 def _status_explanation(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> str:
     # Status interpretation is Claude's work, not a script rule.
     return ""
@@ -554,11 +1469,31 @@ def _decision_inferences(candidate: dict[str, Any], voc_package: dict[str, Any] 
     return []
 
 
+def _supply_chain_purchase_cost_text(signal: dict[str, Any]) -> str:
+    if not isinstance(signal, dict) or not signal:
+        return "待补"
+    low = signal.get("purchase_price_cny_min")
+    high = signal.get("purchase_price_cny_max")
+    conservative = signal.get("conservative_purchase_price_cny") or high
+    if low is None and high is None:
+        return "待补"
+    if low is not None and high is not None and low != high:
+        suffix = f"（保守按 RMB {conservative}）" if conservative is not None else ""
+        return f"RMB {low}-{high}{suffix}"
+    value = low if low is not None else high
+    suffix = f"（保守按 RMB {conservative}）" if conservative is not None and conservative != value else ""
+    return f"RMB {value}{suffix}"
+
+
 def _decision_missing_inputs(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> list[str]:
     missing = list(candidate.get("missing_data", []))
     if voc_package:
         missing = [item for item in missing if "评论" not in item and "VOC" not in item]
-    for item in ["建议售价", "采购价", "FBA费用", "头程费用", "入库配置费", "商标/专利复核", "合规认证复核"]:
+    supply_chain_signal = (candidate.get("preliminary_profit_space") or {}).get("supply_chain_signal", {})
+    required_items = ["建议售价", "FBA费用", "头程费用", "入库配置费", "商标/专利复核", "合规认证复核"]
+    if not isinstance(supply_chain_signal, dict) or not supply_chain_signal.get("purchase_price_cny_min"):
+        required_items.insert(1, "采购价")
+    for item in required_items:
         if item not in missing:
             missing.append(item)
     quality = candidate.get("market_structure", {}).get("data_quality", {})
@@ -580,8 +1515,19 @@ def _decision_risk_matrix(candidate: dict[str, Any], voc_package: dict[str, Any]
     competition = candidate.get("competition_structure", {})
     return_risk = candidate.get("return_risk", {})
     ip_risk = candidate.get("ip_compliance_risk", {})
+    supply_chain_signal = (candidate.get("preliminary_profit_space") or {}).get("supply_chain_signal", {})
+    has_purchase_cost = isinstance(supply_chain_signal, dict) and supply_chain_signal.get("purchase_price_cny_min") is not None
     top10_share = competition.get("top10_product_units_share")
     first_pain = _first_pain_name(voc_package)
+    voc_summary = _voc_summary(voc_package)
+    review_count = _positive_count(voc_summary.get("review_count"))
+    voc_risk_level = "高" if first_pain else ("中" if review_count else "待补")
+    if review_count:
+        voc_risk_basis = _voc_risk_basis(voc_summary, first_pain)
+    elif first_pain:
+        voc_risk_basis = f"首要痛点：{first_pain}"
+    else:
+        voc_risk_basis = "未接入评论 VOC"
     data_quality = candidate.get("market_structure", {}).get("data_quality", {})
     return [
         {
@@ -601,8 +1547,8 @@ def _decision_risk_matrix(candidate: dict[str, Any], voc_package: dict[str, Any]
         },
         {
             "dimension": "评论/VOC",
-            "level": "高" if first_pain else "待补",
-            "basis": f"首要痛点：{first_pain}" if first_pain else "未接入评论 VOC",
+            "level": voc_risk_level,
+            "basis": voc_risk_basis,
         },
         {
             "dimension": "退货风险",
@@ -612,7 +1558,9 @@ def _decision_risk_matrix(candidate: dict[str, Any], voc_package: dict[str, Any]
         {
             "dimension": "利润不确定性",
             "level": "待补",
-            "basis": "采购价、FBA、头程和入库配置费仍未补齐。",
+            "basis": "FBA、头程和入库配置费仍未补齐。"
+            if has_purchase_cost
+            else "采购价、FBA、头程和入库配置费仍未补齐。",
         },
         {
             "dimension": "知产/合规",
@@ -635,10 +1583,50 @@ def _status_next_step(decision_review: dict[str, Any], candidate: dict[str, Any]
 def _first_pain_name(voc_package: dict[str, Any] | None) -> str:
     if not voc_package:
         return ""
-    pain_points = voc_package.get("pain_points", [])
+    pain_points = voc_package.get("pain_points") or (voc_package.get("voc_analysis", {}) or {}).get("pain_points", [])
     if not pain_points:
         return ""
     return str(pain_points[0].get("name", ""))
+
+
+def _voc_summary(voc_package: dict[str, Any] | None) -> dict[str, Any]:
+    if not voc_package:
+        return {}
+    for key in ("summary", "stats"):
+        value = voc_package.get(key)
+        if isinstance(value, dict):
+            return value
+    voc_analysis = voc_package.get("voc_analysis", {})
+    if isinstance(voc_analysis, dict) and isinstance(voc_analysis.get("summary"), dict):
+        return voc_analysis["summary"]
+    return {}
+
+
+def _voc_risk_basis(summary: dict[str, Any], first_pain: str) -> str:
+    parts = [f"已接入 {_fmt_number(_positive_count(summary.get('review_count')))} 条评论"]
+    asin_count = _positive_count(summary.get("asin_count"))
+    low_rating_count = _positive_count(summary.get("low_rating_count"))
+    media_review_count = _positive_count(summary.get("media_review_count"))
+    if asin_count:
+        parts.append(f"覆盖 {_fmt_number(asin_count)} 个 ASIN")
+    if low_rating_count:
+        parts.append(f"低分 {_fmt_number(low_rating_count)} 条")
+    if media_review_count:
+        parts.append(f"含图/视频 {_fmt_number(media_review_count)} 条")
+    suffix = f"首要痛点：{first_pain}" if first_pain else "原始评论证据已入库，待进一步归纳首要痛点"
+    return "，".join(parts) + f"；{suffix}"
+
+
+def _positive_count(value: Any) -> int:
+    if isinstance(value, bool) or value is None:
+        return 0
+    if isinstance(value, (int, float)):
+        return int(value) if value > 0 else 0
+    if isinstance(value, str):
+        normalized = value.replace(",", "").strip()
+        if normalized.isdigit():
+            return int(normalized)
+    return 0
 
 
 def _market_size_text(candidate: dict[str, Any]) -> str:
@@ -787,6 +1775,11 @@ def _fmt_percent(value: Any) -> str:
         return f"{percent_value:.2f}%"
     text = str(value)
     return text if "%" in text else text + "%"
+
+
+def _join_text(*parts: Any) -> str:
+    cleaned = [str(part).strip().rstrip("。；;") for part in parts if part not in (None, "")]
+    return "；".join(part for part in cleaned if part)
 
 
 def _build_voc_analysis(voc_package: dict[str, Any] | None) -> dict[str, Any]:

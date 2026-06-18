@@ -449,12 +449,18 @@ def _check_report_html(result: ValidationResult, report_html: str) -> None:
     if not report_html:
         result.errors.append("report.html 内容为空或不存在")
         return
-    required_terms = ("<!doctype html>", '<html lang="zh-CN">', "网页报告", "Executive Summary / 当前结论")
+    required_terms = (
+        "<!doctype html>",
+        '<html lang="zh-CN">',
+        "选品决策报告",
+        "一眼看懂",
+        "1688 供应链候选",
+    )
     missing = [term for term in required_terms if term not in report_html]
     if missing:
         result.errors.append(f"report.html 缺少关键内容：{', '.join(missing)}")
     else:
-        result.notes.append("report.html 已生成完整网页版报告")
+        result.notes.append("report.html 已生成选品决策报告")
 
 
 def _check_interactive_report_terms(result: ValidationResult, report_text: str) -> None:

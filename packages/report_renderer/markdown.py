@@ -18,7 +18,6 @@ from packages.report_renderer.formatting import (
     _site_currency_code,
     _format_money,
     _normalize_money_text,
-    _format_generated_at,
     _format_percent_or_text,
     _market_size_value_text,
     _display_value,
@@ -32,6 +31,7 @@ from packages.report_renderer.formatting import (
     _clean_display_title,
     _display_dashboard_value,
     _format_evidence_refs,
+    _polish_punctuation,
 )
 
 
@@ -61,7 +61,7 @@ def render_markdown(package: dict) -> str:
         "",
     ]
     sections = (
-        (FORMAL_REPORT_SECTION_TITLES[0], _executive_summary_markdown_lines(status, decision, package.get("report_summary", {}), currency_code)),
+        (FORMAL_REPORT_SECTION_TITLES[0], _executive_summary_markdown_lines(status, decision, package.get("report_summary", {}), currency_code, package.get("ai_analysis", {}))),
         (FORMAL_REPORT_SECTION_TITLES[1], _data_source_markdown_lines(meta, package.get("raw_sources", {}), workflow_trace)),
         (FORMAL_REPORT_SECTION_TITLES[2], _candidate_boundary_markdown_lines(meta, constraints, candidate)),
         (FORMAL_REPORT_SECTION_TITLES[3], _market_quality_markdown_lines(market, market_structure, currency_code)),
@@ -82,7 +82,7 @@ def render_markdown(package: dict) -> str:
     )
     for title, body in sections:
         lines.extend(_formal_section(title, body))
-    return "\n".join(lines).rstrip() + "\n"
+    return _polish_punctuation("\n".join(lines)).rstrip() + "\n"
 
 
 def render_summary(package: dict) -> str:
@@ -126,6 +126,7 @@ def _executive_summary_markdown_lines(
     decision: dict,
     report_summary: dict,
     currency_code: str,
+    ai_analysis: dict | None = None,
 ) -> list[str]:
     missing_inputs = decision.get("missing_inputs", []) if isinstance(decision, dict) else []
     lines = [
@@ -143,6 +144,67 @@ def _executive_summary_markdown_lines(
         for item in bullets[:5]:
             lines.append(f"- {_normalize_money_text(item, currency_code)}")
         lines.append("")
+    if isinstance(ai_analysis, dict) and ai_analysis:
+        thesis = ai_analysis.get("thesis", {}) if isinstance(ai_analysis.get("thesis"), dict) else {}
+        lines.extend(
+            [
+                "### AI 综合分析口径",
+                f"- 角色前提：{ai_analysis.get('persona', '资深亚马逊运营专家')}",
+                f"- 判断原则：{ai_analysis.get('decision_principle', '利润、知产/合规和供应商真实确认未闭环时，只能给 Wait/观察。')}",
+                f"- 综合判断：{thesis.get('title', '待补')}",
+                "",
+            ]
+        )
+        route_lines = _product_route_matrix_markdown_lines(ai_analysis.get("product_route_matrix", []))
+        if route_lines:
+            lines.extend(route_lines)
+        route_plan_lines = _route_deep_dive_plan_markdown_lines(ai_analysis.get("route_deep_dive_plan", []))
+        if route_plan_lines:
+            lines.extend(route_plan_lines)
+    return lines
+
+
+def _product_route_matrix_markdown_lines(routes: object) -> list[str]:
+    if not isinstance(routes, list) or not routes:
+        return []
+    lines = ["### 产品路线矩阵"]
+    for route in routes:
+        if not isinstance(route, dict):
+            continue
+        lines.append(
+            f"- {route.get('route_name', '未命名路线')}：{route.get('route_type', '路线')}，"
+            f"{route.get('candidate_count', 0)} 个候选，"
+            f"优先 {route.get('priority_count', 0)}，观察 {route.get('watchlist_count', 0)}，"
+            f"价格 {route.get('price_text', '待询价')}。"
+            f"{route.get('decision_hint', '')}"
+        )
+    lines.append("")
+    return lines
+
+
+def _route_deep_dive_plan_markdown_lines(plan: object) -> list[str]:
+    if not isinstance(plan, list) or not plan:
+        return []
+    lines = ["### 路线级小深挖计划"]
+    for item in plan:
+        if not isinstance(item, dict):
+            continue
+        coverage = item.get("review_coverage") if isinstance(item.get("review_coverage"), dict) else {}
+        asins = item.get("review_voc_asin_plan") if isinstance(item.get("review_voc_asin_plan"), list) else []
+        asin_text = "、".join(
+            str(asin.get("asin"))
+            for asin in asins[:4]
+            if isinstance(asin, dict) and asin.get("asin")
+        ) or "待补路线专属 ASIN"
+        gaps = item.get("data_gaps") if isinstance(item.get("data_gaps"), list) else []
+        lines.append(
+            f"- {item.get('route_name', '未命名路线')}：{item.get('recommended_depth', '路线小深挖')}；"
+            f"当前证据 {item.get('current_evidence_level', '待补')}；"
+            f"评价粗匹配 {coverage.get('matched_review_count', 0)} 条；"
+            f"建议 ASIN：{asin_text}；"
+            f"下一步：{item.get('next_step') or (gaps[0] if gaps else '补路线专属数据')}。"
+        )
+    lines.append("")
     return lines
 
 
@@ -192,8 +254,6 @@ def _data_source_markdown_lines(
         lines.append("- 待补：metadata.data_sources 未填写")
     if meta.get("site"):
         lines.append(f"- 站点：{meta.get('site')}")
-    if meta.get("generated_at"):
-        lines.append(f"- 生成时间：{meta.get('generated_at')}")
     if isinstance(raw_sources, dict) and raw_sources.get("candidate_pool"):
         pool = raw_sources.get("candidate_pool", {})
         lines.append(f"- 候选池：{pool.get('pool_id', '待填')} / {pool.get('candidate_id', '待填')}")
@@ -434,11 +494,19 @@ def _profit_review_markdown_lines(profit: dict, operator_inputs: dict, currency_
                 "### 1688 中国站人民币粗采购价信号",
                 f"- 搜索词：{supply_chain.get('search_name', '待填')}",
                 f"- 来源：{supply_chain.get('source_site', '1688中国站')} / {supply_chain.get('source_url', 'https://www.1688.com/')}",
-                f"- 有效供应商样本：{supply_chain.get('supplier_count', '待填')}",
-                f"- 相关供应商：{_format_number(supply_chain.get('relevant_supplier_count')) if supply_chain.get('relevant_supplier_count') is not None else '待填'}",
+                f"- 文本初筛候选：{_format_number(supply_chain.get('text_screened_candidate_count', supply_chain.get('relevant_supplier_count'))) if supply_chain.get('text_screened_candidate_count', supply_chain.get('relevant_supplier_count')) is not None else '待填'}",
+                f"- 详情结构化通过：{_format_number(supply_chain.get('detail_structured_pass_count')) if supply_chain.get('detail_structured_pass_count') is not None else '待生成'} / 详情复核样本 {_format_number(supply_chain.get('detail_structured_review_count')) if supply_chain.get('detail_structured_review_count') is not None else '待生成'}",
+                f"- RMB 报价有效样本：{_format_number(supply_chain.get('supplier_count')) if supply_chain.get('supplier_count') is not None else '待填'}",
+                f"- 待视觉复核队列：{_format_number(supply_chain.get('visual_review_queue_count')) if supply_chain.get('visual_review_queue_count') is not None else '待生成'}",
+                f"- 视觉确认通过：{_format_number(supply_chain.get('visual_confirmed_count')) if supply_chain.get('visual_confirmed_count') is not None else '0'}",
+                f"- 视觉观察待核：{_format_number(supply_chain.get('visual_partial_count')) if supply_chain.get('visual_partial_count') is not None else '0'}",
+                f"- 视觉剔除：{_format_number(supply_chain.get('visual_rejected_count')) if supply_chain.get('visual_rejected_count') is not None else '0'}",
+                f"- 最终供应链可继续验证：{_format_number(supply_chain.get('relevant_supplier_count')) if supply_chain.get('relevant_supplier_count') is not None else '0'}",
                 f"- 剔除样本：{_format_number(supply_chain.get('rejected_sample_count')) if supply_chain.get('rejected_sample_count') is not None else '0'}",
-                f"- 采购价区间：RMB {_format_number(supply_chain.get('purchase_price_cny_min')) if supply_chain.get('purchase_price_cny_min') is not None else '待填'} - {_format_number(supply_chain.get('purchase_price_cny_max')) if supply_chain.get('purchase_price_cny_max') is not None else '待填'}",
+                f"- 文本初筛采购价区间：RMB {_format_number(supply_chain.get('purchase_price_cny_min')) if supply_chain.get('purchase_price_cny_min') is not None else '待填'} - {_format_number(supply_chain.get('purchase_price_cny_max')) if supply_chain.get('purchase_price_cny_max') is not None else '待填'}",
+                f"- 保守采购价：RMB {_format_number(supply_chain.get('conservative_purchase_price_cny')) if supply_chain.get('conservative_purchase_price_cny') is not None else '待填'}（按区间上限，不按最低 SKU 价）",
                 f"- 采购价中位数：RMB {_format_number(supply_chain.get('purchase_price_cny_median')) if supply_chain.get('purchase_price_cny_median') is not None else '待填'}",
+                f"- 保守采购价折美元：{_format_money(supply_chain.get('conservative_purchase_price_usd'), currency_code) if supply_chain.get('conservative_purchase_price_usd') is not None else '待汇率'}",
                 f"- 折美元均价：{_format_money(supply_chain.get('purchase_price_usd_avg'), currency_code) if supply_chain.get('purchase_price_usd_avg') is not None else '待汇率'}",
                 f"- 口径：{supply_chain.get('note', '只作早期粗估，不替代运营利润模板。')}",
                 "",

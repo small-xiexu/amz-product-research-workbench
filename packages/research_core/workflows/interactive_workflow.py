@@ -293,29 +293,29 @@ def _intent_intake_card(state: WorkflowState) -> NextActionCard:
         return NextActionCard(
             stage=state.stage,
             decision_required=True,
-            question="请确认本轮无方向探索的业务边界：目标站点、禁做类目、价格/重量偏好。",
+            question="请先说清这次想解决什么场景/痛点，再确认目标站点、禁做类目、价格/重量偏好。",
             recommended_action=RecommendedAction(
                 "operator_decision",
-                "确认探索边界",
-                "方向仍然较宽，先确认边界再决定调 MCP 还是让运营导出大盘数据。",
+                "确认需求边界",
+                "先从场景和痛点入手，避免一上来就把系统带进工厂或店铺思路里。",
             ),
             options=[
-                NextActionOption("confirm_boundary", "确认边界", "进入方向拆解和类目探索。"),
-                NextActionOption("add_constraints", "补充限制", "先补禁区、价格带、供应链优势。"),
+                NextActionOption("confirm_boundary", "确认场景边界", "进入方向拆解和类目探索。"),
+                NextActionOption("add_constraints", "补充限制", "先补禁区、价格带和供应链偏好。"),
             ],
         )
     return NextActionCard(
         stage=state.stage,
         decision_required=True,
-        question="请确认指定方向的产品边界：包含哪些形态，排除哪些混池场景？",
+        question="请先说清你关心的场景/痛点，再确认指定方向的产品边界：包含哪些形态，排除哪些混池场景？",
         recommended_action=RecommendedAction(
             "operator_decision",
-            "确认产品边界",
-            "指定方向深挖前必须先防止关键词和竞品混池。",
+            "确认场景边界",
+            "指定方向深挖前先把场景说清，避免关键词一响就把工厂/店铺货表当成答案。",
         ),
         options=[
             NextActionOption("confirm_product_boundary", "确认边界", "进入关键词/导出规划。"),
-            NextActionOption("refine_product_boundary", "修正边界", "补充保留、排除、可参考场景。"),
+            NextActionOption("refine_product_boundary", "修正边界", "补充保留、排除、可参考场景和痛点。"),
         ],
     )
 
@@ -457,15 +457,15 @@ def _boundary_confirmation_card(state: WorkflowState) -> NextActionCard:
     return NextActionCard(
         stage=state.stage,
         decision_required=True,
-        question="请确认主线、保留参考、排除项和可附带场景。",
+        question="请确认产品路线矩阵：主线、升级路线、旁支观察和排除项分别是什么。",
         recommended_action=RecommendedAction(
             "operator_decision",
-            "确认候选边界",
-            "边界确认后才能给准确的 VOC ASIN 批次。",
+            "确认路线边界",
+            "边界确认后先做路线级小深挖，不能只盯一个看起来最像的供应商。",
         ),
         options=[
-            NextActionOption("confirm_boundary", "确认边界", "进入 VOC ASIN 批次规划。"),
-            NextActionOption("exclude_mixed_pool", "补充排除项", "避免抓错评论和竞品。"),
+            NextActionOption("confirm_route_matrix", "确认路线矩阵", "为每条保留路线生成补数计划。"),
+            NextActionOption("adjust_route_matrix", "调整路线分类", "先修正主线/升级/旁支/排除，再进入补数。"),
         ],
         evidence_refs=_refs_from_known_inputs(state),
     )
@@ -475,25 +475,25 @@ def _voc_batch_planning_card(state: WorkflowState) -> NextActionCard:
     return NextActionCard(
         stage=state.stage,
         decision_required=True,
-        question="请确认评论抓取 ASIN 批次：标杆老品、新品、差评高发、功能差异和价格带代表。边界确认后可先调 potential_product 延展候选池。",
+        question="请确认每条保留路线的评论抓取 ASIN 批次。主线、升级路线和旁支不能混在一个批次里判断。",
         recommended_action=RecommendedAction(
             "mcp_call",
-            "候选延展 + 确认 VOC ASIN 批次",
-            "边界确认后可用 potential_product 发现周边机会，再给出 VOC ASIN 批次。",
+            "路线延展 + 确认 VOC ASIN 批次",
+            "路线矩阵确认后，每条主线/升级/旁支路线都要有 ASIN、关键词和 1688 搜索词，再决定哪条进完整深挖。",
             mcp_tools=[
                 {
                     "tool": "potential_product",
-                    "purpose": "找潜力新品、向周边延展发现相似机会品，补充候选池",
+                    "purpose": "按路线找潜力新品和周边竞品，补齐路线专属 ASIN",
                     "params_hint": "searchName: 品类英文名（如 'window squeegee'）；amzSite: 'US'（仅支持 US/GB/DE）",
                     "credits": 1,
-                    "timing": "候选主线确认后调用一次",
+                    "timing": "路线矩阵确认后，优先给证据不足但值得看的路线调用",
                 },
             ],
         ),
         options=[
-            NextActionOption("call_sorftime_extend", "先调 MCP 延展候选", "用 potential_product 发现周边机会后再定 ASIN 批次。"),
-            NextActionOption("crawl_recommended_asins", "直接按推荐 ASIN 抓评论", "进入评论导入和 VOC 分析。"),
-            NextActionOption("adjust_asin_batch", "调整 ASIN 批次", "运营可增删竞品后再抓评论。"),
+            NextActionOption("call_route_extend", "先补路线 ASIN", "用 potential_product 和竞品池把每条路线补齐。"),
+            NextActionOption("crawl_route_asins", "按路线抓评论", "每条保留路线单独进入评论导入和 VOC 分析。"),
+            NextActionOption("adjust_route_asins", "调整路线批次", "运营可按路线增删竞品后再抓评论。"),
         ],
         evidence_refs=_refs_from_known_inputs(state),
     )
@@ -521,45 +521,45 @@ def _deep_dive_card(state: WorkflowState) -> NextActionCard:
     return NextActionCard(
         stage=state.stage,
         decision_required=False,
-        question="下一步综合市场、竞品、VOC，并调用 Sorftime 深度验证（流量词 + 竞品词包）。已在 exploration_planning 调过的 category_trend / keyword_detail 直接复用，不重复调用。",
+        question="下一步先完成路线级小深挖，再选择 1-2 条证据最完整的路线进入正式深挖报告。已调过的 category_report / keyword_detail 直接复用。",
         recommended_action=RecommendedAction(
             "mcp_call",
-            "Sorftime 深度验证",
-            "正式结论需要卖家精灵、VOC 和 MCP 趋势/流量词相互印证。",
+            "路线级 Sorftime 深度验证",
+            "每条保留路线都要有路线专属竞品流量词、竞品词包和 VOC 证据，避免过早只深挖单一款式。",
             mcp_tools=[
                 {
                     "tool": "product_traffic_terms",
-                    "purpose": "查看重点竞品靠哪些词拿流量，找词位空隙",
-                    "params_hint": "asin: Top3-5 标杆竞品 ASIN（逐个调用）",
+                    "purpose": "按路线查看重点竞品靠哪些词拿流量，找词位空隙",
+                    "params_hint": "asin: 每条保留路线 Top2-3 代表 ASIN（逐个调用）",
                     "credits": 1,
-                    "repeat": "每个竞品 ASIN 各调一次，优先 Top3",
+                    "repeat": "每个路线代表 ASIN 各调一次，先主线和升级路线",
                 },
                 {
                     "tool": "competitor_product_keywords",
-                    "purpose": "提取竞品词包，找可借鉴的流量词",
+                    "purpose": "提取路线代表竞品词包，判断不同路线是不是抢同一批流量",
                     "params_hint": "asin: 同 product_traffic_terms",
                     "credits": 1,
-                    "repeat": "与 product_traffic_terms 搭配，优先同一批 ASIN",
+                    "repeat": "与 product_traffic_terms 搭配，优先同一批路线 ASIN",
                 },
                 {
                     "tool": "keyword_trend",
-                    "purpose": "主词 24 个月趋势（已有 keyword_detail 时可跳过）",
-                    "params_hint": "keyword: 2-3 个主词",
+                    "purpose": "路线主词 24 个月趋势（已有 keyword_detail 时可跳过）",
+                    "params_hint": "keyword: 每条路线 1-2 个主词",
                     "credits": 1,
                     "timing": "keyword_detail 未覆盖趋势数据时补调",
                 },
                 {
                     "tool": "similar_product_feature",
-                    "purpose": "同类热销品共有特征，指导卖点提炼",
-                    "params_hint": "asin: 主线代表 ASIN",
+                    "purpose": "路线确认后看同类热销品共有特征，指导卖点提炼",
+                    "params_hint": "productName: 已选主路线英文品类名",
                     "credits": 5,
-                    "timing": "⚠️ 高积分，仅在方向确认、准备正式深挖报告时调用一次",
+                    "timing": "⚠️ 高积分，仅在选定 1-2 条主路线后调用，不给所有旁支都调",
                 },
             ],
         ),
         options=[
-            NextActionOption("call_traffic_terms", "调竞品流量词 MCP", "补充卖家精灵看不到的流量结构。"),
-            NextActionOption("build_research_package", "生成深挖数据包", "进入利润/合规和报告沉淀。"),
+            NextActionOption("call_route_traffic_terms", "按路线调流量词", "补充卖家精灵看不到的路线流量结构。"),
+            NextActionOption("build_research_package", "生成深挖数据包", "沉淀路线矩阵、路线小深挖和最终候选。"),
         ],
         evidence_refs=_refs_from_known_inputs(state),
     )

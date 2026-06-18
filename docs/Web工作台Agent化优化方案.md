@@ -234,4 +234,4 @@ sequenceDiagram
 | 评论任务 | `server/review_tasks/`、`server/app.py` |
 | 前端工作台 | `webapp/app/page.tsx`、`webapp/components/StateCard.tsx` |
 | 评论任务卡 | 待新增：`webapp/components/ReviewTaskCard.tsx` |
-| 评论插件 | `/Users/sxie/Documents/亚马逊/亚马逊评论下载/background.js`、`popup.js`、`manifest.json` |
+| 评论插件 | `/Users/sxie/Documents/亚马逊/amz-review-harvester/background.js`、`popup.js`、`manifest.json` |
