@@ -420,9 +420,9 @@ def _voc_section(model: dict[str, Any]) -> str:
     pain_points = voc.get("pain_points") if isinstance(voc.get("pain_points"), list) else []
     highlights = voc.get("highlights") if isinstance(voc.get("highlights"), list) else []
     if not pain_points:
-        pain_points = _fallback_pet_leash_pain_points()
+        pain_points = _fallback_voc_pain_points()
     if not highlights:
-        highlights = _fallback_pet_leash_highlights()
+        highlights = _fallback_voc_highlights()
     scope_note = summary.get("source_scope_note") or voc.get("source_scope", {}).get("note", "")
     return f"""
 <section class="section" id="voc">
@@ -471,7 +471,7 @@ def _supply_chain_section(model: dict[str, Any]) -> str:
     {''.join(_supplier_card(item, index) for index, item in enumerate(priority[:14], start=1)) or _empty_state("还没有图文确认通过的 1688 候选。")}
   </div>
   {_watchlist_block(watchlist)}
-  {_callout("下一步要问供应商", "真实阶梯价、样品价、MOQ、包装尺寸/重量、是否支持贴标/改扣具/改腰带防滑、交期、质检标准。", "action")}
+  {_callout("下一步要问供应商", "真实阶梯价、样品价、MOQ、包装尺寸/重量、是否支持贴标/改款/换材质、交期、质检标准。", "action")}
 </section>"""
 
 
@@ -506,11 +506,14 @@ def _profit_risk_section(model: dict[str, Any]) -> str:
 
 
 def _next_steps_section(model: dict[str, Any]) -> str:
+    supply = model.get("supply_chain", {}) if isinstance(model.get("supply_chain"), dict) else {}
+    contact_count = supply.get("priority_contact_count") or supply.get("visual_confirmed_count") or supply.get("candidate_count")
+    contact_title = f"联系 1688 优先 {contact_count} 款" if contact_count else "联系 1688 优先候选"
     steps = [
-        ("1", "联系 1688 优先 14 款", "问真实报价、MOQ、样品、包装重量、定制能力。"),
+        ("1", contact_title, "问真实报价、MOQ、样品、包装重量、定制能力。"),
         ("2", "补利润模型", "填 FBA、头程、入库配置费、建议售价、广告和退货假设。"),
         ("3", "做知产/合规初筛", "查商标、外观/结构专利、材质安全和功能宣称风险。"),
-        ("4", "把 VOC 转产品规格", "腰带防滑、扣具强度、弹力段、双手柄、反光面积都要落到样品检查项。"),
+        ("4", "把 VOC 转产品规格", "把高频差评拆成尺寸、材质、结构、配件、包装和说明书检查项。"),
     ]
     return f"""
 <section class="section" id="next-steps">
@@ -611,7 +614,7 @@ def _ai_insight_items(model: dict[str, Any]) -> list[dict[str, str]]:
     scorecard = model.get("scorecard", {})
     voc_summary = voc.get("summary", {}) if isinstance(voc.get("summary"), dict) else {}
     keywords = _sorftime_keywords(model)
-    target_keyword = next((item for item in keywords if item.get("keyword") == "hands free dog leash"), keywords[0] if keywords else {})
+    target_keyword = keywords[0] if keywords else {}
     supply_price = _supply_chain_price_range_text(supply)
     gating = scorecard.get("gating_reasons") if isinstance(scorecard.get("gating_reasons"), list) else []
     return [
@@ -626,7 +629,7 @@ def _ai_insight_items(model: dict[str, Any]) -> list[dict[str, str]]:
         {
             "label": "评论里在说啥",
             "title": "最要命的是稳不稳、好不好用",
-            "body": f"已经看了 {voc_summary.get('review_count', 0)} 条评论，低分 {voc_summary.get('low_rating_count', 0)} 条；腰带锁紧、扣具耐用、弹力绳寿命和近控手柄是样品验证重点。",
+            "body": f"已经看了 {voc_summary.get('review_count', 0)} 条评论，低分 {voc_summary.get('low_rating_count', 0)} 条；下一步要把差评里的尺寸、材质、结构和使用体验问题写进样品验证清单。",
         },
         {
             "label": "供应链能不能接",
@@ -652,10 +655,10 @@ def _analysis_item_card(item: dict[str, str]) -> str:
 
 def _product_spec_actions(model: dict[str, Any]) -> list[str]:
     return [
-        "腰带锁紧结构：跑步和拉拽后别松、别滑。",
-        "扣具和缝线：金属扣、加固缝线，最好能给拉力或疲劳测试。",
-        "弹力绳与近控：自然长度、拉伸长度、双手柄位置要先说清。",
-        "腰包与反光：手机、便袋、钥匙放不放得下，反光面积够不够。",
+        "基础体验：尺寸、手感、稳定性和操作门槛先测清楚。",
+        "结构耐用：连接处、缝线、扣件、边角和易损件要重点看。",
+        "升级卖点：升级款必须有实物差异和测试证据，不能只靠标题词。",
+        "包装说明：配件、说明书、警示语和缺件风险要提前确认。",
     ]
 
 
@@ -666,7 +669,7 @@ def _supplier_validation_actions(model: dict[str, Any]) -> list[str]:
         f"先从 {confirmed} 个优先候选里挑 3-5 家聊，别一口气问太多。",
         "基础款和升级款都要报，别只看最低价。",
         "直接问样品价、阶梯价、包装尺寸/重量、箱规、交期和能改到什么程度。",
-        "样品到手后测佩戴防滑、扣具拉力、弹力疲劳、缠脚和近控手柄。",
+        "样品到手后按 VOC 清单测尺寸、材质、结构、配件、包装和使用稳定性。",
     ]
 
 
@@ -873,7 +876,7 @@ def _top_sorftime_keyword(model: dict[str, Any]) -> tuple[str, str]:
     keywords = _sorftime_keywords(model)
     if not keywords:
         return "待接入", "还没有 Sorftime keyword_detail"
-    target = next((item for item in keywords if item.get("keyword") == "hands free dog leash"), keywords[0])
+    target = keywords[0]
     return (
         f"{_format_number(target.get('monthly_search_volume'))} 月搜",
         f"{target.get('keyword')}；CPC ${target.get('cpc', '待补')}；竞品 {_format_number(target.get('competitor_count'))}",
@@ -989,23 +992,17 @@ def _first_image(item: dict[str, Any]) -> str:
     return str(images[0]) if images else ""
 
 
-def _fallback_pet_leash_pain_points() -> list[dict[str, Any]]:
+def _fallback_voc_pain_points() -> list[dict[str, Any]]:
     return [
-        {"name": "腰带调节/锁紧失效", "review_count": 159, "description": "跑步或狗拉拽后腰带变松、下滑，需要反复调整。", "evidence_review_ids": ["R197TRHITO4UTH", "RWQ2Q3AUZIBQQ", "R38DO9GVUCBTRH"]},
-        {"name": "尺寸/体型适配不准", "review_count": 163, "description": "小腰围戴不稳，大腰围戴不上；小狗嫌扣具重，大狗拉拽风险高。", "evidence_review_ids": ["R1LNZEEXQGY52A", "R2SEBBL24LNZXD", "R2XMNAYWG0SQFT"]},
-        {"name": "扣具/弹力绳/缝线耐用性", "review_count": 139, "description": "调节扣断、弹力绳寿命短、手柄缝线撕裂。", "evidence_review_ids": ["R33GR7QJPKGKUA", "R38HQSI153GKFJ", "R134G1WKHCHYEN"]},
-        {"name": "控制与安全风险", "review_count": 158, "description": "弹力绳影响近距离控狗，突然冲刺时安全感不足。", "evidence_review_ids": ["R2IZJ7X0JETNR3", "R1EMTIETDBW8SV"]},
-        {"name": "缠脚/长度/手柄位置", "review_count": 81, "description": "长度不合适、缠脚、近控手柄位置不利于快速控狗。", "evidence_review_ids": ["RH8ZM2M72YL3D", "R2O48WYQ84Q7OQ"]},
-        {"name": "腰包/收纳体验不稳定", "review_count": 68, "description": "包太小、漏发包、收纳价值不稳定。", "evidence_review_ids": ["R1AHWCERKLN3M0", "R2VL2OMR1BIIT2"]},
+        {"name": "评论 VOC 待接入", "review_count": 0, "description": "还没有按路线导入评价插件数据，暂时不能归纳真实差评痛点。", "evidence_review_ids": []},
+        {"name": "低分原因待归纳", "review_count": 0, "description": "下一步按路线抓取代表 ASIN 评论，再把尺寸、材质、结构、配件和使用体验问题拆成打样项。", "evidence_review_ids": []},
     ]
 
 
-def _fallback_pet_leash_highlights() -> list[dict[str, Any]]:
+def _fallback_voc_highlights() -> list[dict[str, Any]]:
     return [
-        {"name": "免手持释放双手", "description": "跑步、推婴儿车、徒步、捡便和训练时价值明确。"},
-        {"name": "弹力绳缓冲", "description": "用户能感知到对手腕、肩膀和狗脖子的冲击更小。"},
-        {"name": "双手柄近控", "description": "靠近路口、人群、其他狗或车辆时需要快速短控。"},
-        {"name": "腰包/小收纳", "description": "能放便袋、钥匙和手机时是加分项，但不能牺牲佩戴稳定性。"},
+        {"name": "正向卖点待接入", "description": "评论导入后再判断哪些卖点是用户真实认可的，不用供应商标题替代用户反馈。"},
+        {"name": "路线差异待验证", "description": "主线、升级款、场景款和组合款要分开看评论，避免把旁支需求当成主线卖点。"},
     ]
 
 

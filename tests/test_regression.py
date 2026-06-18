@@ -503,6 +503,8 @@ class RegressionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             candidate_pool = build_candidate_pool(_minimal_import_manifest(Path(tmp)))
         candidate = candidate_pool["candidates"][0]
+        candidate["name"] = "宠物牵引绳 / dog leash"
+        candidate["product_route_profile"] = _dog_leash_route_profile()
         candidate.setdefault("competitor_candidates", {})["recent_winners"] = [
             {
                 "asin": "B0DUALWAIST",
@@ -552,17 +554,120 @@ class RegressionTests(unittest.TestCase):
         route_plan = {item["route_id"]: item for item in research_package["route_deep_dive_plan"]}
         html = render_report_html(research_package)
 
-        self.assertIn("dual_leash_waist_bag", routes)
-        self.assertGreaterEqual(routes["dual_leash_waist_bag"]["candidate_count"], 1)
-        self.assertIn("双牵引绳 + 腰包", routes["dual_leash_waist_bag"]["route_name"])
-        self.assertIn("multi_dog_without_waist", routes)
-        self.assertIn("dual_leash_waist_bag", route_plan)
-        self.assertEqual(route_plan["dual_leash_waist_bag"]["recommended_depth"], "必须路线小深挖")
-        self.assertIn("双牵引绳 腰包", route_plan["dual_leash_waist_bag"]["supply_chain_search_terms"])
-        self.assertTrue(route_plan["dual_leash_waist_bag"]["review_voc_asin_plan"])
+        self.assertIn("upgraded_core", routes)
+        self.assertGreaterEqual(routes["upgraded_core"]["candidate_count"], 1)
+        self.assertIn("双牵引绳 + 腰包", routes["upgraded_core"]["route_name"])
+        self.assertIn("adjacent_or_watch", routes)
+        self.assertIn("upgraded_core", route_plan)
+        self.assertEqual(route_plan["upgraded_core"]["recommended_depth"], "必须路线小深挖")
+        self.assertIn("双牵引绳 腰包", route_plan["upgraded_core"]["supply_chain_search_terms"])
+        self.assertTrue(route_plan["upgraded_core"]["review_voc_asin_plan"])
         self.assertIn("产品路线对比", html)
         self.assertIn("路线级小深挖计划", html)
-        self.assertIn("双牵引绳 + 腰包款", html)
+        self.assertIn("双牵引绳 + 腰包/腰带", html)
+
+    def test_product_route_matrix_is_generic_for_window_squeegee(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            candidate_pool = build_candidate_pool(_minimal_import_manifest(Path(tmp)))
+        candidate = candidate_pool["candidates"][0]
+        candidate.setdefault("competitor_candidates", {})["recent_winners"] = [
+            {
+                "asin": "B0SQUEEGEE1",
+                "title": "2 in 1 Window Squeegee Cleaning Kit with Extendable Pole and Replacement Microfiber Pads",
+                "price": 24.99,
+                "monthly_units": 900,
+                "rating_count": 580,
+            }
+        ]
+        candidate.setdefault("preliminary_profit_space", {})["supply_chain_signal"] = {
+            "visual_review_candidates": {
+                "priority_candidates": [
+                    {
+                        "title": "家用窗户清洁器二合一刮窗器海绵布垫套装",
+                        "url": "https://detail.1688.com/offer/20001.html",
+                        "price_cny_min": 12.0,
+                        "price_cny_max": 18.0,
+                        "conservative_price_cny": 18.0,
+                        "sku_texts": ["刮条+海绵布垫 二合一套装"],
+                        "status_label": "优先联系",
+                    },
+                    {
+                        "title": "可伸缩长杆玻璃刮水器微纤维替换布套装",
+                        "url": "https://detail.1688.com/offer/20002.html",
+                        "price_cny_min": 20.0,
+                        "price_cny_max": 29.0,
+                        "conservative_price_cny": 29.0,
+                        "sku_texts": ["伸缩长杆 微纤维 替换布"],
+                        "status_label": "优先联系",
+                    },
+                ],
+                "watchlist_candidates": [
+                    {
+                        "title": "汽车挡风玻璃贴膜刮板清洁液套装",
+                        "price_cny_min": 8.0,
+                        "price_cny_max": 12.0,
+                        "status_label": "观察待核",
+                    }
+                ],
+            }
+        }
+
+        research_package = build_research_package(candidate_pool, candidate["candidate_id"])
+        routes = {item["route_id"]: item for item in research_package["product_route_matrix"]}
+        route_plan = {item["route_id"]: item for item in research_package["route_deep_dive_plan"]}
+        names = " ".join(str(route.get("route_name")) for route in routes.values())
+
+        self.assertIn("base_core", routes)
+        self.assertIn("upgraded_core", routes)
+        self.assertIn("bundle_or_set", routes)
+        self.assertIn("scenario_specialized", routes)
+        self.assertIn("窗户刮水器", names)
+        self.assertIn("伸缩", names)
+        self.assertTrue(any("套装" in term for term in route_plan["bundle_or_set"]["supply_chain_search_terms"]))
+        self.assertNotIn("牵引绳", names)
+        self.assertNotIn("腰包", names)
+
+    def test_product_route_matrix_does_not_leak_fixture_categories_for_new_category(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = _minimal_import_manifest(Path(tmp))
+            manifest["metadata"]["task_name"] = "爆米花机 / popcorn maker"
+            candidate_pool = build_candidate_pool(manifest)
+        candidate = candidate_pool["candidates"][0]
+        candidate["name"] = "爆米花机 / popcorn maker"
+        candidate.setdefault("demand_evidence", {})["top_keyword"] = "popcorn maker"
+        candidate.setdefault("competitor_candidates", {})["recent_winners"] = [
+            {
+                "asin": "B0POPCORN1",
+                "title": "Hot Air Popcorn Maker with Measuring Cup and Removable Chute",
+                "price": 29.99,
+                "monthly_units": 1500,
+                "rating_count": 4200,
+            }
+        ]
+        candidate.setdefault("preliminary_profit_space", {})["supply_chain_signal"] = {
+            "search_name": "爆米花机",
+            "visual_review_candidates": {
+                "priority_candidates": [
+                    {
+                        "title": "家用热风爆米花机可拆卸量杯食品级内胆",
+                        "url": "https://detail.1688.com/offer/30001.html",
+                        "price_cny_min": 45.0,
+                        "price_cny_max": 68.0,
+                        "conservative_price_cny": 68.0,
+                        "sku_texts": ["热风款", "量杯", "可拆卸"],
+                        "status_label": "优先联系",
+                    }
+                ]
+            },
+        }
+
+        research_package = build_research_package(candidate_pool, candidate["candidate_id"])
+        rendered = json.dumps(research_package, ensure_ascii=False)
+
+        self.assertIn("爆米花机", rendered)
+        self.assertIn("popcorn maker", rendered)
+        for fixture_term in ("牵引绳", "狗绳", "腰包", "刮窗器", "刮水器", "window squeegee", "dog leash"):
+            self.assertNotIn(fixture_term, rendered)
 
     def test_interactive_workflow_initial_broad_discovery_requires_operator_boundary(self) -> None:
         state = create_initial_state(
@@ -589,6 +694,29 @@ class RegressionTests(unittest.TestCase):
         self.assertTrue(state.decision_required)
         self.assertIn("场景/痛点", state.operator_question)
         self.assertIn("产品边界", state.operator_question)
+
+    def test_stage_four_and_five_force_route_confirmation(self) -> None:
+        base = create_initial_state(
+            workflow_id="wf-004",
+            mode="targeted_deep_dive",
+            initial_intent="窗户刮水器二合一工具",
+            site="US",
+        )
+        candidate_review = _workflow_state_for_test(base, stage="candidate_pool_review")
+        boundary = _workflow_state_for_test(base, stage="boundary_confirmation")
+        voc_planning = _workflow_state_for_test(base, stage="voc_batch_planning")
+
+        candidate_card = candidate_review.next_actions[0]
+        boundary_card = boundary.next_actions[0]
+        voc_card = voc_planning.next_actions[0]
+
+        self.assertIn("产品路线矩阵", candidate_review.operator_question)
+        self.assertIn("基础款", candidate_review.operator_question)
+        self.assertTrue(any(option.id == "rename_routes" for option in candidate_card.options))
+        self.assertIn("路线级小深挖", boundary_card.recommended_action.reason)
+        self.assertTrue(any(option.id == "rename_route_by_shape" for option in boundary_card.options))
+        self.assertIn("每条保留路线", voc_planning.operator_question)
+        self.assertTrue(any(option.id == "search_1688_by_route" for option in voc_card.options))
 
     def test_interactive_workflow_advances_with_decision_log(self) -> None:
         state = create_initial_state(
@@ -750,6 +878,24 @@ def _write_minimal_workflow_summary(workflow_dir: Path, interactive: bool = Fals
     (workflow_dir / "workflow_summary.md").write_text(
         "# 选品流程运行摘要\n\n- 利润复核：待填写模板\n- 知产/合规初筛：待填写模板\n",
         encoding="utf-8",
+    )
+
+
+def _workflow_state_for_test(base, stage: str):
+    from packages.research_core.workflows import WorkflowState, plan_next_action
+
+    return plan_next_action(
+        WorkflowState(
+            workflow_id=base.workflow_id,
+            mode=base.mode,
+            stage=stage,
+            initial_intent=base.initial_intent,
+            site=base.site,
+            known_inputs=base.known_inputs,
+            missing_inputs=base.missing_inputs,
+            evidence_refs=base.evidence_refs,
+            decision_log=base.decision_log,
+        )
     )
 
 
@@ -958,6 +1104,34 @@ def _sample_invalid_ali1688_verification() -> dict:
                 "Url": "https://example.com/dog-leash",
             },
         ],
+    }
+
+
+def _dog_leash_route_profile() -> dict:
+    return {
+        "profile_id": "dog_leash_test_fixture",
+        "route_overrides": {
+            "base_core": {
+                "route_name": "基础款：腰包/腰带 + 单牵引绳",
+                "match_terms": ("腰包", "腰带", "腰部", "束腰", "pouch", "waist", "belt", "hands free"),
+                "competitor_terms": ("hands free", "waist", "belt", "pouch", "bungee", "running", "jogging"),
+                "review_terms": ("hands free", "waist", "belt", "pouch", "bungee", "running", "jogging", "腰", "免手持"),
+                "supply_chain_search_terms": ["跑步牵引绳 腰包", "免手持 狗绳 腰带", "宠物跑步牵引绳 腰包", "腰带 弹力 牵引绳"],
+            },
+            "upgraded_core": {
+                "route_name": "升级款：双牵引绳 + 腰包/腰带",
+                "match_terms": ("一拖二", "双牵", "双头", "双体", "双套", "两犬", "两只狗", "多狗", "two dog", "dual leash"),
+                "require_any_terms": ("腰包", "腰带", "腰部", "束腰", "pouch", "waist", "belt", "hands free", "免手持"),
+                "competitor_terms": ("double", "dual dog", "dual leash", "two dog", "2 dog", "multiple dogs", "waist", "belt", "pouch"),
+                "review_terms": ("double", "dual dog", "dual leash", "two dog", "two dogs", "2 dog", "2 dogs", "multiple dogs", "双", "两只", "多狗", "一拖二"),
+                "supply_chain_search_terms": ["双牵引绳 腰包", "双狗 跑步 腰带", "一拖二 腰包 牵引绳", "双体 牵引绳 腰包"],
+            },
+            "adjacent_or_watch": {
+                "route_name": "旁支观察：一拖二/斜挎/普通弹力绳",
+                "match_terms": ("一拖二", "双头", "斜挎", "普通弹力绳", "splitter", "crossbody"),
+                "supply_chain_search_terms": ["一拖二 狗绳", "双头 狗狗牵引绳", "双狗 防缠绕 牵引绳", "多狗 牵引绳"],
+            },
+        },
     }
 
 

@@ -439,15 +439,18 @@ def _candidate_pool_review_card(state: WorkflowState) -> NextActionCard:
     return NextActionCard(
         stage=state.stage,
         decision_required=True,
-        question="请选择本轮要进入深挖的候选方向，或先修正混池/排除规则。",
+        question="请先看候选池和产品路线矩阵：基础款、升级款、场景款、组合/套装款、功能/材质升级、旁支观察分别保留还是排除？",
         recommended_action=RecommendedAction(
             "operator_decision",
-            "确认深挖候选",
-            "候选池可能包含主线、旁支和混池项，必须由运营确认资源投入方向。",
+            "确认候选池和路线矩阵",
+            "先确认路线，再决定深挖候选；避免只选一个看起来最像的款式，漏掉升级款或场景款。",
         ),
         options=[
-            NextActionOption("deep_dive_candidate", "选择候选进入深挖", "进入边界确认和 VOC ASIN 规划。"),
-            NextActionOption("refine_boundary", "先修正边界", "更新排除项后重新生成候选池。"),
+            NextActionOption("confirm_route_matrix", "确认路线矩阵", "进入路线边界确认和路线级补数计划。"),
+            NextActionOption("rename_routes", "改路线名称", "当路线名还是目标产品/标准配置这类泛称时，先按真实产品形态重命名。"),
+            NextActionOption("merge_sparse_routes", "合并空路线", "把没有候选、没有 ASIN、没有关键词证据的路线合并或隐藏。"),
+            NextActionOption("adjust_route_labels", "调整路线分类", "修正基础/升级/场景/组合/旁支后重新生成候选池。"),
+            NextActionOption("exclude_mixed_pool", "排除混池项", "更新排除词、形态禁区或场景边界后重跑。"),
         ],
         evidence_refs=_refs_from_known_inputs(state),
     )
@@ -457,15 +460,17 @@ def _boundary_confirmation_card(state: WorkflowState) -> NextActionCard:
     return NextActionCard(
         stage=state.stage,
         decision_required=True,
-        question="请确认产品路线矩阵：主线、升级路线、旁支观察和排除项分别是什么。",
+        question="请确认每条保留路线的角色：哪条做主推基准，哪条做升级验证，哪条只是场景/组合/旁支观察？",
         recommended_action=RecommendedAction(
             "operator_decision",
             "确认路线边界",
-            "边界确认后先做路线级小深挖，不能只盯一个看起来最像的供应商。",
+            "边界确认后先做路线级小深挖：每条保留路线都要有关键词、竞品 ASIN、VOC 批次和 1688 搜索词。",
         ),
         options=[
-            NextActionOption("confirm_route_matrix", "确认路线矩阵", "为每条保留路线生成补数计划。"),
-            NextActionOption("adjust_route_matrix", "调整路线分类", "先修正主线/升级/旁支/排除，再进入补数。"),
+            NextActionOption("confirm_route_roles", "确认路线角色", "为每条保留路线生成补数计划。"),
+            NextActionOption("rename_route_by_shape", "按形态改名", "把泛化路线名改成运营能理解的款式名、场景名或规格名。"),
+            NextActionOption("promote_route", "提升某条路线", "把场景/组合/升级路线提升为重点验证。"),
+            NextActionOption("demote_route", "降级某条路线", "把证据弱或混池路线降为观察/排除。"),
         ],
         evidence_refs=_refs_from_known_inputs(state),
     )
@@ -475,16 +480,16 @@ def _voc_batch_planning_card(state: WorkflowState) -> NextActionCard:
     return NextActionCard(
         stage=state.stage,
         decision_required=True,
-        question="请确认每条保留路线的评论抓取 ASIN 批次。主线、升级路线和旁支不能混在一个批次里判断。",
+        question="请确认每条保留路线的 VOC ASIN 批次：主线、升级、场景、组合和旁支要分开抓评论，不能混成一个结论。",
         recommended_action=RecommendedAction(
             "mcp_call",
-            "路线延展 + 确认 VOC ASIN 批次",
-            "路线矩阵确认后，每条主线/升级/旁支路线都要有 ASIN、关键词和 1688 搜索词，再决定哪条进完整深挖。",
+            "路线补数 + 确认 VOC ASIN 批次",
+            "路线矩阵确认后，每条保留路线都要补代表 ASIN、主词、Sorftime 流量词和 1688 搜索词，再决定哪 1-2 条进完整深挖。",
             mcp_tools=[
                 {
                     "tool": "potential_product",
                     "purpose": "按路线找潜力新品和周边竞品，补齐路线专属 ASIN",
-                    "params_hint": "searchName: 品类英文名（如 'window squeegee'）；amzSite: 'US'（仅支持 US/GB/DE）",
+                    "params_hint": "searchName: 本路线英文关键词；amzSite: 'US'（仅支持 US/GB/DE）",
                     "credits": 1,
                     "timing": "路线矩阵确认后，优先给证据不足但值得看的路线调用",
                 },
@@ -493,6 +498,7 @@ def _voc_batch_planning_card(state: WorkflowState) -> NextActionCard:
         options=[
             NextActionOption("call_route_extend", "先补路线 ASIN", "用 potential_product 和竞品池把每条路线补齐。"),
             NextActionOption("crawl_route_asins", "按路线抓评论", "每条保留路线单独进入评论导入和 VOC 分析。"),
+            NextActionOption("search_1688_by_route", "按路线搜 1688", "每条路线分别给中文搜索词，避免供应商只覆盖一种款式。"),
             NextActionOption("adjust_route_asins", "调整路线批次", "运营可按路线增删竞品后再抓评论。"),
         ],
         evidence_refs=_refs_from_known_inputs(state),

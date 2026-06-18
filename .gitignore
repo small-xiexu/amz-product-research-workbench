@@ -23,6 +23,7 @@ node_modules/
 __pycache__/
 *.pyc
 .runtime/
+.playwright-cli/
 
 # Web 后端运行时会话状态
 .sessions/

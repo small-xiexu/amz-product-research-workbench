@@ -20,7 +20,7 @@ The sorftime_verification.json must follow this schema:
   },
   "keyword_verification": [
     {
-      "keyword": "window squeegee",
+      "keyword": "<target keyword>",
       "weekly_search_volume": 45000,
       "monthly_search_volume": 180000,
       "cpc": 1.2,
@@ -31,8 +31,8 @@ The sorftime_verification.json must follow this schema:
   ],
   "traffic_terms": {
     "asin": "B0XXXXX",
-    "top_traffic_words": ["window squeegee"],
-    "gap_opportunities": ["2 in 1 window cleaning tool"]
+    "top_traffic_words": ["<target keyword>"],
+    "gap_opportunities": ["<route-specific long-tail keyword>"]
   },
   "category_report_snapshot": {
     "category_name": "Squeegees",
@@ -51,7 +51,7 @@ The sorftime_verification.json must follow this schema:
     ]
   },
   "supply_chain_signal": {
-    "searchName": "刮窗器",
+    "searchName": "<目标中文品类词>",
     "exchange_rate": 7.2,
     "products": [
       {

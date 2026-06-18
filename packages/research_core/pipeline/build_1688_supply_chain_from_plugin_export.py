@@ -707,7 +707,7 @@ def _build_signal(
         "screening_pipeline": {
             "stage1_text_screening": "CSV搜索结果初筛：标题、关键词、价格、排除词、类目/标签命中。",
             "stage2_detail_structured_review": "详情JSON结构化复核：详情价、起订量、SKU/规格、店铺信号、详情文本和可复核图片覆盖。",
-            "stage3_visual_detail_review": "图片+详情内容复核：确认商品形态是否为目标款，排除胸背、P绳、自动伸缩器、自行车遛狗器、普通长绳和配件。",
+            "stage3_visual_detail_review": "图片+详情内容复核：确认商品形态是否符合本轮目标画像，并按本轮排除词剔除混池商品。",
         },
         "confidence": "中低：CSV初筛和详情结构化复核已完成；图片/详情形态尚未逐品复核，不能视为最终通过供应商。",
         "note": "当前只完成1688中国站CSV初筛与详情JSON结构化复核，报价不含头程、关税、质检、包装和损耗；最终供应链结论必须等图片/详情形态复核和供应商确认后才能给出。",
@@ -744,6 +744,7 @@ def _build_visual_review_queue(
         scored.append((score, index, candidate, reasons))
     scored.sort(key=lambda item: (-item[0], item[1]))
     queue: list[dict[str, Any]] = []
+    checklist = _operator_review_checklist(review_profile)
     for rank, (score, _index, candidate, reasons) in enumerate(scored[:queue_limit], start=1):
         queue.append(
             {
@@ -797,13 +798,7 @@ def _build_visual_review_queue(
                 "detail_attributes": candidate.get("detail_attributes"),
                 "detail_summary": candidate.get("detail_summary"),
                 "detail_text_excerpt": candidate.get("detail_text_excerpt"),
-                "operator_review_checklist": [
-                    "主图/详情图是否确认为目标商品形态",
-                    "是否只是配件、胸背、项圈、普通绳、腰包或其它混池商品",
-                    "标题与图片是否一致",
-                    "价格是否对应整套商品而非单配件/低配规格",
-                    "是否有可接受的现货、定制、起订量和供应商信号",
-                ],
+                "operator_review_checklist": checklist,
             }
         )
     return {
@@ -819,6 +814,47 @@ def _build_visual_review_queue(
         "source_files": source_files,
         "visual_review_queue": queue,
     }
+
+
+def _operator_review_checklist(review_profile: dict[str, Any] | None) -> list[str]:
+    target_terms: list[str] = []
+    excluded_terms: list[str] = []
+    for group in (review_profile or {}).get("feature_groups") or []:
+        if not isinstance(group, dict):
+            continue
+        if str(group.get("name") or "") in {"搜索词", "类目相关词", "关注标签"}:
+            target_terms.extend(_list_texts(group.get("terms")))
+    for rule in (review_profile or {}).get("negative_terms") or []:
+        if isinstance(rule, dict):
+            excluded_terms.extend(_list_texts(rule.get("terms")))
+        else:
+            excluded_terms.append(str(rule))
+    target_hint = " / ".join(_dedupe_preserve(target_terms)[:5]) or "本轮目标商品"
+    checklist = [
+        f"主图/详情图是否符合目标画像：{target_hint}",
+        "标题、主图和详情描述是否指向同一个商品形态",
+        "价格是否对应可销售整件/整套商品，而不是单配件、低配规格或引流价",
+        "SKU/规格里最高配置、最低配置和目标配置是否能分清",
+        "是否有可接受的现货、定制、起订量、包装重量和供应商信号",
+    ]
+    excluded = _dedupe_preserve(excluded_terms)[:6]
+    if excluded:
+        checklist.insert(1, f"是否命中本轮排除词：{' / '.join(excluded)}")
+    else:
+        checklist.insert(1, "是否属于目标外观/用途不一致的混池商品，并记录具体差异")
+    return checklist
+
+
+def _dedupe_preserve(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for item in items:
+        text = str(item).strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+    return result
 
 
 def build_supply_chain_outputs(

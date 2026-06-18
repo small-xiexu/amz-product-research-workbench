@@ -67,6 +67,12 @@ REQUIRED_SCORECARD_DIMENSIONS = (
     "知产/合规/退货风险",
     "数据完整度",
 )
+LEGACY_ROUTE_IDS = (
+    "core_hands_free_waist",
+    "dual_leash_waist_bag",
+    "multi_dog_without_waist",
+    "safety_upgrade",
+)
 
 
 @dataclass
@@ -139,6 +145,7 @@ def validate_workflow_output(input_dir: Path | str) -> ValidationResult:
     if _interactive_workflow_enabled(workflow_summary):
         _check_interactive_report_terms(result, report_text)
     _check_report_sections(result, report_text)
+    _check_legacy_route_ids(result, workflow_dir, final_report_dir, workflow_summary_text, report_text)
     return result
 
 
@@ -490,6 +497,30 @@ def _check_report_sections(result: ValidationResult, report_text: str) -> None:
         result.errors.append("report.md 正式章节顺序不符合 P20.2 标准")
         return
     result.notes.append("report.md 正式 12 章结构完整且顺序正确")
+
+
+def _check_legacy_route_ids(
+    result: ValidationResult,
+    workflow_dir: Path,
+    final_report_dir: Path,
+    workflow_summary_text: str,
+    report_text: str,
+) -> None:
+    texts = [workflow_summary_text, report_text]
+    for relative in ("research_package.json", "workflow_state.json"):
+        for base in (workflow_dir, final_report_dir):
+            path = base / relative
+            if path.exists():
+                texts.append(_read_text(path))
+    haystack = "\n".join(texts)
+    matched = [route_id for route_id in LEGACY_ROUTE_IDS if route_id in haystack]
+    if matched:
+        result.warnings.append(
+            "发现旧路线 ID，建议重建 product_route_matrix / route_deep_dive_plan："
+            + ", ".join(matched)
+        )
+    else:
+        result.notes.append("未发现旧路线 ID")
 
 
 if __name__ == "__main__":
