@@ -1,0 +1,281 @@
+{
+  "eval_fixture": {
+    "top100_count": 100,
+    "competitor_count": 10
+  },
+  "metadata": {
+    "site": "US",
+    "candidate_id": "eval-candidate-001",
+    "candidate_pool_id": "eval-pool-001",
+    "seed_keyword_or_category": "eval product direction",
+    "product_shape": "eval 中价升级款",
+    "generated_at": "2026-06-18T00:00:00Z",
+    "data_sources": [
+      "卖家精灵 eval 样例",
+      "Sorftime MCP eval 样例",
+      "评论插件 eval 样例",
+      "1688 插件 eval 样例"
+    ]
+  },
+  "constraints": {
+    "exclusion_rules": ["儿童用品", "医疗", "强认证", "侵权高风险"]
+  },
+  "operator_inputs": {
+    "purchase_cost": "待补",
+    "exchange_rate": "待补",
+    "fba_fee": "待补",
+    "first_leg_shipping": "待补",
+    "inbound_placement_fee": "待补"
+  },
+  "raw_sources": {
+    "candidate_pool": {
+      "pool_id": "eval-pool-001",
+      "candidate_id": "eval-candidate-001"
+    }
+  },
+  "normalized_tables": {
+    "candidate": {
+      "candidate_boundary_review": {
+        "recommended_mainline": "主线：中价升级款",
+        "checkpoint": "eval 样例边界已固定"
+      },
+      "demand_evidence": {
+        "top_keyword": "eval product",
+        "top_keyword_monthly_searches": 24000,
+        "search_signal": "有独立搜索需求",
+        "trend_signal": "稳定",
+        "aba_top_search_term": "eval product",
+        "aba_top_clicked_asin": "C000000001",
+        "sorftime_traffic_terms": {
+          "top_terms": ["eval product", "upgrade eval product"]
+        }
+      }
+    },
+    "top100": [],
+    "top_product_tags": [],
+    "voc_evidence": []
+  },
+  "market_analysis": {
+    "market_size": "Top100 月销量约 12.5 万件，eval 样例用于验证交付链路",
+    "price_band": "$20-$35 为主力价格带",
+    "brand_concentration": "Top10 品牌集中度中等，非单一品牌垄断",
+    "seller_concentration": "中国卖家和本土品牌并存",
+    "new_listing_ratio": "近半年新品存在可观察样本",
+    "return_rate": "待真实样例回填",
+    "sorftime_category_report": {
+      "category_name": "Eval Category",
+      "node_id": "eval-node",
+      "product_count": 100,
+      "total_monthly_units": 125000,
+      "avg_price_usd": 28.5,
+      "top10_units_share": 0.32,
+      "new_product_count_6m": 14,
+      "new_product_units_share": 0.11
+    }
+  },
+  "market_structure": {},
+  "keyword_analysis": {
+    "search_signal": "核心词和属性词均有需求",
+    "trend_signal": "稳定，非强季节"
+  },
+  "voc_analysis": {
+    "summary": {
+      "review_count": 80,
+      "asin_count": 6,
+      "low_rating_count": 18,
+      "media_review_count": 5,
+      "entry_site_distribution": [{"label": "US", "count": 80}],
+      "review_region_distribution": [{"label": "United States", "count": 72}],
+      "primary_entry_site": "US",
+      "primary_review_region": "United States",
+      "source_scope_note": "eval 评论样例只用于验证 VOC 证据链结构"
+    },
+    "pain_points": [
+      {
+        "name": "结构松动",
+        "review_count": 5,
+        "severity": "高",
+        "evidence": [
+          {
+            "review_id": "R-EVAL-001",
+            "asin": "C000000001",
+            "rating": 2,
+            "snippet": "The buckle became loose after several uses."
+          }
+        ],
+        "product_solution": "结构松动 -> 要求供应商提供加强扣具和 500 次开合寿命测试"
+      },
+      {
+        "name": "材质磨损",
+        "review_count": 4,
+        "severity": "中",
+        "evidence": [
+          {
+            "review_id": "R-EVAL-002",
+            "asin": "C000000002",
+            "rating": 3,
+            "snippet": "The strap started fraying around the edge."
+          }
+        ],
+        "product_solution": "材质磨损 -> 询问织带材质、边缘包边工艺和摩擦测试"
+      }
+    ],
+    "highlights": [
+      {
+        "name": "安装简单",
+        "review_count": 6,
+        "severity": "低"
+      }
+    ],
+    "evidence_policy": "每条痛点必须回到 review_id、ASIN、评分和片段"
+  },
+  "profit_reference": {
+    "status": "待补",
+    "base_fba_gross_profit": "待补",
+    "base_fba_margin": "待补",
+    "post_ads_returns_gross_profit": "待补",
+    "post_ads_returns_margin": "待补",
+    "missing_fields": ["采购价", "FBA费用", "头程费用", "入库配置费"],
+    "supply_chain_signal": {
+      "source_tool": "ali1688_similar_product",
+      "source_site": "1688中国站",
+      "source_url": "https://www.1688.com/",
+      "quote_currency": "RMB",
+      "search_name": "eval 中价升级款",
+      "raw_supplier_count": 12,
+      "text_screened_candidate_count": 8,
+      "supplier_count": 5,
+      "relevant_supplier_count": 4,
+      "rejected_sample_count": 3,
+      "rejection_reasons": ["非 1688 域名", "币种不明"],
+      "purchase_price_cny_min": 18,
+      "purchase_price_cny_max": 32,
+      "conservative_purchase_price_cny": 32,
+      "conservative_purchase_price_usd": 4.44,
+      "purchase_price_cny_median": 24,
+      "purchase_price_usd_avg": 3.4,
+      "exchange_rate": 7.2,
+      "confidence": "medium",
+      "note": "eval 样例只用于验证 1688 供应链字段结构",
+      "sample_products": [
+        {
+          "title": "Eval 供应商样品",
+          "supplier": "Eval Supplier",
+          "price_cny_min": 18,
+          "price_cny_max": 32,
+          "conservative_price_cny": 32,
+          "url": "https://www.1688.com/"
+        }
+      ]
+    }
+  },
+  "return_risk": {
+    "source": "eval 样例",
+    "level": "待复核",
+    "market_return_rate": "待补"
+  },
+  "ip_screening": {
+    "status": "待补",
+    "level": "待复核",
+    "summary": "eval 样例未做真实知产检索",
+    "boundary": "不替代专业结论"
+  },
+  "compliance_screening": {
+    "status": "待补",
+    "level": "待复核",
+    "summary": "eval 样例未做真实合规认证预判",
+    "boundary": "不替代专业结论"
+  },
+  "ip_compliance_review": {
+    "status": "待补",
+    "overall_level": "待复核",
+    "next_step": "真实运行时补人工合规模板"
+  },
+  "decision_review": {
+    "status_explanation": "eval 样例只用于验证正式交付闭环，真实业务不能直接立项。",
+    "facts": [
+      "事实：Top100 eval 样例包含 100 行，用于验证报告和 Excel 回表。",
+      "事实：VOC eval 样例保留 3 条可追溯证据。",
+      "事实：1688 eval 样例只保留 RMB/CNY 口径。"
+    ],
+    "inferences": [
+      "推断：中价升级款可作为真实样例中的优先验证路线。",
+      "推断：结构松动和材质磨损需要转成供应商测试项。",
+      "推断：利润和合规未回填前只能 Wait。"
+    ],
+    "missing_inputs": ["真实卖家精灵导出", "真实 Sorftime 返回", "利润模板", "知产/合规模板"],
+    "action_items": [
+      "用真实卖家精灵导出替换 eval Top100。",
+      "补 Sorftime keyword_detail 和 product_traffic_terms。",
+      "把 VOC 痛点转成供应商问询和样品测试。",
+      "回填利润和合规模板后再决定 Go/Wait/No-Go。",
+      "复核 1688 供应商链接、图片和报价币种。"
+    ],
+    "risk_matrix": [
+      {
+        "dimension": "数据完整度",
+        "level": "低",
+        "basis": "eval 样例结构完整但不代表真实市场。",
+        "next_check": "替换为真实导出和 MCP 返回。"
+      },
+      {
+        "dimension": "评论/VOC",
+        "level": "中",
+        "basis": "VOC 样例有证据链，但数量较少。",
+        "next_check": "真实运行时至少覆盖 6-10 个竞品 ASIN。"
+      }
+    ],
+    "go_nogo_scorecard": {
+      "weighted_score": 5.9,
+      "decision": "WAIT",
+      "gating_reasons": ["利润复核未回填", "知产/合规初筛未回填"],
+      "note": "eval 样例只能验证链路，不输出真实 Go。",
+      "dimensions": {
+        "市场规模": {"score": 6, "weight": 0.16, "note": "eval Top100 样例完整"},
+        "竞争格局": {"score": 6, "weight": 0.16, "note": "竞品角色覆盖完整"},
+        "需求清晰度": {"score": 6, "weight": 0.14, "note": "关键词字段完整但非真实数据"},
+        "新品友好度": {"score": 6, "weight": 0.12, "note": "保留新品样例字段"},
+        "利润可行性": {"score": 5, "weight": 0.16, "note": "利润模板待回填"},
+        "知产/合规/退货风险": {"score": 5, "weight": 0.14, "note": "合规模板待回填"},
+        "数据完整度": {"score": 8, "weight": 0.12, "note": "eval 结构字段完整"}
+      }
+    }
+  },
+  "status_card": {
+    "status": "WAIT",
+    "reason": "最小 eval 样例只能验证链路，利润和合规未回填。",
+    "next_step": "用真实四源数据替换 eval 样例后再进入业务判断。"
+  },
+  "report_summary": {
+    "bullets": [
+      "Top100 eval 样例完整 -> 能验证报告和 Excel 回表 -> 下一步替换为真实卖家精灵导出。",
+      "VOC eval 样例有 review_id/ASIN/评分/片段 -> 能验证证据链 -> 下一步补真实评论。",
+      "1688 eval 样例只保留 RMB/CNY -> 能验证供应链口径 -> 下一步复核真实供应商。"
+    ]
+  },
+  "ai_analysis": {
+    "persona": "资深亚马逊运营专家",
+    "data_source_scope": ["卖家精灵 eval 样例", "Sorftime MCP eval 样例", "评价插件 eval 样例", "1688 插件 eval 样例"],
+    "decision_principle": "真实利润、知产/合规和供应商确认未闭环时，只能 Wait。",
+    "thesis": {
+      "title": "eval 样例只验证链路，不代表真实立项结论"
+    },
+    "insights": [
+      {
+        "label": "市场结构",
+        "title": "先验证中价升级款",
+        "body": "Top100 eval 数据显示中价位有可观察结构，但真实判断必须回到卖家精灵和 Sorftime。"
+      },
+      {
+        "label": "VOC 到规格",
+        "title": "痛点要转供应商测试",
+        "body": "结构松动和材质磨损必须转成扣具、织带和寿命测试，而不是只写优化质量。"
+      },
+      {
+        "label": "供应链承接",
+        "title": "1688 只能做早期粗估",
+        "body": "采购价必须使用 1688 中国站 RMB/CNY，真实利润仍需人工模板回填。"
+      }
+    ]
+  }
+}

@@ -2,6 +2,8 @@
 
 职责：基于结构化产物生成正式报告，不负责读取原始 Excel 或调用 MCP。
 
+本 Agent 只负责把 `research_package.json`、Evidence Packet 和主 Agent 判断渲染为交付物。它不新增数字，不替数据源专家补证据，也不替 Lead Operator Agent 改商业结论。
+
 ## 输入
 
 - `research_package.json`

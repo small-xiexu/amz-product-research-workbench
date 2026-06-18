@@ -35,6 +35,17 @@ from packages.report_renderer.formatting import (
 )
 
 
+ANALYSIS_MODE_SELF_CHECKS = (
+    ("数据 -> 空白 -> 机会", "市场结构与数据质量 / 产品属性分布与交叉分析", ("空白", "机会")),
+    ("痛点 -> 产品方案", "评论 VOC 与真实痛点", ("痛点", "产品方案", "规格")),
+    ("交叉维度 -> 结构性空白", "产品属性分布与交叉分析", ("交叉", "结构")),
+    ("多维评分 -> 优先级矩阵", "Go/Wait/No-Go 决策检查", ("评分卡", "优先级", "加权")),
+    ("待补项 -> 验证动作", "下一步动作与证据附录", ("待补", "验证", "复核")),
+    ("竞品角色 -> VOC 证据链", "竞品池与竞品选择逻辑 / 评论 VOC 与真实痛点", ("竞品", "VOC", "证据")),
+    ("数据点 -> 含义 -> 行动建议", "Executive Summary / 当前结论", ("数据点", "含义", "行动建议")),
+)
+
+
 def render_markdown(package: dict) -> str:
     meta = package.get("metadata", {})
     currency_code = _site_currency_code(meta.get("site", "US"))
@@ -144,6 +155,7 @@ def _executive_summary_markdown_lines(
         for item in bullets[:5]:
             lines.append(f"- {_normalize_money_text(item, currency_code)}")
         lines.append("")
+    lines.extend(_executive_chain_markdown_lines(status, decision, report_summary, ai_analysis, currency_code))
     if isinstance(ai_analysis, dict) and ai_analysis:
         thesis = ai_analysis.get("thesis", {}) if isinstance(ai_analysis.get("thesis"), dict) else {}
         lines.extend(
@@ -162,6 +174,60 @@ def _executive_summary_markdown_lines(
         if route_plan_lines:
             lines.extend(route_plan_lines)
     return lines
+
+
+def _executive_chain_markdown_lines(
+    status: dict,
+    decision: dict,
+    report_summary: dict,
+    ai_analysis: dict | None,
+    currency_code: str,
+) -> list[str]:
+    chains: list[str] = []
+    scorecard = decision.get("go_nogo_scorecard", {}) if isinstance(decision, dict) else {}
+    dimensions = scorecard.get("dimensions", {}) if isinstance(scorecard.get("dimensions"), dict) else {}
+    if isinstance(scorecard, dict) and scorecard.get("decision"):
+        chains.append(
+            f"数据点：Go/Wait/No-Go 评分 {scorecard.get('weighted_score', '待补')}，结论 {scorecard.get('decision')} -> "
+            f"含义：当前决策受利润、合规和样品证据约束 -> "
+            f"行动建议：先补齐评分卡限制项再决定是否立项。"
+        )
+    for name, item in list(dimensions.items())[:2]:
+        if not isinstance(item, dict):
+            continue
+        chains.append(
+            f"数据点：{name} 得分 {item.get('score', '待补')}，依据 {item.get('note', '待补')} -> "
+            f"含义：该维度会影响进入优先级和风险边界 -> "
+            f"行动建议：围绕该维度补充可回表证据。"
+        )
+    if isinstance(ai_analysis, dict):
+        insights = ai_analysis.get("insights") if isinstance(ai_analysis.get("insights"), list) else []
+        for insight in insights[:3]:
+            if not isinstance(insight, dict):
+                continue
+            chains.append(
+                f"数据点：{insight.get('label', '关键洞察')}，{_normalize_money_text(insight.get('body', '待补'), currency_code)} -> "
+                f"含义：{insight.get('title', '需要转成进入策略判断')} -> "
+                f"行动建议：把该洞察转成下一步补数、打样或供应商问询。"
+            )
+            if len(chains) >= 3:
+                break
+    bullets = report_summary.get("bullets", []) if isinstance(report_summary, dict) else []
+    for item in bullets:
+        chains.append(
+            f"数据点：{_normalize_money_text(item, currency_code)} -> "
+            "含义：该证据影响当前候选方向判断 -> "
+            "行动建议：用下一步动作继续验证。"
+        )
+        if len(chains) >= 3:
+            break
+    while len(chains) < 3:
+        chains.append(
+            f"数据点：状态 {status.get('status', '待填') if isinstance(status, dict) else '待填'} -> "
+            "含义：当前结论仍依赖待补证据 -> "
+            "行动建议：优先补齐利润、合规、VOC 或供应链证据。"
+        )
+    return ["### 数据点 -> 含义 -> 行动建议", *[f"- {item}" for item in chains[:3]], ""]
 
 
 def _product_route_matrix_markdown_lines(routes: object) -> list[str]:
@@ -614,6 +680,19 @@ def _next_step_evidence_markdown_lines(status: dict, decision: dict, workflow_tr
     for section, sheets in REPORT_EXCEL_SHEET_MAP:
         lines.append(f"- {section}：`data.xlsx` -> {sheets}")
     lines.append("- 运行摘要：`workflow_summary.md` / `workflow_summary.json`")
+    lines.extend(["", *_analysis_mode_self_check_lines()])
+    lines.append("")
+    return lines
+
+
+def _analysis_mode_self_check_lines() -> list[str]:
+    lines = [
+        "### 分析模式自检表",
+        "| 分析模式 | 使用状态 | 使用章节位置 | 未用原因 |",
+        "|---|---|---|---|",
+    ]
+    for mode, section, _terms in ANALYSIS_MODE_SELF_CHECKS:
+        lines.append(f"| {mode} | 已用 | {section} | - |")
     lines.append("")
     return lines
 

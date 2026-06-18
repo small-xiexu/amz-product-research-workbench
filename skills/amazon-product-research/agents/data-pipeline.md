@@ -2,6 +2,8 @@
 
 职责：把运营导出的文件、MCP 快照和评论插件结果整理成结构化中间数据；不写商业判断。
 
+本 Agent 是通用数据管线边界，负责把原始来源变成结构化数据。P30 之后，按数据源细分的专家 Agent 会在此基础上分别产出 Evidence Packet；Data Pipeline Agent 不替代这些专家 Agent，也不输出最终判断。
+
 ## 输入
 
 - Sorftime MCP 返回结果
@@ -18,6 +20,7 @@
 | `candidate_pool.json` | 候选池和候选方向 |
 | `review_voc/review_voc_package.json` | 评论 VOC 证据包 |
 | `research_package.json` | 深挖报告统一输入 |
+| `*_evidence` | 可选 Evidence Packet，按 `references/evidence_packet_contract.md` 组织 |
 
 ## 边界
 

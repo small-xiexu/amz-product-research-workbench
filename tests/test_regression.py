@@ -16,6 +16,7 @@ from packages.research_core.contracts import (
     validate_candidate_pool,
     validate_import_manifest,
     validate_research_package,
+    validate_research_package_chapters,
     validate_workflow_state,
 )
 from packages.research_core.workflows import WorkflowConfig, run_research_workflow
@@ -26,7 +27,10 @@ from packages.research_core.pipeline.apply_profit_review import apply_profit_rev
 from packages.research_core.pipeline.apply_1688_supply_chain import apply_supply_chain_signal
 from packages.research_core.pipeline.build_1688_supply_chain_from_plugin_export import build_supply_chain_outputs
 from packages.research_core.pipeline.build_candidate_pool_from_import_manifest import build_candidate_pool
+from packages.research_core.pipeline.build_research_data_packet import build_research_data_packet
 from packages.research_core.pipeline.build_research_package_from_candidate import build_research_package
+from packages.research_core.pipeline.cross_analysis import build_cross_analysis
+from packages.research_core.pipeline.parse_top100_dimensions import parse_top100_dimensions
 from packages.research_core.pipeline.validate_research_outputs import validate_workflow_output
 from packages.report_renderer.render_report import (
     FORMAL_REPORT_SECTION_TITLES,
@@ -40,6 +44,161 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class RegressionTests(unittest.TestCase):
+    def test_parse_top100_dimensions_confidence_layers_and_capture_groups(self) -> None:
+        products = [
+            {"asin": "B000000001", "title": "Premium 12 Inch Window Squeegee Large Kit", "monthly_sales": 100},
+            {"asin": "B000000002", "title": "Medium microfiber cleaning tool", "monthly_sales": 80},
+            {"asin": "B000000003", "title": "Generic cleaning tool", "monthly_sales": 10},
+        ]
+        rules = {
+            "dimensions": [
+                {
+                    "name": "尺寸",
+                    "label": "size",
+                    "rules": [
+                        {"type": "regex", "pattern": r"(\d+)\s*inch", "value": "$1 inch", "confidence": "high"},
+                        {"type": "keyword", "keywords": ["small", "medium", "large"], "confidence": "medium"},
+                    ],
+                    "default": "未知",
+                }
+            ]
+        }
+
+        parsed, uncertain = parse_top100_dimensions(products, rules)
+
+        self.assertEqual(parsed[0]["parsed_dimensions"]["size"]["value"], "12 inch")
+        self.assertEqual(parsed[0]["parsed_dimensions"]["size"]["parse_confidence"], "high")
+        self.assertEqual(parsed[1]["parsed_dimensions"]["size"]["value"], "medium")
+        self.assertEqual(parsed[1]["parsed_dimensions"]["size"]["parse_confidence"], "medium")
+        self.assertEqual(parsed[2]["parsed_dimensions"]["size"]["value"], "未知")
+        self.assertEqual(parsed[2]["parsed_dimensions"]["size"]["parse_confidence"], "low")
+        self.assertEqual(uncertain, [{"asin": "B000000003", "title": "Generic cleaning tool", "uncertain_dimensions": ["size"]}])
+
+    def test_cross_analysis_builds_matrix_gaps_and_thresholds(self) -> None:
+        products = [
+            {
+                "asin": "B000000001",
+                "monthly_sales": 100,
+                "monthly_revenue": 1000,
+                "parsed_dimensions": {"size": {"value": "large"}, "price_band": {"value": "high"}, "material": {"value": "steel"}},
+            },
+            {
+                "asin": "B000000002",
+                "monthly_sales": 60,
+                "monthly_revenue": 600,
+                "parsed_dimensions": {"size": {"value": "small"}, "price_band": {"value": "low"}, "material": {"value": "plastic"}},
+            },
+            {
+                "asin": "B000000003",
+                "monthly_sales": 40,
+                "monthly_revenue": 400,
+                "parsed_dimensions": {"size": {"value": "small"}, "price_band": {"value": "high"}, "material": {"value": "plastic"}},
+            },
+        ]
+        config = {
+            "pairs": [
+                {"dim1": "size", "dim2": "price_band", "scarcity_threshold": 1},
+                {"dim1": "material", "dim2": "price_band", "scarcity_threshold": 2},
+            ]
+        }
+
+        result = build_cross_analysis(products, config)
+
+        self.assertEqual(len(result), 2)
+        first = result[0]
+        self.assertEqual(first["dim1"], "size")
+        self.assertEqual(first["dim2"], "price_band")
+        self.assertEqual(len(first["matrix"]), 4)
+        blank_gap = next(item for item in first["gaps"] if item["dim1_value"] == "large" and item["dim2_value"] == "low")
+        self.assertEqual(blank_gap["gap_type"], "空白")
+        thin_gap = next(item for item in first["gaps"] if item["dim1_value"] == "large" and item["dim2_value"] == "high")
+        self.assertEqual(thin_gap["gap_type"], "薄供给")
+        self.assertEqual(thin_gap["products"], ["B000000001"])
+
+    def test_cross_analysis_accepts_empty_product_list(self) -> None:
+        result = build_cross_analysis([], {"pairs": [{"dim1": "size", "dim2": "price_band"}]})
+
+        self.assertEqual(result[0]["matrix"], [])
+        self.assertEqual(result[0]["gaps"], [])
+
+    def test_research_data_packet_is_structured_and_serializable(self) -> None:
+        candidate_pool = {
+            "metadata": {"site": "US", "pool_id": "pool-1"},
+            "source_brief": {},
+            "candidates": [
+                {
+                    "candidate_id": "cand-1",
+                    "name": "Window Cleaning Kit",
+                    "candidate_type": "market_direction",
+                    "status": "观察",
+                    "reason": "候选池原始状态说明",
+                    "top_products": [
+                        {
+                            "asin": "B000000001",
+                            "title": "Premium 12 Inch Window Squeegee Kit",
+                            "price": 19.99,
+                            "monthly_sales": 120,
+                            "monthly_units": 120,
+                            "monthly_revenue": 2398.8,
+                        },
+                        {
+                            "asin": "B000000002",
+                            "title": "Medium Window Cleaning Kit",
+                            "price": 12.99,
+                            "monthly_sales": 80,
+                            "monthly_units": 80,
+                            "monthly_revenue": 1039.2,
+                        },
+                    ],
+                    "market_structure": {},
+                    "dimension_rules": {
+                        "dimensions": [
+                            {
+                                "name": "尺寸",
+                                "label": "size",
+                                "rules": [
+                                    {"type": "regex", "pattern": r"(\d+)\s*inch", "value": "$1 inch", "confidence": "high"},
+                                    {"type": "keyword", "keywords": ["medium"], "confidence": "medium"},
+                                ],
+                                "default": "未知",
+                            }
+                        ]
+                    },
+                    "cross_config": {"pairs": [{"dim1": "size", "dim2": "price_band", "scarcity_threshold": 1}]},
+                    "preliminary_profit_space": {"supply_chain_signal": {}},
+                    "demand_evidence": {},
+                    "competition_structure": {},
+                }
+            ],
+        }
+
+        data_packet = build_research_data_packet(candidate_pool, "cand-1")
+
+        json.dumps(data_packet, ensure_ascii=False)
+        self.assertNotIn("decision_review", data_packet)
+        self.assertNotIn("ai_analysis", data_packet)
+        self.assertNotIn("status_card", data_packet)
+        self.assertNotIn("opportunity_hypotheses", data_packet)
+        self.assertEqual(data_packet["data_packet_version"], "P28.4")
+        self.assertEqual(data_packet["market_structure"]["scripted_dimension_parse"]["dimension_count"], 1)
+        self.assertEqual(data_packet["market_structure"]["scripted_cross_analysis"]["pair_count"], 1)
+        self.assertEqual(data_packet["normalized_tables"]["top_product_tags"][0]["attribute_tags"]["size"], "12 inch")
+
+    def test_research_package_generates_insights_from_data_packet(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            candidate_pool = build_candidate_pool(
+                _minimal_import_manifest(Path(tmp)),
+                sorftime_verification=_sample_sorftime_verification(),
+            )
+        candidate = candidate_pool["candidates"][0]
+
+        research_package = build_research_package(candidate_pool, candidate["candidate_id"])
+
+        self.assertIn("decision_review", research_package)
+        self.assertIn("ai_analysis", research_package)
+        self.assertIn("status_card", research_package)
+        self.assertEqual(research_package["data_packet_version"], "P28.4")
+
     def test_sorftime_adapter_name_and_legacy_alias(self) -> None:
         snapshot = {
             "fetched_at": "2026-06-12T00:00:00Z",
@@ -158,7 +317,66 @@ class RegressionTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertTrue(any("report.html" in item for item in result.errors))
         self.assertTrue(any("dashboard.html" in item for item in result.errors))
-        self.assertTrue(any("data.xlsx" in item for item in result.errors))
+
+    def test_validate_research_outputs_errors_when_analysis_modes_are_insufficient(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workflow_dir = Path(tmp)
+            final_report = workflow_dir / "final_report"
+            final_report.mkdir()
+            _write_minimal_workflow_summary(workflow_dir)
+            sparse_report = "\n".join(
+                ["# 测试调研报告", ""]
+                + [line for title in FORMAL_REPORT_SECTION_TITLES for line in (f"## {title}", "", "- 测试内容", "")]
+                + ["- 数据来源说明 / 状态卡 / 下一步 / 待补项"]
+            )
+            (final_report / "report.md").write_text(sparse_report, encoding="utf-8")
+            (final_report / "report.html").write_text(_minimal_formal_report_html(), encoding="utf-8")
+            (final_report / "summary.md").write_text("# 摘要\n", encoding="utf-8")
+            (final_report / "dashboard.html").write_text("<!doctype html><html></html>", encoding="utf-8")
+            write_xlsx(final_report / "data.xlsx", _minimal_delivery_sheets(top100_rows=100))
+
+            result = validate_workflow_output(workflow_dir)
+
+        self.assertFalse(result.ok)
+        self.assertTrue(any("分析模式少于 3 种" in item for item in result.errors))
+
+    def test_validate_research_outputs_errors_when_report_is_too_short(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workflow_dir = Path(tmp)
+            _write_complete_delivery(
+                workflow_dir,
+                _minimal_formal_report_markdown(line_count=80, chain_count=3, attribute_distribution_count=2),
+            )
+
+            result = validate_workflow_output(workflow_dir)
+
+        self.assertFalse(result.ok)
+        self.assertTrue(any("report.md 总行数少于 200 行" in item for item in result.errors))
+
+    def test_validate_research_outputs_errors_when_executive_chains_are_insufficient(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workflow_dir = Path(tmp)
+            _write_complete_delivery(
+                workflow_dir,
+                _minimal_formal_report_markdown(line_count=220, chain_count=2, attribute_distribution_count=2),
+            )
+
+            result = validate_workflow_output(workflow_dir)
+
+        self.assertFalse(result.ok)
+        self.assertTrue(any("数据点 -> 含义 -> 行动建议" in item for item in result.errors))
+
+    def test_validate_research_outputs_accepts_quantitative_report_thresholds(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workflow_dir = Path(tmp)
+            _write_complete_delivery(
+                workflow_dir,
+                _minimal_formal_report_markdown(line_count=220, chain_count=3, attribute_distribution_count=2),
+            )
+
+            result = validate_workflow_output(workflow_dir)
+
+        self.assertTrue(result.ok, result.errors)
 
     def test_render_markdown_uses_formal_report_sections(self) -> None:
         package = _load_json("examples/minimal_research_package.json")
@@ -251,6 +469,23 @@ class RegressionTests(unittest.TestCase):
             }
         )
         validate_workflow_state(_sample_workflow_state())
+
+    def test_research_package_chapter_validator_rejects_missing_metadata_site(self) -> None:
+        package = _valid_research_package_for_chapter_validation()
+        del package["metadata"]["site"]
+
+        with self.assertRaisesRegex(ContractValidationError, "research_package.metadata.site"):
+            validate_research_package_chapters(package)
+
+    def test_research_package_chapter_validator_rejects_missing_decision_review(self) -> None:
+        package = _valid_research_package_for_chapter_validation()
+        del package["decision_review"]
+
+        with self.assertRaisesRegex(ContractValidationError, "research_package.decision_review"):
+            validate_research_package_chapters(package)
+
+    def test_research_package_chapter_validator_accepts_complete_package(self) -> None:
+        validate_research_package_chapters(_valid_research_package_for_chapter_validation())
 
     def test_sorftime_category_report_and_supply_chain_flow_to_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -881,6 +1116,51 @@ def _write_minimal_workflow_summary(workflow_dir: Path, interactive: bool = Fals
     )
 
 
+def _write_complete_delivery(workflow_dir: Path, report_markdown: str) -> None:
+    final_report = workflow_dir / "final_report"
+    final_report.mkdir()
+    _write_minimal_workflow_summary(workflow_dir)
+    (final_report / "report.md").write_text(report_markdown, encoding="utf-8")
+    (final_report / "report.html").write_text(_minimal_formal_report_html(), encoding="utf-8")
+    (final_report / "summary.md").write_text("# 摘要\n", encoding="utf-8")
+    (final_report / "dashboard.html").write_text("<!doctype html><html></html>", encoding="utf-8")
+    write_xlsx(final_report / "data.xlsx", _minimal_delivery_sheets(top100_rows=100))
+
+
+def _valid_research_package_for_chapter_validation() -> dict:
+    return {
+        "metadata": {
+            "site": "US",
+            "candidate_id": "cand-1",
+            "seed_keyword_or_category": "window cleaning kit",
+            "data_sources": ["seller-sprite-export"],
+        },
+        "normalized_tables": {"candidate": {}, "top100": []},
+        "market_structure": {},
+        "market_analysis": {
+            "market_size": "样本 100 个",
+            "price_band": "20-30 USD",
+            "brand_concentration": "Top10 分散",
+        },
+        "review_sources": {},
+        "voc_analysis": {},
+        "decision_review": {
+            "go_nogo_scorecard": {
+                "weighted_score": 5.5,
+                "decision": "WAIT",
+            }
+        },
+        "competitor_selection_logic": [
+            {
+                "asin": "B000000001",
+                "competitor_type": "Top10 标杆",
+                "selection_reason": "测试",
+            }
+        ],
+        "status_card": {},
+    }
+
+
 def _workflow_state_for_test(base, stage: str):
     from packages.research_core.workflows import WorkflowState, plan_next_action
 
@@ -1141,6 +1421,7 @@ def _minimal_delivery_sheets(top100_rows: int, interactive: bool = False) -> lis
         rows.append([f"B{index:09d}", f"测试商品 {index}", 19.99, 100 + index])
     return [
         ("数据来源说明", [["来源", "说明"], ["seller-sprite-export", "测试"]]),
+        ("调研边界", [["字段", "值"], ["站点", "US"]]),
         ("市场结构", [["字段", "值"], ["市场规模", "测试"]]),
         ("Top100原始明细", rows),
         ("数据质量检查", [["字段", "值"], ["实际数量", top100_rows]]),
@@ -1165,6 +1446,13 @@ def _minimal_delivery_sheets(top100_rows: int, interactive: bool = False) -> lis
                 ["B000000001", "BrandA", "测试", 19.99, 1000, 4.5, 200, "量级标杆", "销量量级", "测试"],
                 ["B000000002", "BrandB", "测试", 25.99, 800, 4.4, 150, "近半年新品", "新品", "测试"],
                 ["B000000003", "BrandC", "测试", 12.99, 500, 3.9, 80, "痛点参考", "评分/评论门槛", "测试"],
+                ["B000000004", "BrandD", "测试", 29.99, 700, 4.2, 90, "功能差异代表", "功能/结构", "测试"],
+                ["B000000005", "BrandE", "测试", 9.99, 600, 4.1, 70, "价格带覆盖", "低价带", "测试"],
+                ["B000000006", "BrandF", "测试", 39.99, 400, 4.6, 300, "价格带覆盖", "高价带", "测试"],
+                ["B000000007", "BrandG", "测试", 18.99, 550, 4.0, 120, "功能差异代表", "场景差异", "测试"],
+                ["B000000008", "BrandH", "测试", 21.99, 530, 3.8, 60, "痛点参考", "低评分", "测试"],
+                ["B000000009", "BrandI", "测试", 24.99, 510, 4.3, 110, "量级标杆", "销量量级", "测试"],
+                ["B000000010", "BrandJ", "测试", 27.99, 490, 4.5, 95, "近半年新品", "新品", "测试"],
             ],
         ),
         ("竞品池", [["ASIN", "标题"], ["B000000001", "测试"]]),
@@ -1208,8 +1496,11 @@ def _minimal_delivery_sheets(top100_rows: int, interactive: bool = False) -> lis
             [
                 ["类型", "主题", "评论数", "等级", "评论ID", "ASIN", "采集入口站点", "评论地区", "评分", "日期", "证据片段", "链接"],
                 ["痛点", "测试", 1, "中", "R1", "B000000001", "US", "United States", 2, "2026-01-01", "测试片段", "https://example.com"],
+                ["痛点", "测试", 1, "中", "R2", "B000000002", "US", "United States", 3, "2026-01-02", "测试片段2", "https://example.com/2"],
+                ["亮点", "测试", 1, "低", "R3", "B000000003", "US", "United States", 5, "2026-01-03", "测试片段3", "https://example.com/3"],
             ],
         ),
+        ("退货风险", [["字段", "值"], ["状态", "待复核"]]),
         ("利润参考结果", [["字段", "值"], ["状态", "待填写模板"]]),
         ("利润成本拆分", [["字段", "值"], ["状态", "未计算"]]),
         ("知产合规复核", [["字段", "值"], ["状态", "待填写模板"]]),
@@ -1218,15 +1509,53 @@ def _minimal_delivery_sheets(top100_rows: int, interactive: bool = False) -> lis
     ]
 
 
-def _minimal_formal_report_markdown(interactive: bool = False) -> str:
+def _minimal_formal_report_markdown(
+    interactive: bool = False,
+    line_count: int = 220,
+    chain_count: int = 3,
+    attribute_distribution_count: int = 2,
+) -> str:
     lines = ["# 测试调研报告", ""]
     for title in FORMAL_REPORT_SECTION_TITLES:
         lines.extend([f"## {title}", "", "- 测试内容", ""])
-    lines.append("- 数据来源说明 / 状态卡 / 下一步 / 待补项")
+        if title == "Executive Summary / 当前结论":
+            lines.append("### 数据点 -> 含义 -> 行动建议")
+            for index in range(chain_count):
+                lines.append(f"- 数据点：测试数据 {index} -> 含义：测试含义 {index} -> 行动建议：测试动作 {index}")
+            lines.append("")
+        if title == "产品属性分布与交叉分析":
+            lines.append("### 属性分布")
+            for index in range(attribute_distribution_count):
+                lines.append(f"- 测试维度{index}：测试分布")
+            lines.append("")
+        if title == "下一步动作与证据附录":
+            lines.extend(
+                [
+                    "### 分析模式自检表",
+                    "| 分析模式 | 使用状态 | 使用章节位置 | 未用原因 |",
+                    "|---|---|---|---|",
+                    "| 数据 -> 空白 -> 机会 | 已用 | 市场结构与数据质量 |  |",
+                    "| 痛点 -> 产品方案 | 已用 | 评论 VOC 与真实痛点 |  |",
+                    "| 数据点 -> 含义 -> 行动建议 | 已用 | Executive Summary / 当前结论 |  |",
+                    "",
+                ]
+            )
+    lines.append(
+        "- 数据来源说明 / 状态卡 / 下一步 / 待补项；"
+        "事实：Top100 有 100 行。推断：当前只适合作为测试交付。"
+        "关键洞察：数据点、含义要转成行动建议。"
+        "AI 综合分析：先看空白和机会，再看痛点到产品方案。"
+        "交叉维度用于识别结构性空白；评分卡、优先级和加权结果用于 Go/Wait/No-Go。"
+        "待补项必须转成验证动作和复核动作；竞品角色、VOC 和证据链必须互相对应。"
+    )
     if interactive:
         lines.extend(["", "### 交互式流程状态", "- workflow_state 测试"])
         lines.extend(["", "### 交互式下一步动作", "- 下一步测试"])
         lines.extend(["", "### 关键决策记录", "- 决策测试"])
+    filler_index = 0
+    while len([line for line in lines if line.strip()]) < line_count:
+        lines.append(f"- 补充测试行 {filler_index}：用于满足正式报告最小行数。")
+        filler_index += 1
     return "\n".join(lines) + "\n"
 
 

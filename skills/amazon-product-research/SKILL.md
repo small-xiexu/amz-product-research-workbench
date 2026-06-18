@@ -11,7 +11,7 @@
 主链路：
 
 ```text
-Codex 对话 -> Sorftime MCP -> 卖家精灵导出 -> 本地脚本 -> 评论 VOC -> 利润/合规待补 -> 最终报告 -> 校验
+Codex 对话 -> Sorftime MCP -> 卖家精灵导出 -> 本地脚本 -> 评论 VOC -> 1688 供应链 -> 利润/合规待补 -> 最终报告 -> 校验
 ```
 
 执行时优先参考：
@@ -19,9 +19,15 @@ Codex 对话 -> Sorftime MCP -> 卖家精灵导出 -> 本地脚本 -> 评论 VOC
 - `README.md`：本 Skill 的最短使用说明
 - `references/codex_runbook.md`：Codex 跑通步骤
 - `references/artifact_contract.md`：每轮产物目录和命名规则
-- `agents/data-pipeline.md`：数据清洗和结构化边界
-- `agents/decision-coach.md`：运营决策暂停点
-- `agents/report-writer.md`：报告生成边界
+- `references/evidence_packet_contract.md`：多 Agent 证据包交接契约
+- `agents/market-structure-agent.md`：卖家精灵市场结构证据
+- `agents/search-demand-agent.md`：Sorftime 搜索需求证据
+- `agents/voc-evidence-agent.md`：评论 VOC 证据
+- `agents/supply-chain-agent.md`：1688 供应链证据
+- `agents/profit-compliance-agent.md`：利润/合规/退货风险证据
+- `agents/lead-operator-agent.md`：资深亚马逊运营主 Agent 综合判断
+- `agents/delivery-qa-agent.md`：交付质量和证据边界检查
+- `agents/data-pipeline.md`、`agents/decision-coach.md`、`agents/report-writer.md`：通用数据管线、暂停点和报告生成边界
 
 Web 页面只作为后续外壳，底层链路未跑通前不继续扩展 Web。
 
@@ -37,6 +43,39 @@ Web 页面只作为后续外壳，底层链路未跑通前不继续扩展 Web。
 - **控制积分**：Sorftime 工具按阶段精确调用，不重复，不在方向未定时跑重工具
 - **专家分析前提**：最终报告的 `AI 综合分析` 必须以资深亚马逊运营专家视角完成，综合卖家精灵、Sorftime、评价插件 VOC 和 1688 插件供应链数据；数据越多越要分清事实、推断、风险和待补动作
 - **多路线深挖前置**：候选池出来后，必须先拆产品路线（主线 / 升级 / 旁支 / 排除），每条保留路线都要做路线级小深挖，再决定哪 1-2 条进入完整深挖。不能等运营提醒才补分支路线。
+
+---
+
+## 轻量多 Agent 协作口径
+
+本 Skill 采用 **多源专家 Agent + 资深亚马逊运营主 Agent + QA Agent** 的轻量协作方式。当前不引入自动多 Agent 调度，不改变 CLI 和四源融合脚本；Agent 分工先作为 Skill 执行边界和报告写作约束。
+
+| Agent | 角色 | 负责数据源 | 产出 |
+|---|---|---|---|
+| Market Structure Agent | 市场结构分析师 | 卖家精灵 | `market_structure_evidence` |
+| Search Demand Agent | 搜索需求分析师 | Sorftime MCP | `search_demand_evidence` |
+| VOC Evidence Agent | 用户痛点产品经理 | 评论插件 | `voc_evidence` |
+| Supply Chain Agent | 供应链验证专家 | 1688 插件 / Sorftime 1688 工具 | `supply_chain_evidence` |
+| Profit Compliance Agent | 财务与风控复核员 | 利润/合规模板 | `profit_compliance_evidence` |
+| Lead Operator Agent | 资深亚马逊运营负责人 | 读取所有证据包 | 综合路线优先级、Go/Wait/No-Go、下一步动作 |
+| Delivery QA Agent | 交付质检员 | 最终产物和校验结果 | 交付状态、证据边界问题、缺口清单 |
+
+协作顺序：
+
+```text
+各数据源专家 Agent 产出 Evidence Packet
+-> Lead Operator Agent 以资深亚马逊运营负责人视角整合
+-> Report Writer 生成正式交付物
+-> Delivery QA Agent 校验文件、证据边界和越权问题
+```
+
+硬边界：
+
+- 专家 Agent 只产证据、缺口、置信度和待补动作，不直接给 Go/No-Go。
+- Lead Operator Agent 是唯一输出最终运营判断的 Agent。
+- Lead Operator Agent 不新增原始数字；所有关键数字必须来自 Evidence Packet 或 `research_package.json`。
+- Delivery QA Agent 不改商业判断，只检查交付是否完整、证据是否可追溯、是否存在越权。
+- `research_package.json` 仍是正式报告唯一事实源；Evidence Packet 是协作口径，不替代现有产物。
 
 ---
 
@@ -424,6 +463,7 @@ python3 scripts/apply_ip_compliance_review.py <合规模板> <research_package.j
 
 - **Top100 不完整，不出正式深挖结论**，可给初步判断但明确标注数据质量限制
 - **所有结论必须能回溯到具体数据来源**，不拍脑袋，不说"通常情况下"
+- **多 Agent 不越权**：卖家精灵、Sorftime、VOC、1688、利润/合规专家 Agent 只能输出证据包；最终 Go/Wait/No-Go 只能由 Lead Operator Agent 基于全部证据整合后给出
 - **混池要主动识别**，不把不同产品形态、使用场景或规格路线的数据加总分析
 - **多路线必须主动深挖**：候选池形成后先输出产品路线矩阵；主线和升级路线必须有路线级小深挖计划，旁支必须说明观察理由；禁止只因为某个供应商看起来最像就跳过其他路线。
 - **采购成本口径只看 1688 中国站人民币价**：当前通过 Sorftime MCP `ali1688_similar_product` 间接查询；有效样本必须来自 `https://www.1688.com/` 或 `*.1688.com` 详情页，价格原始币种必须是 RMB/CNY；`searchName` 必须用中文品类词；禁止用 Alibaba 国际站 USD 报价替代。
@@ -468,7 +508,9 @@ python3 scripts/apply_ip_compliance_review.py <合规模板> <research_package.j
 - [ ] Stage 4：双源合并分析已完成，候选方向结论有双源数据支撑，并输出产品路线矩阵
 - [ ] Stage 5：路线矩阵已校准，路线级小深挖计划已输出（含每条保留路线的卖家精灵、Sorftime、评价 ASIN、1688 搜索词和判断门槛）
 - [ ] Stage 6：评论 VOC 分析已完成（有效评论 ≥ 30 条，痛点有原文片段支撑）
+- [ ] Stage 7：多源 Evidence Packet 已按 `references/evidence_packet_contract.md` 组织，专家 Agent 未越权输出最终决策
 - [ ] Stage 7：深挖报告已生成，通过 `validate_research_outputs.py`
+- [ ] Stage 7：校验 warning 已阅读；报告质量、分析模式、竞品/VOC 覆盖和 Excel 回表缺口已处理或写明影响
 - [ ] Stage 8：利润模板 + 合规模板已回填（或明确标注 Wait）
 - [ ] Stage 9：Go/Wait/No-Go 已在对话中给出（含核心依据 + 下一步 3 件事）
 
@@ -480,7 +522,10 @@ python3 scripts/apply_ip_compliance_review.py <合规模板> <research_package.j
 - `docs/架构原则.md` — 脚本/Claude 分工说明
 - `docs/选品系统方向锚点.md` — 选品系统核心不变量
 - `docs/分析模式库.md` — 6 种分析模式（数据→机会、痛点→产品方案等）
+- `docs/正式报告契约.md` — 12 章正式报告、Excel 回表和交付校验规则
 - `docs/卖家精灵手动导出数据清单.md` — 卖家精灵导出步骤
+- `skills/amazon-product-research/references/evidence_packet_contract.md` — 多 Agent Evidence Packet 交接契约
+- `skills/amazon-product-research/agents/lead-operator-agent.md` — 资深亚马逊运营主 Agent 口径
 
 ---
 

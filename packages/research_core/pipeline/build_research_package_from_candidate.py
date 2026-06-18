@@ -10,6 +10,8 @@ import sys
 from typing import Any
 import argparse
 
+from packages.research_core.contracts import validate_research_package_chapters
+
 
 PREFERRED_STATUSES = ("继续看", "试做", "观察", "先放弃")
 
@@ -276,19 +278,14 @@ def build_research_package(
     voc_package: dict[str, Any] | None = None,
     route_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    candidate = _select_candidate(candidate_pool.get("candidates", []), candidate_id)
-    if route_profile:
-        candidate = {**candidate, "product_route_profile": route_profile}
-    metadata = candidate_pool.get("metadata", {})
-    source_brief = candidate_pool.get("source_brief", {})
-    competition = candidate.get("competition_structure", {})
+    from packages.research_core.pipeline.build_research_data_packet import build_research_data_packet
+
+    data_packet = build_research_data_packet(candidate_pool, candidate_id, voc_package, route_profile)
+    candidate = data_packet["normalized_tables"]["candidate"]
     profit_space = candidate.get("preliminary_profit_space", {})
     competitor_candidates = candidate.get("competitor_candidates", {})
-    market_structure = candidate.get("market_structure", {})
     status = candidate.get("status", "观察")
     supply_chain_signal = profit_space.get("supply_chain_signal", {}) if isinstance(profit_space, dict) else {}
-    voc_analysis = _build_voc_analysis(voc_package)
-    voc_review_sources = _build_review_sources(voc_package)
     voc_opportunities = _build_voc_opportunities(voc_package, candidate.get("candidate_id"))
     voc_summary_line = _voc_summary_line(voc_package)
     entry_barriers = _build_entry_barriers(candidate)
@@ -305,77 +302,8 @@ def build_research_package(
     )
 
     package = {
-        "metadata": {
-            "site": metadata.get("site", source_brief.get("site", "US")),
-            "seed_keyword_or_category": candidate.get("name", "未命名候选方向"),
-            "product_shape": f"{candidate.get('candidate_type', 'candidate')}：{candidate.get('reason', '')}",
-            "generated_at": metadata.get("generated_at", ""),
-            "data_sources": metadata.get("data_sources", []) + candidate.get("source_refs", []),
-            "candidate_id": candidate.get("candidate_id"),
-            "candidate_pool_id": metadata.get("pool_id"),
-        },
-        "constraints": {
-            "exclusion_rules": source_brief.get("exclusion_rules", []),
-            "preference_rules": source_brief.get("preference_rules", {}),
-        },
-        "operator_inputs": {
-            "target_price_range": profit_space.get("price_band", "待补"),
-            "purchase_cost": _supply_chain_purchase_cost_text(supply_chain_signal),
-            "exchange_rate": "待补",
-            "fba_fee": "待补",
-            "storage_fee": "按建议售价 3% 待算",
-            "inbound_placement_fee": "待补",
-            "ad_rate_assumption": 0.2,
-            "return_rate_assumption": "待补",
-        },
-        "product_flags": candidate.get("risk_flags", []),
-        "raw_sources": {
-            "candidate_pool": {
-                "pool_id": metadata.get("pool_id"),
-                "candidate_id": candidate.get("candidate_id"),
-                "source_refs": candidate.get("source_refs", []),
-            },
-            "review_voc_package": voc_review_sources,
-        },
-        "normalized_tables": {
-            "candidate": candidate,
-            "top100": candidate.get("top_products", []),
-            "top_product_tags": market_structure.get("tagged_products", []),
-            "voc_evidence": _collect_voc_evidence(voc_package),
-        },
-        "market_structure": market_structure,
-        "market_analysis": {
-            "market_size": _market_size_text(candidate),
-            "price_band": _price_band_text(candidate),
-            "brand_concentration": _brand_concentration_text(candidate),
-            "seller_concentration": _seller_concentration_text(candidate),
-            "new_listing_ratio": _new_listing_text(candidate),
-            "return_rate": _return_rate_text(candidate),
-            "sorftime_category_report": candidate.get("demand_evidence", {}).get("sorftime_category_report", {}),
-        },
-        "keyword_analysis": {
-            "search_signal": candidate.get("demand_evidence", {}).get("search_signal", "待填"),
-            "trend_signal": candidate.get("demand_evidence", {}).get("trend_signal", "待填"),
-        },
-        "competitor_pool": {
-            "top10": _competitor_items(competitor_candidates.get("top10", [])),
-            "recent_winners": _competitor_items(competitor_candidates.get("recent_winners", [])),
-            "structure_supplement": _competitor_items(competitor_candidates.get("structure_supplement", [])),
-        },
+        **data_packet,
         "competitor_selection_logic": _build_competitor_selection_logic(candidate),
-        "profit_reference": {
-            "base_fba_gross_profit": "待补",
-            "base_fba_margin": "待补",
-            "post_ads_returns_gross_profit": "待补",
-            "post_ads_returns_margin": "待补",
-            "preliminary_profit_space": profit_space,
-            "supply_chain_signal": profit_space.get("supply_chain_signal", {}),
-        },
-        "return_risk": candidate.get("return_risk", {}),
-        "ip_screening": candidate.get("ip_compliance_risk", {}),
-        "compliance_screening": candidate.get("ip_compliance_risk", {}),
-        "review_sources": voc_review_sources,
-        "voc_analysis": voc_analysis,
         "opportunity_hypotheses": [
             {
                 "candidate_id": candidate.get("candidate_id"),
@@ -422,6 +350,7 @@ def build_research_package(
     }
     if not voc_package:
         package["dashboard_views"]["cards"] = [card for card in package["dashboard_views"]["cards"] if card]
+    validate_research_package_chapters(package)
     return package
 
 
@@ -2351,6 +2280,75 @@ def _build_competitor_selection_logic(candidate: dict[str, Any]) -> list[dict[st
                 "selection_reason": item.get("selection_reason") or item.get("reason"),
             }
         )
+    if rows:
+        return rows
+    groups = candidate.get("competitor_candidates", {})
+    if not isinstance(groups, dict):
+        return []
+    for group_key, competitor_type in (
+        ("top10", "Top10 标杆"),
+        ("recent_winners", "近半年新品"),
+        ("structure_supplement", "结构补充"),
+    ):
+        items = groups.get(group_key)
+        if not isinstance(items, list):
+            continue
+        for item in items[:4]:
+            if not isinstance(item, dict):
+                continue
+            rows.append(
+                {
+                    "asin": item.get("asin"),
+                    "brand": item.get("brand"),
+                    "title": item.get("title"),
+                    "price_usd": item.get("price"),
+                    "monthly_units": item.get("monthly_units"),
+                    "rating": item.get("rating"),
+                    "rating_count": item.get("rating_count"),
+                    "competitor_type": competitor_type,
+                    "coverage_dimensions": item.get("coverage_dimensions", [competitor_type]),
+                    "selection_reason": item.get("note") or f"{competitor_type}样本，作为竞品选择逻辑兜底行。",
+                }
+            )
+    if rows:
+        return rows
+    top_products = candidate.get("top_products", [])
+    if not isinstance(top_products, list):
+        top_products = candidate.get("market_structure", {}).get("tagged_products", [])
+    if not isinstance(top_products, list):
+        return []
+    for item in top_products[:6]:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            {
+                "asin": item.get("asin"),
+                "brand": item.get("brand"),
+                "title": item.get("title"),
+                "price_usd": item.get("price"),
+                "monthly_units": item.get("monthly_units") or item.get("monthly_sales"),
+                "rating": item.get("rating"),
+                "rating_count": item.get("rating_count"),
+                "competitor_type": "Top100 样本",
+                "coverage_dimensions": ["Top100 样本"],
+                "selection_reason": "Top100 商品样本兜底进入竞品选择逻辑，待运营补充竞品角色。",
+            }
+        )
+    if not rows:
+        rows.append(
+            {
+                "asin": "",
+                "brand": "",
+                "title": candidate.get("name"),
+                "price_usd": None,
+                "monthly_units": None,
+                "rating": None,
+                "rating_count": None,
+                "competitor_type": "待补竞品",
+                "coverage_dimensions": ["待补竞品"],
+                "selection_reason": "候选池尚未提供可用竞品明细，需运营补充 Top10/新品/结构补充 ASIN。",
+            }
+        )
     return rows
 
 
@@ -2447,6 +2445,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("candidate_id", nargs="?", default=None)
     parser.add_argument("--voc-package", default="", help="Optional review_voc_package.json from review plugin exports.")
     parser.add_argument("--route-profile", default="", help="Optional JSON product route profile. Keeps category terms outside production code.")
+    parser.add_argument("--dimension-rules", default="", help="Optional Top100 dimension rules JSON path.")
+    parser.add_argument("--cross-config", default="", help="Optional Top100 cross-analysis config JSON path.")
     return parser.parse_args()
 
 
@@ -2457,6 +2457,10 @@ def main() -> int:
     voc_package = json.loads(Path(args.voc_package).read_text(encoding="utf-8")) if args.voc_package else None
     route_profile = json.loads(Path(args.route_profile).read_text(encoding="utf-8")) if args.route_profile else None
     candidate_pool = json.loads(pool_path.read_text(encoding="utf-8"))
+    if args.dimension_rules:
+        candidate_pool.setdefault("metadata", {})["top100_dimension_rules_path"] = str(Path(args.dimension_rules).resolve())
+    if args.cross_config:
+        candidate_pool.setdefault("metadata", {})["top100_cross_config_path"] = str(Path(args.cross_config).resolve())
     package = build_research_package(candidate_pool, args.candidate_id, voc_package, route_profile)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(package, ensure_ascii=False, indent=2), encoding="utf-8")

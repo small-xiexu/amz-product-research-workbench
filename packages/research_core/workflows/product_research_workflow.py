@@ -8,7 +8,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from packages.report_renderer.render_report import build_outputs
 from packages.research_core.contracts import (
     validate_candidate_pool,
     validate_import_manifest,
@@ -32,6 +31,7 @@ from packages.research_core.pipeline.build_review_voc_from_plugin_export import 
     render_workbook as render_voc_workbook,
 )
 from packages.research_core.pipeline.inspect_manual_exports import build_manifest
+from scripts.render_deliverables import render_deliverables
 
 
 @dataclass(frozen=True)
@@ -128,7 +128,7 @@ def run_research_workflow(config: WorkflowConfig) -> WorkflowResult:
     write_json(research_package_path, research_package)
 
     final_report_dir = output_dir / "final_report"
-    build_outputs(str(research_package_path), str(final_report_dir))
+    render_deliverables(research_package_path, final_report_dir, mode="all", validate=False)
 
     workflow_summary = build_workflow_summary(
         output_dir=output_dir,

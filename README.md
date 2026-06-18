@@ -126,10 +126,24 @@ python3 scripts/run_research_workflow.py \
 生成后必须运行正式交付校验：
 
 ```bash
-python3 scripts/validate_research_outputs.py /tmp/research_workbench_workflow
+python3 scripts/render_deliverables.py \
+  /tmp/research_workbench_workflow/research_package.json \
+  /tmp/research_workbench_workflow/final_report \
+  --mode validate
 ```
 
 校验器会检查正式报告五件套、`workflow_summary`、Excel 关键 Sheet、Top100 行数、12 章报告结构、网页版报告结构、属性/交叉分析、竞品选择逻辑、VOC 证据链和七维 Go/Wait/No-Go 评分卡。利润或知产/合规未回填时，评分卡只能输出 Wait/观察/待补，不能给强 Go。
+
+如果已经有 `research_package.json`，可以用统一入口一次生成全部正式交付物并自动校验：
+
+```bash
+python3 scripts/render_deliverables.py \
+  /tmp/research_workbench_workflow/research_package.json \
+  /tmp/research_workbench_workflow/final_report \
+  --mode all
+```
+
+`--mode` 也支持 `report`、`html`、`dashboard`、`xlsx`、`validate`，用于只重渲染某一类交付物或只跑校验。
 
 利润模板填好并保存后，再回填生成带利润测算的报告。`--profit-template` 传入的是已填写保存后的模板路径，可以是原模板直接填写保存，也可以另存为一份：
 
@@ -184,7 +198,10 @@ python3 scripts/run_research_workflow.py \
   --review-input 评论插件导出_免手持牵引绳_20260608/B07R56CBWX-multi-2026-06-07.xlsx \
   --review-input 评论插件导出_免手持牵引绳_20260608/B07R56CBWX-multi-2026-06-07-report.html
 
-python3 scripts/validate_research_outputs.py /tmp/amz_p20_regression_dog
+python3 scripts/render_deliverables.py \
+  /tmp/amz_p20_regression_dog/research_package.json \
+  /tmp/amz_p20_regression_dog/final_report \
+  --mode validate
 
 python3 scripts/run_research_workflow.py \
   卖家精灵导出_刮窗器_20260608 \
@@ -194,7 +211,10 @@ python3 scripts/run_research_workflow.py \
   --review-input 评价导出_刮窗器_20260609/B0BKTM56C3-multi-2026-06-09.xlsx \
   --review-input 评价导出_刮窗器_20260609/B0BKTM56C3-multi-2026-06-09-report.html
 
-python3 scripts/validate_research_outputs.py /tmp/amz_p20_regression_window
+python3 scripts/render_deliverables.py \
+  /tmp/amz_p20_regression_window/research_package.json \
+  /tmp/amz_p20_regression_window/final_report \
+  --mode validate
 ```
 
 也可以分开执行：

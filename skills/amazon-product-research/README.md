@@ -19,6 +19,22 @@ Codex 版亚马逊交互式选品主入口。
 -> 最终报告和校验
 ```
 
+执行上采用轻量多 Agent 分工：
+
+```text
+卖家精灵市场结构 Agent
+Sorftime 搜索需求 Agent
+评论 VOC Agent
+1688 供应链 Agent
+利润/合规 Agent
+        ↓
+资深亚马逊运营主 Agent
+        ↓
+交付 QA Agent
+```
+
+这不是新的自动调度系统，而是 Skill 执行边界：专家 Agent 只产 Evidence Packet，主 Agent 才做路线优先级和 Go/Wait/No-Go。
+
 Web 页面暂不作为主线。等 Codex 版闭环稳定后，再把 Web 作为外壳接入同一套脚本和产物。
 
 ## 关键原则
@@ -29,6 +45,7 @@ Web 页面暂不作为主线。等 Codex 版闭环稳定后，再把 Web 作为�
 | 关键点暂停 | 方向、边界、ASIN、利润/合规、最终决策必须让运营确认 |
 | 数据不编造 | 不足就标注待补，不用推断填空 |
 | 证据可追溯 | 结论必须能指向 MCP、卖家精灵、评论、人工输入或脚本产物 |
+| 多 Agent 不越权 | 数据源专家只输出证据包，最终判断由资深亚马逊运营主 Agent 统一整合 |
 | Web 后置 | 当前只跑 Codex + MCP + 本地脚本 |
 
 ## 常用入口
@@ -63,6 +80,7 @@ runs/<yyyymmdd>_<direction>/
 
 - 主流程：`SKILL.md`
 - Agent 分工：`agents/`
+- Evidence Packet 契约：`references/evidence_packet_contract.md`
 - Codex 跑通手册：`references/codex_runbook.md`
 - 产物契约：`references/artifact_contract.md`
 - 全局链路文档：`docs/Codex选品链路.md`

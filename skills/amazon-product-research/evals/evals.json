@@ -3,6 +3,14 @@
   "scope": "Codex mainline only; web is excluded",
   "checks": [
     {
+      "name": "render_minimal_research_package",
+      "command": "python3 skills/amazon-product-research/evals/run_eval.py render_minimal_research_package",
+      "expects_stdout_contains": [
+        "generated:",
+        "validate_ok:"
+      ]
+    },
+    {
       "name": "compile_core",
       "command": "python3 -m compileall -q packages scripts tests"
     },
