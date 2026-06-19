@@ -659,7 +659,9 @@ python3 scripts/apply_ip_compliance_review.py <合规模板> <research_package.j
 - `docs/选品系统方向锚点.md` — 选品系统核心不变量
 - `docs/分析模式库.md` — 6 种分析模式（数据→机会、痛点→产品方案等）
 - `docs/正式报告契约.md` — 12 章正式报告、Excel 回表和交付校验规则
-- `docs/卖家精灵手动导出数据清单.md` — 卖家精灵导出步骤
+- `docs/卖家精灵导出指令完整性规范.md` — 卖家精灵真实菜单入口和导出对象
+- `docs/评论VOC导出指令完整性规范.md` — 评价 ASIN 清单采集口径
+- `docs/1688供应链采集指令完整性规范.md` — 1688 供应链采集字段和导出要求
 - `skills/amazon-product-research/references/evidence_packet_contract.md` — 多 Agent Evidence Packet 交接契约
 - `skills/amazon-product-research/agents/lead-operator-agent.md` — 资深亚马逊运营主 Agent 口径
 

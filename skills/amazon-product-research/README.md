@@ -99,4 +99,5 @@ runs/<yyyymmdd>_<direction>/
 - 综合预审报告契约：`references/integrated_precheck_report.md`
 - Codex 跑通手册：`references/codex_runbook.md`
 - 产物契约：`references/artifact_contract.md`
-- 全局链路文档：`docs/Codex选品链路.md`
+- 全局链路文档：`skills/amazon-product-research/SKILL.md`
+- 多 Agent 调度：`skills/amazon-product-research/references/multi_agent_dispatch.md`

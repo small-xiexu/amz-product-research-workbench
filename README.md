@@ -36,8 +36,7 @@
 |---|---|
 | `docs/plans/V1选品系统实施计划.md` | 唯一进度台账，下次恢复任务先看这里 |
 | `docs/选品系统方向锚点.md` | 项目方向主锚点，防止偏成“录入产品做报告” |
-| `docs/AI交互式选品流程引擎.md` | AI 与运营实时协作的主流程、状态机、决策点和报告沉淀规则 |
-| `skills/amazon-product-research/SKILL.md` | Master Skill 主入口，定义两种模式、阶段推进和 MCP 调用规则 |
+| `skills/amazon-product-research/SKILL.md` | 当前主流程入口，定义运营式调研、手动采集、多 Agent 调度和阶段推进规则 |
 | `skills/market-scan/SKILL.md` | 候选发现和市场扫描 |
 | `skills/candidate-deep-dive/SKILL.md` | 重点候选深挖、Sorftime 验证和正式报告生成 |
 | `skills/review-voc-analysis/SKILL.md` | 评论 VOC 分析 |
@@ -50,7 +49,9 @@
 | `requirements.txt` | 本地脚本依赖，当前主要用于读取 Excel |
 | `docs/V1范围冻结.md` | 冻结第一版要做什么、不做什么、输出什么 |
 | `docs/字段来源表.md` | 每个字段来自手动导出、MCP、手填、系统计算还是人工复核 |
-| `docs/卖家精灵手动导出数据清单.md` | 没有 MCP 时，AI 指挥用户从卖家精灵导出哪些数据 |
+| `docs/卖家精灵导出指令完整性规范.md` | 卖家精灵真实菜单入口、导出对象和字段要求 |
+| `docs/评论VOC导出指令完整性规范.md` | 评价插件采集口径，用户侧只需要 ASIN 清单 |
+| `docs/1688供应链采集指令完整性规范.md` | 1688 手动采集字段、导出路径和兜底调整 |
 | `docs/自有评论插件对接方案.md` | 自有评论插件 Excel/HTML 导出如何接入选品系统 |
 | `docs/多数据源适配器架构设计.md` | 新数据源接入 Adapter 的设计边界 |
 | `docs/sorftime-mcp-工具调用策略.md` | Sorftime MCP 调用时机、参数和数据写入口径 |

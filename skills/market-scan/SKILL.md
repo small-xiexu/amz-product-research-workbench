@@ -200,5 +200,5 @@ Sorftime 初探/快验阶段已收集的 `category_trend` 和 `keyword_detail` �
 - `docs/分析模式库.md` — 市场扫描和候选判断的洞察模式
 - `docs/正式报告契约.md` — 正式报告 12 章和 Excel 回表契约
 - `docs/sorftime-mcp-工具调用策略.md` — Sorftime 工具调用规则与两阶段使用说明
-- `docs/卖家精灵手动导出数据清单.md` — 卖家精灵导出步骤
+- `docs/卖家精灵导出指令完整性规范.md` — 卖家精灵真实菜单入口和导出对象
 - `docs/架构原则.md` — 脚本/Claude 分工说明

@@ -73,7 +73,7 @@ docker-compose.yml
 
 ## 追加决策：Agent 化路线（2026-06-15）
 
-后续以 `docs/Web工作台Agent化优化方案.md` 为准：
+后续以 `skills/amazon-product-research/SKILL.md` 和 `skills/amazon-product-research/references/multi_agent_dispatch.md` 为准：
 
 - 删除前端模式选择卡，运营直接和 AI 对话。
 - 后端加载项目内 Skills，而不是依赖 Codex/Claude 客户端 Skill 运行时。
