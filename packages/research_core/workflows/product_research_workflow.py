@@ -337,8 +337,47 @@ def build_workflow_trace(workflow_state: dict[str, Any], source_path: Path | Non
         "decision_log": decision_log,
         "next_actions": next_actions,
         "evidence_refs": evidence_refs,
+        "dependency_graph": derive_dependency_graph(state),
         "source_file": str(source_path.expanduser().resolve()) if source_path else "",
     }
+
+
+def derive_dependency_graph(workflow_state: dict[str, Any]) -> dict[str, Any]:
+    missing_inputs = [str(item) for item in workflow_state.get("missing_inputs", []) if str(item)]
+    next_actions = [item for item in workflow_state.get("next_actions", []) if isinstance(item, dict)]
+    nodes: dict[str, dict[str, str]] = {}
+    edges: list[dict[str, str]] = []
+
+    for missing in missing_inputs:
+        node_id = slug_node_id(missing)
+        nodes[node_id] = {"status": "missing", "label": missing}
+
+    for action in next_actions:
+        stage = str(action.get("stage") or workflow_state.get("stage") or "next_action")
+        action_node = slug_node_id(stage)
+        nodes.setdefault(action_node, {"status": "pending", "label": stage})
+        required_fields = []
+        recommended = action.get("recommended_action")
+        if isinstance(recommended, dict):
+            required_fields.extend(str(item) for item in recommended.get("required_fields", []) if str(item))
+        required_fields.extend(str(item) for item in action.get("required_fields", []) if str(item))
+        for field in required_fields:
+            field_node = slug_node_id(field)
+            nodes.setdefault(field_node, {"status": "missing", "label": field})
+            edges.append({"from": field_node, "to": action_node, "reason": "下一步动作需要该字段"})
+
+    if not edges and missing_inputs and next_actions:
+        action_node = slug_node_id(str(next_actions[0].get("stage") or workflow_state.get("stage") or "next_action"))
+        for missing in missing_inputs:
+            edges.append({"from": slug_node_id(missing), "to": action_node, "reason": "当前阶段仍缺该输入"})
+
+    return {"nodes": nodes, "edges": edges}
+
+
+def slug_node_id(value: str) -> str:
+    text = value.strip().lower()
+    text = "".join(ch if ch.isalnum() else "_" for ch in text)
+    return "_".join(part for part in text.split("_") if part) or "node"
 
 
 def _load_optional_json(path: Path | None, label: str) -> dict[str, Any] | None:

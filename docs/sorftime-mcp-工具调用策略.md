@@ -1,399 +1,366 @@
 # Sorftime MCP 工具调用策略
 
-更新日期：2026-06-12
+更新日期：2026-06-19
 
-## 定位
+Sorftime MCP 用来补齐 Amazon 实时类目、参考 ASIN、关键词需求、自然位和 1688 粗供给信号。调用目标是提高判断质量，不以节省积分或减少调用为主要约束。
 
-Sorftime MCP 在选品系统中的角色是**双阶段使用**：
+核心顺序：
 
-1. **早期快探**：在卖家精灵数据到位之前或期间，Claude 先用 Sorftime 快速摸清方向的趋势和关键词信号
-2. **深度验证**：候选方向确认后，做关键词流量、竞品词包、趋势的深度交叉验证
-
-两个阶段使用不同工具，积分消耗和目的也不同。
-
----
-
-## 三源分工一览
-
-| 数据源 | 职责 | 模式一（模糊探索）调用时机 | 模式二（指定方向）调用时机 |
-|---|---|---|---|
-| 卖家精灵手动导入 | 大盘扫描、Top100 完整明细、ABA、退货率 | 阶段一结束后宽扫导出 | Sorftime 快验通过后定向导出 |
-| Sorftime MCP | 类目趋势、关键词量级、竞品流量词 | 与卖家精灵导出**并行**初探 + 候选确认后深验 | 卖家精灵导出**前**快验 + 候选确认后深验 |
-| 自有评论插件 | 大批量 VOC、痛点/差评证据链 | 候选进入「继续看/试做」后 | 同左 |
-
----
-
-## 工具清单与调用时机
-
-### 模式一——并行初探工具（运营导出卖家精灵期间同步调用）
-
-> 目标：在运营操作导出的 10-20 分钟内，形成初步方向假设，等卖家精灵数据到位后直接合并。
-
-| 工具 | 目的 | 积分 |
-|---|---|---|
-| `category_search_from_product_name` × 2-3 方向 | 定位各候选方向的类目节点，获取 nodeId | 1/次 |
-| `category_report` × 2-3 方向 | 拉取实时 Top100 完整数据（销量、价格、集中度、新品占比） | 1/次 |
-| `keyword_detail` × 主方向 2-3 主词 | 核心词搜索量 + CPC + 竞争密度 | 1/词 |
-| `ali1688_similar_product` × 主方向 | 查询 1688 中国站人民币粗采购价，提前判断利润空间 | 1 |
-
-典型消耗：6-10 积分。
-
-### 模式二——前置验证工具（卖家精灵导出前先跑）
-
-> 目标：6-8 积分内给出快验结论，如果方向有问题，在运营导出前就告知，避免无效操作。
-
-| 工具 | 目的 | 积分 |
-|---|---|---|
-| `category_search_from_product_name` | 从产品名定位 Amazon 类目节点 | 1 |
-| `category_report` | 拉取实时 Top100（销量/价格/集中度/新品占比，一次替代多次 category_trend） | 1 |
-| `keyword_detail` × 2-3 主词 | 搜索量 + CPC + 首页竞品数量 | 1/词 |
-| `ali1688_similar_product` | 1688 中国站采购价粗估 | 1 |
-
-典型消耗：5-7 积分。
-
-快验结论输出格式（固定）：
-
-```
-方向快验：[品类名]
-- 趋势：增长 / 衰退 / 均衡（XX 月数据）
-- 主词量级：[词]，月搜索约 X 万，CPC $Y
-- 竞争密度：首页约 Z 个竞品
-- 初步结论：值得继续 / 建议调整方向 / 建议放弃 + 1-2 句理由
+```text
+初始方向/种子词 -> 候选类目 -> 参考 ASIN -> ASIN 反查词 -> 运营式关键词池 -> 类目/词/供应链交叉验证
 ```
 
-快验通过后，给出定向导出建议：
-- 具体关键词 2-3 个（这些词做 Top100 和 ABA 导出）
-- 是否需要「选市场」宽扫（通常模式二不需要）
+## 数据分工
 
-### 候选方向确认后（两种模式共用）
+| 数据源 | 主要用途 | 不能替代 |
+|---|---|---|
+| Sorftime MCP | 类目搜索、类目 Top100、类目趋势、关键词详情、关键词扩展、关键词搜索结果、ASIN 流量词、竞品关键词、1688 粗信号 | 卖家精灵 ABA、卖家精灵完整 Top100、评论 VOC、运营利润回填 |
+| 卖家精灵 | 市场容量、Top100 历史明细、关键词反查、ABA、价格带、集中度、新品榜/新品样本 | Sorftime 实时类目、ASIN 流量词、MCP 工具快探 |
+| 评论插件 | 差评痛点、好评驱动、规格/测试项 | 搜索量、类目容量、供应链报价 |
+| 1688 插件 / Sorftime 1688 | 中国站 RMB 粗供给和候选款 | 最终采购价、利润、合规判断 |
 
-| 工具 | 调用时机 | 目的 | 积分 |
-|---|---|---|---|
-| `keyword_detail` / `keyword_trend` | 候选方向确认，进入深挖 | 关键词趋势 + CPC，与卖家精灵 ABA 交叉 | 1/词 |
-| `keyword_extends` | 主关键词确定后 | 延伸词，发现混池词和长尾机会 | 1 |
-| `keyword_search_results` | 候选边界校准后 | 首页竞品结构，与卖家精灵 Top100 对比 | 1 |
-| `product_traffic_terms` | 确定重点竞品 ASIN 后 | 竞品靠哪些词拿流量，找词位空隙 | 1/ASIN |
-| `competitor_product_keywords` | 同上 | 提取竞品词包，找可借鉴的流量词 | 1/ASIN |
-| `potential_product` | 候选主线确认后 | 找潜力新品、向周边延展补充候选池（`similar_product` 工具不存在，统一用此替代） | 1 |
-| `similar_product_feature` | 方向确认、准备深挖报告时 | 同类热销品共有特征，指导卖点提炼 | **5（谨慎调用）** |
-| `product_detail` | 需要验证特定 ASIN 数据时 | 补充竞品详情字段 | 1/ASIN |
-| `product_trend` | 重点竞品确定后 | 竞品 24 个月销量趋势 | 1/ASIN |
+## Stage 1 快探
 
-> ⚠️ 早期已调用过的 `category_trend` / `keyword_detail`，深挖阶段可直接复用，不重复调用。
+Stage 1 的目标是建立候选 ASIN 和候选类目，不用关键词直接定义市场。
 
----
+| 工具 | 调用对象 | 输出用途 |
+|---|---|---|
+| `category_search_from_product_name` | 每个候选方向/路线英文抽象名 | 找候选类目和 nodeId |
+| `category_report` | 每个候选类目 nodeId | 看 Top100 体量、价格、集中度、新品、代表 ASIN |
+| `keyword_search_results` | 种子词、路线词、候选词 | 看搜索结果是否为相似产品，识别混池 |
+| `keyword_detail` | 种子词、路线词、候选词 | 记录月搜、CPC、竞争量，只作需求信号 |
+| `ali1688_similar_product` | 每条候选路线中文供应链词 | 看 1688 中国站 RMB 粗供给 |
+
+建议补充：
+
+| 工具 | 使用条件 | 输出用途 |
+|---|---|---|
+| `potential_product` | 需要找潜力新品或相邻候选 | 补参考 ASIN 和新品观察样本 |
+| `similar_product_feature` | 已有较明确路线，需要看热销共同特征 | 补产品规格和卖点观察 |
+| `category_trend` / `category_report_from_history` | 需要初步判断淡旺季 | 看类目销量趋势，不用关键词趋势替代 |
+
+Stage 1 输出到快探结论时，必须包含：
+
+- 候选参考 ASIN：ASIN、路线、角色、相似原因、来源。
+- 候选类目池：类目名、nodeId、角色、来源、风险标签。
+- 关键词入口：只说明用于找竞品或验证流量。
+- 主要混池：场景、产品形态、品牌、材质、耗材、配件等。
+- 1688 粗信号：中文词、RMB 报价范围、有效/无效样本说明。
+- 卖家精灵下一步导出清单：大类、小类、参考 ASIN、反查词、ABA、新品数据。
+
+## Stage 7 深扫
+
+Stage 7 的目标是支撑综合预审报告。即使 Stage 1 已经调用过，也要围绕确认路线、参考 ASIN Top5/Top10、候选大小类目、运营式关键词池和 1688 中文词补齐证据。
+
+| 模块 | 必调或复用工具 | 最低覆盖 |
+|---|---|---|
+| 候选类目 | `category_search_from_product_name`、`category_report` | 入围路线的大类、小类、混池/对照类目 |
+| 类目淡旺季 | `category_trend` 或 `category_report_from_history` | 候选大类和小类；至少销量趋势，必要时补新品占比/集中度趋势 |
+| 搜索结果混池 | `keyword_search_results` | 主查词、补查词、关键长尾词 |
+| 关键词详情 | `keyword_detail` | 主查词、补查词、场景词、精准长尾词 |
+| 关键词扩展 | `keyword_extends` | 核心词；扩展词必须标来源，不能写成人工精选词 |
+| ASIN 流量词 | `product_traffic_terms` | 每条保留路线 Top5/Top10 参考 ASIN，至少主推代表、高销量对照、新品样本、高客单对照 |
+| 竞品自然位词 | `competitor_product_keywords` | 主推/升级路线参考 ASIN |
+| 热销特征 | `similar_product_feature` | 最终入围路线 |
+| 供应链粗信号 | `ali1688_similar_product` | 每条保留路线中文供应链词 |
+
+Stage 7 输出必须落到 `search_demand_evidence`，至少包含：
+
+- `reference_asin_inputs`
+- `category_candidates`
+- `asin_traffic_terms`
+- `keyword_pool_by_role`
+- `keyword_validation`
+- `category_seasonality`
+- `hot_product_features`
+- `sorftime_1688_signal`
+- `seller_sprite_conflicts`
+- `data_gaps`
+
+## 关键词分层规则
+
+| 角色 | 来源优先级 | 用途 |
+|---|---|---|
+| `main_traffic` | 多个参考 ASIN 命中 + 搜索结果相似 + 有量 | 看大入口，不直接定义市场 |
+| `conversion_quality` | 参考 ASIN 反查 + ABA/卖家精灵交叉验证 | 优先验证转化质量 |
+| `traffic` | 有量但意图较宽或混池轻微 | 观察，不直接进主结论 |
+| `precise_long_tail` | 长尾、场景/规格明确、与路线贴近 | 验证小类目和 Listing 方向 |
+| `mixed_or_excluded` | 搜索结果或 ASIN 命中其他形态/场景 | 排除或对照，必须保留证据 |
+
+每个关键词必须记录：
+
+- `keyword`
+- `keyword_role`
+- `source_type`
+- `source_refs`
+- `route_refs`
+- `matched_asin_count`
+- `matched_asins`
+- `monthly_search_volume`
+- `cpc`
+- `competition_count`
+- `organic_positions`
+- `click_or_conversion_signal`
+- `mix_pool_tags`
+- `recommended_action`
+- `reason`
+- `confidence`
+- `lineage`
 
 ## 工具参数速查
 
-> Claude 在 Skill 中直接调用 MCP 工具时，按此表填参数，无需每次 ToolSearch 查 schema。
-
-### 站点参数说明（重要）
-
-两套不同的站点参数名，**混用会静默失效**：
+### 站点参数
 
 | 参数名 | 适用工具 |
 |---|---|
 | `amzSite` | `search_categories_broadly`、`category_search_from_product_name`、`category_trend`、`category_report`、`category_report_from_history`、`product_traffic_terms`、`similar_product_feature`、`potential_product` |
 | `keywordSupportSite` | `keyword_list`、`keyword_detail`、`keyword_trend`、`keyword_extends`、`keyword_search_results`、`competitor_product_keywords` |
 
-站点值统一用大写：`US` / `GB` / `DE` / `CA` / `JP` 等。
-
----
+站点值统一用大写：`US` / `GB` / `DE` / `CA` / `JP`。
 
 ### 类目工具
 
 #### `search_categories_broadly`
+
 无方向时广域扫类目，按月销量倒序。
 
-```
-必填：无
+```text
 常用可选：
-  amzSite: "US"
-  month_sales_volume_min: 50000        # 过滤太小的类目
-  top3Product_sales_share_max: 0.4     # 排除垄断类目（Top3 占比 < 40%）
-  amazonOwned_sales_share_max: 0.1     # 排除亚马逊自营强势类目
-  newproduct_sales_share_min: 0.03     # 新品有机会（新品占比 > 3%）
+  amzSite: "<站点>"
+  month_sales_volume_min: <最小月销量>
+  top3Product_sales_share_max: <Top3 商品占比上限>
+  amazonOwned_sales_share_max: <Amazon 自营占比上限>
+  newproduct_sales_share_min: <新品销量占比下限>
 ```
 
 #### `category_search_from_product_name`
-从品类名/产品名定位细分类目，获取 nodeId。
 
-```
-必填：productName: "window squeegee"   # 英文品类名
+从品类名/路线名定位候选类目，获取 nodeId。
+
+```text
+必填：
+  productName: "<英文品类名或路线抽象名>"
 常用可选：
-  amzSite: "US"
+  amzSite: "<站点>"
 ```
 
-#### `category_report` ⭐ 主力工具
-查询指定类目**实时** Top100 产品完整数据报告（ASIN、价格、月销量、评分、评论数、上架时间、品牌、卖家）。**比 category_trend 数据量大得多，一次调用替代多次 category_trend。**
+#### `category_report`
 
-```
-必填：nodeId: "2245500011"             # 注意驼峰：nodeId
+查询指定类目实时 Top100 产品报告，常用于补 ASIN、价格、销量、评分、评论数、上架时间、品牌、卖家。
+
+```text
+必填：
+  nodeId: "<类目节点ID>"
 常用可选：
-  amzSite: "US"
+  amzSite: "<站点>"
 ```
 
 #### `category_report_from_history`
-查询指定类目**指定历史时间段**的 Top100 数据（最长 40 天）。用于对比旺季 vs 淡季产品结构。
 
-```
+查询指定历史时间段的 Top100 数据，最长 40 天。用于对比旺季和淡季产品结构。
+
+```text
 必填：
-  nodeId: "2245500011"
-  startDate: "2025-10-01"            # 格式 yyyy-MM-dd
-  endDate: "2025-10-31"              # 与 startDate 间隔不超过 40 天
+  nodeId: "<类目节点ID>"
+  startDate: "<yyyy-MM-dd>"
+  endDate: "<yyyy-MM-dd>"
 常用可选：
-  amzSite: "US"
+  amzSite: "<站点>"
 ```
 
 #### `category_trend`
-查类目历史趋势数据（24 个月）。**nodeId 来自上一步的返回值。**
 
-```
-必填：nodeId: "2245500011"             # 注意驼峰：nodeId，不是 node_id
+查类目历史趋势数据。nodeId 来自类目搜索或类目报告。
+
+```text
+必填：
+  nodeId: "<类目节点ID>"
 常用可选：
-  amzSite: "US"
-  trendIndex: "SalesCount"            # 默认月销量；其他可选值：
-                                      # NewProductSalesAmountShare（新品占比）
-                                      # Top3ProductSalesAmountShare（Top3 集中度）
-                                      # AmazonSalesAmountShare（亚马逊自营占比）
+  amzSite: "<站点>"
+  trendIndex: "SalesCount"
 ```
 
-> 每次只返回一个 trendIndex 的数据，多维度需多次调用。快验时只调 `SalesCount` 即可。
+常用 `trendIndex`：
 
----
+| 值 | 用途 |
+|---|---|
+| `SalesCount` | 类目销量趋势 |
+| `NewProductSalesAmountShare` | 新品销售额占比趋势 |
+| `Top3ProductSalesAmountShare` | Top3 商品集中度趋势 |
+| `AmazonSalesAmountShare` | Amazon 自营占比趋势 |
 
 ### 关键词工具
 
 #### `keyword_detail`
+
 查单个关键词的月搜索量、周搜索量、CPC、首页竞品数。
 
-```
-必填：keyword: "window squeegee with extension pole"
+```text
+必填：
+  keyword: "<关键词>"
 常用可选：
-  keywordSupportSite: "US"
+  keywordSupportSite: "<站点>"
 ```
 
 #### `keyword_trend`
-查关键词历史搜索量趋势（判断是增长/衰退/季节性）。
 
-```
-必填：keyword: "window squeegee"
+查关键词历史搜索量趋势。只能说明搜索热度，不能替代类目淡旺季。
+
+```text
+必填：
+  keyword: "<关键词>"
 常用可选：
-  keywordSupportSite: "US"
+  keywordSupportSite: "<站点>"
 ```
 
 #### `keyword_extends`
-从主词延展相关词，发现长尾词和混池词。
 
-```
-必填：keyword: "window squeegee"
+从核心词延展相关词，发现长尾词、场景词和混池词。
+
+```text
+必填：
+  keyword: "<核心词>"
 常用可选：
-  keywordSupportSite: "US"
-  page: 1                             # 每页 20 条
+  keywordSupportSite: "<站点>"
+  page: <页码>
 ```
 
 #### `keyword_search_results`
-查关键词自然位搜索结果产品清单（首页竞品结构）。
 
-```
-必填：keyword: "window squeegee"
+查关键词自然位搜索结果产品清单，用于判断该词是否被相似产品覆盖。
+
+```text
+必填：
+  keyword: "<关键词>"
 常用可选：
-  keywordSupportSite: "US"
-  positionType: 1                     # 1=仅自然位（默认），2=仅广告，0=全部
-  page: 1
+  keywordSupportSite: "<站点>"
+  positionType: 1
+  page: <页码>
 ```
 
 #### `keyword_list`
-热搜词榜单（无特定关键词时探索用）。
 
-```
-必填：无
+热搜词榜单。无明确种子词时可探索，但不能直接当市场结论。
+
+```text
 常用可选：
-  keywordSupportSite: "US"
-  search_volume_min: 10000            # 过滤太冷门的词
+  keywordSupportSite: "<站点>"
+  search_volume_min: <最小搜索量>
 ```
-
----
 
 ### 竞品工具
 
 #### `product_traffic_terms`
-反查某 ASIN 靠哪些词曝光在前 3 页（含自然位+广告）。
 
-```
-必填：asin: "B0CDBVC1W7"
+反查某 ASIN 靠哪些词曝光在前 3 页。
+
+```text
+必填：
+  asin: "<参考 ASIN>"
 常用可选：
-  amzSite: "US"
-  page: 1                             # 每页 20 条，一般第 1 页够用
+  amzSite: "<站点>"
+  page: <页码>
 ```
 
 #### `competitor_product_keywords`
-查某 ASIN 的竞品在各核心词下的**自然位**曝光（评估流量能力）。
 
-```
-必填：asin: "B0CDBVC1W7"
+查某 ASIN 的竞品在各核心词下的自然位曝光，评估流量获取能力和竞争强度。
+
+```text
+必填：
+  asin: "<参考 ASIN>"
 常用可选：
-  keywordSupportSite: "US"
-  page: 1
+  keywordSupportSite: "<站点>"
+  page: <页码>
 ```
-
-> `product_traffic_terms` vs `competitor_product_keywords`：
-> - 前者：这个产品在哪些词有曝光 → 用于找词位空隙
-> - 后者：这个产品的竞品在核心词下排名如何 → 用于评估竞争强度
 
 #### `potential_product`
-搜索潜力新品，补充候选池。
 
-```
-必填：无
+搜索潜力新品，补充候选 ASIN 池。
+
+```text
 常用可选：
-  amzSite: "US"                       # 注意：只支持 US/GB/DE
-  searchName: "window squeegee"       # 品类关键词
-  month_sales_volume_min: 1000
-  price_min: 15
-  price_max: 60
+  amzSite: "<站点>"
+  searchName: "<英文品类词或路线词>"
+  month_sales_volume_min: <最小月销量>
+  price_min: <最低价>
+  price_max: <最高价>
 ```
+
+注意：该工具站点支持范围以 MCP 实际返回为准；不支持时写入 `data_gaps`。
 
 #### `similar_product_feature`
-查同类热销品共有特征（卖点提炼用）。**消耗 5 积分，谨慎调用。**
 
-```
-必填：productName: "window squeegee"  # 品类英文名
+查同类热销品共有特征，用于提炼规格、卖点和供应链验证项。
+
+```text
+必填：
+  productName: "<英文品类名或路线抽象名>"
 常用可选：
-  amzSite: "US"
+  amzSite: "<站点>"
 ```
 
-#### `ali1688_similar_product` ⭐ 供应链 / 利润信号
-在 1688 中国站搜索同类采购货源，返回人民币采购价区间和供应商信息。**用于早期粗估采购价，提前判断利润空间是否存在，不替代运营手填的精确利润复核。**
+#### `ali1688_similar_product`
+
+在 1688 中国站搜索同类采购货源，返回人民币采购价区间和供应商信息。用于早期粗估供应链承接，不替代运营手填的精确利润复核。
+
+```text
+必填：
+  searchName: "<中文品类词或供应链搜索词>"
+```
 
 采购价口径：
 
-- 当前访问方式：通过 Sorftime MCP `ali1688_similar_product` 间接查询 1688，不在项目内直接抓取 `https://www.1688.com/` 页面。
-- 原始来源必须是 **1688 中国站**：入口口径为 `https://www.1688.com/`，商品详情页可接受 `https://detail.1688.com/offer/...` 等 `*.1688.com` 链接。
-- 默认只看 **1688 中国站 RMB 报价**。
-- 价格字段按人民币 RMB/CNY 解析；折 USD 只作报告展示，不作为原始采购价来源。
-- `searchName` 必须优先使用中文品类词，例如“免手持狗绳 腰带牵引绳”。
-- 优先筛“一件代发 / 现货 / 跨境 / 包邮 / 48 小时发货”等供应链信号。
+- 原始来源必须是 1688 中国站：`https://www.1688.com/` 或 `*.1688.com` 详情页。
+- 默认只看 RMB/CNY 报价；折 USD 只作展示，不作为原始采购价来源。
+- `searchName` 必须使用中文品类词、中文场景词或供应链行话。
+- 非 1688 来源或币种不是 RMB/CNY 的样本，只能记录为待复核/无效样本。
 - 返回价不等于最终到手成本，还要补 SKU 实际价、运费、包装、头程、关税、质检、损耗。
-- **禁止用 Alibaba 国际站 USD 报价替代 1688 中国站采购价。** 非 `1688.com` 来源或币种不是 RMB/CNY 的样本，只能记录为待复核/无效样本，不进入采购价区间。
 
-```
-必填：searchName: "刮窗器"            # 中文品类名
-```
-
-> ⚠️ 无站点参数。返回数据为 1688 中国站人民币报价，需自行折算美元并估算头程/关税成本。
-
----
-
-### ⚠️ 已知陷阱
+## 已知陷阱
 
 | 问题 | 说明 |
 |---|---|
-| `similar_product` 工具不存在 | 策略文档曾提及，实际 MCP 无此工具；用 `potential_product` 替代 |
+| `similar_product` 工具不存在 | 用 `potential_product` 替代 |
 | `category_trend` 参数名是 `nodeId` | 驼峰格式，写成 `node_id` 会报错 |
-| 站点参数两套 | 类目工具用 `amzSite`，关键词/竞品工具用 `keywordSupportSite`，不可混用 |
-| `potential_product` 站点限制 | 只支持 US/GB/DE，其他站点不返回数据 |
-| `category_trend` 单次单指标 | 每次只返回一个 `trendIndex`，需要多维度时多次调用 |
+| 站点参数两套 | 类目/竞品流量工具用 `amzSite`，关键词工具用 `keywordSupportSite` |
+| `category_trend` 单次单指标 | 多指标需要多次调用 |
+| 关键词趋势不是类目淡旺季 | 关键词只能代表搜索热度，产品淡旺季看类目/市场数据 |
+| 扩展词不是人工精选词 | `keyword_extends` 产出的词必须保留来源和置信度 |
 
----
+## 写入对象
 
-## 调用原则
-
-1. **初探轻量，深验按需**：初探阶段只调类目和关键词量级，不在方向未定前跑竞品工具。
-2. **`similar_product_feature` 限制调用**：消耗 5 积分，只在候选方向已确认、准备正式深挖时调用一次。
-3. **关键词工具按词数控制**：主关键词 2-3 个，备选词 1 个，不对大词包逐一跑趋势。
-4. **竞品工具按 ASIN 控制**：优先 Top3-5 标杆竞品，不对整个 Top100 逐一跑。
-5. **评论不依赖 Sorftime**：`product_reviews` 只有近 1 年最多 100 条，VOC 证据链由自有插件承担。
-
----
-
-## 数据写入 candidate_pool
-
-Sorftime 验证结论写入 candidate_pool 的 `sorftime_verification` 字段组：
+Sorftime 输出优先写入 `search_demand_evidence`，必要时同步给候选池或分析包。
 
 ```json
 {
-  "sorftime_verification": {
-    "verified_at": "2026-06-12",
-    "early_exploration": {
-      "stage": "模式一并行初探 / 模式二前置快验",
-      "conclusion": "值得继续 / 建议调整 / 建议放弃",
-      "reason": "..."
+  "search_demand_evidence": {
+    "reference_asin_inputs": [],
+    "category_candidates": [],
+    "asin_traffic_terms": [],
+    "keyword_pool_by_role": {
+      "main_traffic": [],
+      "conversion_quality": [],
+      "traffic": [],
+      "precise_long_tail": [],
+      "mixed_or_excluded": []
     },
-    "category_trend": {
-      "trend_direction": "增长/衰退/均衡/季节性",
-      "monthly_sales_24m": [],
-      "top3_concentration_trend": "集中/分散/恶化",
-      "new_product_share_trend": "上升/下降/均衡"
-    },
-    "keyword_verification": [
-      {
-        "keyword": "示例关键词",
-        "weekly_search_volume": 0,
-        "monthly_search_volume": 0,
-        "cpc": 0.0,
-        "seasonality": "均衡/旺季Q4",
-        "competitor_count": 0,
-        "trend_direction": "增长/衰退/均衡"
-      }
-    ],
-    "traffic_terms": {
-      "asin": "",
-      "top_traffic_words": [],
-      "gap_opportunities": []
-    },
-    "category_report_snapshot": {
-      "category_name": "类目名",
-      "nodeId": "类目节点",
-      "products": [
-        {
-          "asin": "",
-          "title": "",
-          "brand": "",
-          "price": 0,
-          "monthly_sales": 0,
-          "rating": 0,
-          "rating_count": 0,
-          "listing_days": 0
-        }
-      ]
-    },
-    "supply_chain_signal": {
-      "searchName": "1688 搜索词",
-      "source_site": "1688中国站",
-      "source_url": "https://www.1688.com/",
-      "quote_currency": "RMB",
-      "exchange_rate": 7.2,
-      "rejected_sample_count": 0,
-      "rejection_reasons": [],
-      "products": [
-        {
-          "title": "",
-          "price": "12-18",
-          "quote_currency": "RMB",
-          "supplier": "",
-          "url": "https://detail.1688.com/offer/..."
-        }
-      ]
-    }
+    "keyword_validation": [],
+    "category_seasonality": [],
+    "hot_product_features": [],
+    "sorftime_1688_signal": [],
+    "seller_sprite_conflicts": [],
+    "data_gaps": []
   }
 }
 ```
 
-写入规则：
+## 调用自检
 
-| 字段 | 来源工具 | 下游用途 |
-|---|---|---|
-| `category_report_snapshot` | `category_report` | 生成 `demand_evidence.sorftime_category_report`，补市场规模、Top10 集中度、新品占比和报告市场章节 |
-| `supply_chain_signal` | `ali1688_similar_product` | 生成 `preliminary_profit_space.supply_chain_signal`，补利润章节的 1688 中国站人民币粗采购价信号 |
-
----
-
-## 成本参考
-
-| 阶段 | 典型工具组合 | 消耗 |
-|---|---|---|
-| 模式一并行初探 | `category_search_from_product_name` × 2-3 + `category_report` × 2-3 + `keyword_detail` × 2-3 + `ali1688_similar_product` | 6-10 积分 |
-| 模式二前置快验 | `category_search_from_product_name` + `category_report` + `keyword_detail` × 2-3 + `ali1688_similar_product` | 5-7 积分 |
-| 深度验证（共用） | 关键词工具 + 竞品流量词 + `similar_product_feature` | 15-25 积分 |
-| **合计（一次完整调研）** | — | **约 20-35 积分** |
+- 是否先建立参考 ASIN，再反查关键词。
+- 是否同时覆盖候选大类、小类、混池/对照类目。
+- 是否把关键词分成主要流量词、转化优质词、流量词、精准长尾词、混池/排除词。
+- 是否把扩展词标成系统扩展来源。
+- 是否分开展示类目淡旺季和关键词搜索热度。
+- 是否保留了混池词和排除原因。
+- 是否把未调用、失败、数据不足写入 `data_gaps`。

@@ -71,10 +71,11 @@ runs/<run_id>/mcp/sorftime_verification.json
 
 Codex 给运营导出清单：
 
-- 搜索结果
-- 市场分析 Top100 完整版
-- 关键词反查
-- ABA 关键词整理
+- 大数据选品 / 选市场：候选大类、候选小类、ASIN 反推小类，用于市场容量、价格带、集中度、新品机会和类目淡旺季。
+- 大数据选品 / 查竞品：相似卖点关键词、候选小类、对照词，用于建立参考 ASIN 池和混池边界。
+- 大数据选品 / 选产品：产品形态词、路线词、候选小类，用于补充候选商品、新品和低评论样本。
+- 浏览器插件 / 关键词反查：参考 ASIN Top5/Top10，用于整理运营式关键词池。
+- 大数据选品 / ABA数据选品：主查词、补查词、路线词，用于搜索、点击和转化集中度。
 
 运营把文件放到：
 
@@ -105,20 +106,40 @@ python3 scripts/build_candidate_pool_from_import_manifest.py \
 
 如果当前 CLI 参数和脚本不一致，优先用 `scripts/run_research_workflow.py` 的 `--sorftime-verification` 路径完成合并。
 
-## 7. 规划评论 ASIN
+## 7. 规划评价 ASIN 清单
 
-候选池确认后，Codex 输出评论抓取 ASIN 批次：
+候选池确认后，Codex 必须按 `docs/评论VOC导出指令完整性规范.md` 输出评价 ASIN 清单。评价插件侧只需要 ASIN，不要求运营填写评论范围、目标条数、字段筛选或低星筛选。
 
+- 本轮评论数据放置目录
+- 评论慢速采集助手入口
+- 建议站点
+- 可复制 ASIN 清单，一行一个
+- 文件命名、存放目录和导入命令
+
+系统内部记录 ASIN 角色和选择理由，至少覆盖：
+
+- 主推代表
 - 量级标杆
 - 近期新品
-- 差评高发
-- 功能差异
-- 价格带代表
+- 差评高发或痛点参考
+- 高客单或价格带代表
+- 混池/旁支对照，如有必要
 
 运营用自有评论插件导出到：
 
 ```text
 runs/<run_id>/inputs/reviews/
+```
+
+评论导出完成后，先生成 VOC 数据包：
+
+```bash
+python3 scripts/build_review_voc_from_plugin_export.py \
+  runs/<run_id>/review_voc \
+  runs/<run_id>/inputs/reviews/<review.xlsx> \
+  runs/<run_id>/inputs/reviews/<review-report.html> \
+  --candidate-id <candidate_id> \
+  --candidate-name "<候选名称>"
 ```
 
 ## 8. 重跑正式报告

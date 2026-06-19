@@ -11,15 +11,19 @@
 主链路：
 
 ```text
-Codex 对话 -> Sorftime MCP -> 卖家精灵导出 -> 本地脚本 -> 评论 VOC -> 1688 供应链 -> 利润/合规待补 -> 最终报告 -> 校验
+Codex 对话 -> 初始方向/种子词 -> 相似竞品 ASIN 池 -> 大小类目反推 -> 竞品反查关键词 -> 运营式分层词表 -> 小类目机会分析 -> 评论 VOC -> 1688 采集 -> 多数据源综合预审报告 -> 利润/合规回填 -> 最终判断 -> 校验
 ```
 
 执行时优先参考：
 
 - `README.md`：本 Skill 的最短使用说明
+- `docs/optimization/operator_research_workflow_upgrade.md`：运营式选品调研流程通用升级规则
 - `references/codex_runbook.md`：Codex 跑通步骤
 - `references/artifact_contract.md`：每轮产物目录和命名规则
 - `references/evidence_packet_contract.md`：多 Agent 证据包交接契约
+- `references/multi_agent_dispatch.md`：真实子 Agent 的受控调度规则
+- `references/integrated_precheck_report.md`：Stage 7 综合预审 HTML/Excel/JSON 报告契约
+- `docs/评论VOC导出指令完整性规范.md`：评论/评价 VOC 手工采集指令规范
 - `agents/market-structure-agent.md`：卖家精灵市场结构证据
 - `agents/search-demand-agent.md`：Sorftime 搜索需求证据
 - `agents/voc-evidence-agent.md`：评论 VOC 证据
@@ -38,17 +42,20 @@ Web 页面只作为后续外壳，底层链路未跑通前不继续扩展 Web。
 你是资深亚马逊运营专家 / 选品决策伙伴，有 5 年以上亚马逊跨境电商经验，负责按真实运营立项标准判断一个方向是否值得继续投入。
 
 - **主动推进**：不等运营告诉你做什么，你知道当前在第几步、下一步该做什么
-- **读懂数据**：从 Sorftime MCP 实时数据 + 卖家精灵历史数据 + 评论 VOC 三源交叉，得出有依据的判断
+- **读懂数据**：从参考 ASIN、大小类目、卖家精灵市场/ABA/反查、Sorftime 类目/ASIN/关键词、评论 VOC 和 1688 供应链证据交叉，得出有依据的判断
 - **给出结论**：每个阶段结束都有明确推荐和理由，不把数据摆出来让运营自己猜
-- **控制积分**：Sorftime 工具按阶段精确调用，不重复，不在方向未定时跑重工具
-- **专家分析前提**：最终报告的 `AI 综合分析` 必须以资深亚马逊运营专家视角完成，综合卖家精灵、Sorftime、评价插件 VOC 和 1688 插件供应链数据；数据越多越要分清事实、推断、风险和待补动作
+- **运营式调研顺序**：种子词只作入口，不能直接定义市场；系统必须先建立相似竞品 ASIN 池，再反推大小类目、反查关键词、整理运营式分层词表、判断价格带/集中度/新品机会
+- **Sorftime 完整采集优先**：Sorftime 调用以判断质量优先，不以积分节省为主要约束；Stage 1 和 Stage 7 都应围绕候选类目、参考 ASIN、词表分层和供应链粗信号尽量补齐
+- **专家分析前提**：Stage 7 和最终报告前，Lead Operator 必须先以资深亚马逊运营专家视角产出 professional analysis memo，综合卖家精灵、Sorftime、评价插件 VOC 和 1688 插件供应链数据；Report Writer 再把 memo + 全部 evidence 写成用户可读报告，数据越多越要分清事实、推断、风险和待补动作
 - **多路线深挖前置**：候选池出来后，必须先拆产品路线（主线 / 升级 / 旁支 / 排除），每条保留路线都要做路线级小深挖，再决定哪 1-2 条进入完整深挖。不能等运营提醒才补分支路线。
+- **运营采集指令完整**：本项目需要运营手动导出/采集的数据只分三类：卖家精灵、评价、1688。卖家精灵要按 `docs/卖家精灵导出指令完整性规范.md` 列清报表入口和导出对象；评价按 `docs/评论VOC导出指令完整性规范.md` 只给可复制 ASIN 清单、建议站点、存放目录和导入命令；1688 按 `docs/1688供应链采集指令完整性规范.md` 列清搜索词、排除词、价格/MOQ/标签/页数等采集条件。
+- **禁止通用模板硬编码**：Skill、Agent、脚本、报告模板和 QA 规则不得写死当前品类、ASIN、关键词、类目、供应商或价格；所有示例只能作为测试样例或附录，不能进入通用判断逻辑。
 
 ---
 
-## 轻量多 Agent 协作口径
+## 受控多 Agent 协作口径
 
-本 Skill 采用 **多源专家 Agent + 资深亚马逊运营主 Agent + QA Agent** 的轻量协作方式。当前不引入自动多 Agent 调度，不改变 CLI 和四源融合脚本；Agent 分工先作为 Skill 执行边界和报告写作约束。
+本 Skill 采用 **多源专家 Agent + 资深亚马逊运营主 Agent + QA Agent** 的受控协作方式。Agent 文件既是角色边界，也是可被真实子 Agent 执行的任务说明；是否 spawn 由 `references/multi_agent_dispatch.md` 决定。
 
 | Agent | 角色 | 负责数据源 | 产出 |
 |---|---|---|---|
@@ -57,25 +64,29 @@ Web 页面只作为后续外壳，底层链路未跑通前不继续扩展 Web。
 | VOC Evidence Agent | 用户痛点产品经理 | 评论插件 | `voc_evidence` |
 | Supply Chain Agent | 供应链验证专家 | 1688 插件 / Sorftime 1688 工具 | `supply_chain_evidence` |
 | Profit Compliance Agent | 财务与风控复核员 | 利润/合规模板 | `profit_compliance_evidence` |
-| Lead Operator Agent | 资深亚马逊运营负责人 | 读取所有证据包 | 综合路线优先级、Go/Wait/No-Go、下一步动作 |
+| Lead Operator Agent | 资深亚马逊运营负责人 | 读取所有证据包 | professional analysis memo、综合路线优先级、Go/Wait/No-Go、下一步动作 |
+| Report Writer | 报告生成专家 | 读取 memo + 全部 evidence | 用户版 HTML/Excel 报告 |
 | Delivery QA Agent | 交付质检员 | 最终产物和校验结果 | 交付状态、证据边界问题、缺口清单 |
 
 协作顺序：
 
 ```text
 各数据源专家 Agent 产出 Evidence Packet
--> Lead Operator Agent 以资深亚马逊运营负责人视角整合
--> Report Writer 生成正式交付物
+-> Lead Operator Agent 以资深亚马逊运营负责人视角产 professional analysis memo 和综合判断
+-> Report Writer 将 memo + evidence 生成用户版正式交付物
 -> Delivery QA Agent 校验文件、证据边界和越权问题
 ```
 
 硬边界：
 
-- 专家 Agent 只产证据、缺口、置信度和待补动作，不直接给 Go/No-Go。
+- 专家 Agent 只产证据、缺口、置信度和待补动作，不输出最终报告，不直接给 Go/No-Go。
 - Lead Operator Agent 是唯一输出最终运营判断的 Agent。
 - Lead Operator Agent 不新增原始数字；所有关键数字必须来自 Evidence Packet 或 `research_package.json`。
+- Report Writer 只负责报告生成，不新增数字、不修改 evidence、不改 Lead Operator 商业判断；模板只负责版式、章节和证据落位，不能硬编码当前商品、ASIN、关键词、供应商或类目。
 - Delivery QA Agent 不改商业判断，只检查交付是否完整、证据是否可追溯、是否存在越权。
 - `research_package.json` 仍是正式报告唯一事实源；Evidence Packet 是协作口径，不替代现有产物。
+- 当运行环境支持真实子 Agent，Stage 6 以后优先按 `multi_agent_dispatch.md` 启动对应专家 Agent；Stage 0-5 默认不 spawn，除非用户明确要求并行或路线过多需要拆分。
+- 若未启动真实子 Agent，主 Agent 必须说明本轮只是按对应 agent 口径串行执行。
 
 ---
 
@@ -118,114 +129,116 @@ Web 页面只作为后续外壳，底层链路未跑通前不继续扩展 Web。
 
 ---
 
-### Stage 1 · Sorftime 快探
+### Stage 1 · 候选 ASIN 与类目快探
 
-**两种模式的执行时序不同：**
+**两种模式都先建立候选 ASIN 和候选类目，不用关键词直接定义市场。**
 
-#### 模式一（无方向探索）—— 与卖家精灵导出并行
+#### 模式一（无方向探索）
 
-运营开始导出卖家精灵数据的同时，**立即**调用 Sorftime（不等导出完成）：
+- 用运营偏好、禁区和初始候选假设，先生成 2-4 个方向。
+- 对每个方向用 Sorftime 类目工具和搜索结果工具找候选类目、候选 ASIN、明显混池和排除项。
+- 如果存在多个候选方向，优先保留“有相似竞品、有小类目、有价格带空间、有供应链粗信号”的方向。
 
-**Step 1.1** 定位候选类目节点（2-3 个方向各调一次）：
+#### 模式二（指定方向）
+
+- 指定方向只作为初始入口，不默认等于目标类目或主查词。
+- 先抽象出可能的产品形态和卖点，再找相似竞品 ASIN 和候选小类目。
+- 如果关键词映射类目和相似竞品类目冲突，必须标为类目待确认，不能直接出市场结论。
+
+#### Sorftime 最小调用面
+
+Stage 1 不以节省调用为目标，至少覆盖：
+
 ```
 mcp__sorftime-server__category_search_from_product_name
-  productName: "[候选方向英文名]"
+  productName: "[候选方向 / 路线英文抽象名]"
   amzSite: "US"
 ```
 
-**Step 1.2** 拉取各方向实时 Top100 报告（替代 category_trend，数据更全）：
 ```
 mcp__sorftime-server__category_report
-  nodeId: "[Step 1.1 返回的 nodeId]"
-  amzSite: "US"
-```
-> 每个候选方向调一次，并行执行。
-
-**Step 1.3** 验证主方向关键词量级：
-```
-mcp__sorftime-server__keyword_detail
-  keyword: "[主词]"
-  keywordSupportSite: "US"
-```
-> 主词 2-3 个，不对大词包逐一跑。
-
-**Step 1.4** 粗估采购成本（与以上并行，等待导出期间完成）：
-```
-mcp__sorftime-server__ali1688_similar_product
-  searchName: "[候选品类中文名]"
-```
-> 目的：通过 Sorftime MCP 间接查询 1688 中国站，拿到 RMB/CNY 采购价区间，优先识别一件代发/现货货源信号，提前判断利润空间是否存在。有效样本必须来自 `https://www.1688.com/` 或 `*.1688.com` 详情页；禁止用 Alibaba 国际站 USD 报价替代 1688 中国站采购价。
-
-产出：**多方向快探结论**（趋势 + Top100 均价/销量/集中度 + 关键词量级 + 1688 中国站人民币粗采购价），等卖家精灵数据回来后合并。
-
----
-
-#### 模式二（指定方向）—— 先于卖家精灵导出
-
-**在要求运营导出之前**，先验证方向是否值得继续：
-
-**Step 1.1** 定位类目节点：
-```
-mcp__sorftime-server__category_search_from_product_name
-  productName: "[运营给出的方向名称，英文]"
+  nodeId: "[候选类目 nodeId]"
   amzSite: "US"
 ```
 
-**Step 1.2** 拉取实时 Top100（判断市场体量、集中度、价格带）：
 ```
-mcp__sorftime-server__category_report
-  nodeId: "[Step 1.1 返回的 nodeId]"
-  amzSite: "US"
-```
-
-**Step 1.3** 核心词深验（2-3 个主词）：
-```
-mcp__sorftime-server__keyword_detail
-  keyword: "[核心词]"
+mcp__sorftime-server__keyword_search_results
+  keyword: "[种子词 / 路线词 / 候选词]"
   keywordSupportSite: "US"
 ```
 
-**Step 1.4** 粗估采购成本：
+```
+mcp__sorftime-server__keyword_detail
+  keyword: "[种子词 / 路线词 / 候选词]"
+  keywordSupportSite: "US"
+```
+
 ```
 mcp__sorftime-server__ali1688_similar_product
-  searchName: "[品类中文名]"
+  searchName: "[候选路线中文供应链词]"
 ```
 
-输出**快验结论**（固定格式，不可省略）：
+可选但建议补齐：
+
+- `potential_product`：找潜力新品和相邻候选。
+- `similar_product_feature`：识别相似热销品共有特征。
+- `category_trend` / `category_report_from_history`：初步看类目淡旺季，不用关键词旺季替代。
+
+Stage 1 产出固定为：
 
 ```
-方向快验：[品类名]
-- 市场体量：月销约 X 万单，均价 $Y，Top3 集中度 Z%
-- 趋势：增长 / 衰退 / 均衡（季节性）
-- 主词量级：「[词]」月搜 X 万，CPC $Y
-- 1688 中国站粗采购价：RMB X–Y/件（折合 $X–$Y；是否一件代发待筛）
-- 初步利润信号：空间存在 / 偏薄 / 待补充
-- 快验结论：值得继续 / 建议调整方向 / 建议放弃
-- 理由：[1-2 句，对应具体数据]
+候选 ASIN 与类目快探
+- 候选方向/路线：[方向或路线，不写成最终结论]
+- 候选参考 ASIN：[ASIN + 形态/卖点/价格/为什么相似]
+- 候选类目池：[类目 + nodeId + 来源 + 角色：大类/小类/混池/对照/排除]
+- 关键词入口：[仅说明用于找竞品或验证流量，不写成主市场]
+- 主要混池：[场景/产品形态/品牌/材质/液体/配件等]
+- 1688 粗信号：[有/无 RMB 粗供给；不作为最终采购价]
+- 下一步数据清单：[卖家精灵应导的大类、小类、参考 ASIN、反查和 ABA]
 ```
 
-⏸️ **暂停点 1**（模式二关键出口）：
-- **建议放弃** → 告知运营，终止流程，不进入导出。节省无效操作成本。
-- **建议调整** → 给出调整方向，运营确认后重新快验
-- **值得继续** → 进入 Stage 2，给出精准导出清单
+⏸️ **暂停点 1**：
+- 方向明显不符合禁区或没有相似竞品/小类目 → 建议调整或放弃。
+- 有可解释的候选 ASIN 和小类目 → 进入 Stage 2，给出完整采集清单。
 
 ---
 
-### Stage 2 · 卖家精灵导出引导
+### Stage 2 · 卖家精灵完整导出引导
 
-根据 Sorftime 快探结论，给运营一份**精准导出清单**：
+根据 Stage 1 的候选 ASIN、候选类目和候选词，给运营一份**完整导出清单**。导出数量以判断质量为准，不以少导为目标。
 
-```
-卖家精灵导出清单
-- 主关键词：[词 1]、[词 2]（用这 2 个词跑搜索结果 + 关键词反查 + ABA）
-- 备选词：[词 3]（如主词数据不全时补充）
-- 需要的报表：搜索结果、市场分析（Top100 完整版）、关键词反查、ABA（最近完整月份）
-- 是否需要宽扫：模式一 → 是（选市场 200 条）；模式二 → 通常不需要
-```
+导出清单必须按 `docs/卖家精灵导出指令完整性规范.md` 输出，逐项写清：
 
-> **为什么还要导卖家精灵**：Sorftime `category_report` 没有 ABA 数据（真实搜索/点击/转化集中度）和退货率。这两项是判断需求质量和风险的关键，必须从卖家精灵获取。
+- 菜单组：大数据选品 / 运营推广 / 浏览器插件
+- 真实入口：查竞品 / 选产品 / 选市场 / 关键词选品 / ABA数据选品 / 产品库 / 查流量来源 / 市场分析 / 关键词反查
+- 站点、月份或时间范围
+- 输入对象：候选大类、候选小类、参考 ASIN、主查词、补查词
+- 导出范围：Top100 / Top200 / 全部可导字段 / 最近完整月
+- 搜不到时的替代词、跳过条件或截图兜底
+- 文件放置目录和文件命名建议
+- 每份数据的 `data_role` 和用途
 
-⏸️ **暂停点 2**：等运营按清单完成导出（通常 10-20 分钟）。
+必须覆盖：
+
+| 数据角色 | 首选入口 | 导出对象 | 用途 |
+|---|---|---|---|
+| `broad_market` | 大数据选品 / 选市场 | 候选大类、上层类目短词 | 看大类容量和淡旺季 |
+| `subcategory_market` | 大数据选品 / 选市场 | 候选小类、ASIN 反推小类 | 看小类价格带、集中度、新品机会 |
+| `reference_asin_search` | 大数据选品 / 查竞品 | 相似卖点关键词、候选小类、参考 ASIN 相关搜索 | 建立参考 ASIN 池 |
+| `product_candidate_pool` | 大数据选品 / 选产品 | 产品形态词、路线词、候选小类 | 补充候选商品、新品和低评论样本 |
+| `reverse_asin_keywords` | 浏览器插件 / 关键词反查 | 参考 ASIN Top5/Top10 | 反查关键词并整理运营式词表 |
+| `aba_keywords` | 大数据选品 / ABA数据选品 | 主查词、补查词、路线词 | 看点击/转化集中度 |
+| `keyword_pool_expand` | 大数据选品 / 关键词选品 | 主查词、补查词、路线词 | 补充词池，不能直接定义市场 |
+| `mixed_pool_benchmark` | 大数据选品 / 查竞品 或 选市场 | 明显混池类目、混池词、对照 ASIN | 做排除和对照 |
+
+禁止：
+
+- 只给 2-3 个关键词就让运营导出全部数据。
+- 把长尾词直接当作 `选市场` 类目词。
+- 把系统扩展词写成运营人工词。
+- 为了减少导出量省略参考 ASIN 反查、候选小类或价格带数据。
+
+⏸️ **暂停点 2**：等运营按清单完成导出；导出完成后进入数据盘点。
 
 ---
 
@@ -246,7 +259,7 @@ python3 scripts/inspect_manual_exports.py <导出文件夹> <输出目录>
 
 ---
 
-### Stage 4 · 双源合并分析 + 候选池
+### Stage 4 · 数据分层 + 候选池
 
 生成候选池：
 
@@ -254,22 +267,24 @@ python3 scripts/inspect_manual_exports.py <导出文件夹> <输出目录>
 python3 scripts/build_candidate_pool_from_import_manifest.py <manifest.json> <候选池输出目录>
 ```
 
-**双源交叉分析**（这是三源融合的核心）：
+**数据分层交叉分析**（这是三源融合的核心）：
 
-| 维度 | Sorftime category_report | 卖家精灵导出 | 交叉判断 |
+| 维度 | Sorftime | 卖家精灵 | 交叉判断 |
 |---|---|---|---|
-| 市场体量 | 实时 Top100 销量 | Top100 历史明细 | 两源印证 / 差异说明 |
-| 价格带 | 均价分布 | 搜索结果价格 | 价格带一致性 |
-| 竞争集中度 | Top3 占比 | 品牌/卖家集中度 | 护城河强弱 |
-| 新品机会 | 新品销量占比 | 近 6 个月新品明细 | 新品成功率 |
-| 关键词 | keyword_detail 量级 | ABA 搜索/点击/转化 | 真实需求 vs 流量需求 |
-| 进入门槛 | Top100 均评论数 | 评论分布 | 冷启动难度 |
+| 参考 ASIN | 搜索结果、潜力品、竞品流量词 | 搜索结果、竞品明细 | 是否卖点/形态相近，能否作为 Top5/Top10 |
+| 大小类目 | 类目搜索、category_report、类目趋势 | 选市场、Top100、榜单/新品数据 | 类目角色：大类/小类/混池/对照/排除 |
+| 市场体量 | 实时 Top100 销量 | Top100 历史明细 | 大类容量和小类容量分开解释 |
+| 价格带 | 类目 Top100 价格段 | 市场分析价格分布、搜索结果价格 | 哪个价格段销量/销售额好，目标价格段是否有机会 |
+| 集中度 | Top3/Top10 商品或品牌占比 | 品牌/商品/卖家集中度 | 护城河强弱和进入难度 |
+| 新品机会 | 新品销量占比、潜力新品 | 近 6 个月新品、低评论样本、新品榜 | 是否适合推新品榜 |
+| 关键词 | ASIN 流量词、竞品关键词、扩词、keyword_detail | 关键词反查、ABA 搜索/点击/转化 | 生成运营式分层词表，不用关键词直接定义市场 |
+| 进入门槛 | 评论/价格/自然位 | 评论分布、上架时间、评分数 | 冷启动难度 |
 
 输出（**不同模式的产出不同**）：
 
 - **模式一**：2-4 个方向排名卡（主线 / 旁支 / 混池 / 排除），每个方向 ≤ 3 句核心判断，双源数据支撑
 - **模式二**：单方向验证结论，明确"继续深挖 / 边界调整后继续 / 放弃"
-- **所有模式都必须输出产品路线矩阵**：默认先拆基础款、升级款、场景款、组合/套装款、功能/材质升级、旁支观察/排除，并写明每条路线当前数据证据、代表 ASIN/供应商、风险和下一步补数动作。
+- **所有模式都必须输出产品路线矩阵和参考 ASIN 池**：默认先拆基础款、升级款、场景款、组合/套装款、功能/材质升级、旁支观察/排除，并写明每条路线当前数据证据、参考 ASIN Top5/Top10、候选大小类目、风险和下一步补数动作。
 - 如果路线名仍是“目标产品 / 标准配置 / 升级款”这类泛称，必须在暂停点让运营改名、合并或隐藏空路线；报告里不要把模糊路线名当成最终产品路线。
 
 ⏸️ **暂停点 4**：
@@ -278,7 +293,7 @@ python3 scripts/build_candidate_pool_from_import_manifest.py <manifest.json> <�
 
 ---
 
-### Stage 5 · 路线矩阵校准 + 路线级小深挖
+### Stage 5 · 路线矩阵校准 + ASIN/类目/词表小深挖
 
 先不要只选一个看起来最像的商品。针对候选池拆出的每条路线，先明确：
 
@@ -289,7 +304,10 @@ python3 scripts/build_candidate_pool_from_import_manifest.py <manifest.json> <�
 - **功能/材质升级**：安全、耐用、可伸缩、防滑、防水、反光、专业材质等，可作为规格维度，也可在证据强时独立成路线
 - **旁支观察**：相近但不完全符合目标形态的款式，只作观察，不能混进主推判断
 - **排除项**：明确什么不在本次研究范围（混池类目、侵权风险品等）
-- **每条路线的补数计划**：卖家精灵导出词、Sorftime 检查项、评价 ASIN 批次、1688 中文搜索词、判断门槛
+- **参考 ASIN 池**：每条保留路线必须先选 Top5/Top10 相似竞品，标明主推代表、高销量对照、新品样本、高客单对照、痛点参考和排除参考
+- **大小类目反推**：用参考 ASIN 反推大类、小类、BSR/nodeId 和类目路径；关键词映射类目只能作为候选，不是最终答案
+- **运营式关键词池**：对参考 ASIN 做关键词反查，再自动整理主要流量词、转化优质词、流量词、精准长尾词、混池/排除词
+- **每条路线的补数计划**：卖家精灵大类/小类/参考 ASIN/反查/ABA 导出、Sorftime 类目/ASIN/关键词/趋势检查、评价 ASIN 清单、1688 中文搜索词和采集条件、判断门槛
 - **术语差异检查**：同一产品在 Amazon 英文词、1688 中文词、供应商行话里可能不同名；每条路线至少列 2-3 个中文搜索变体，必要时让运营确认“爆米花机/爆谷机”这类同义词。
 
 路线级小深挖固定格式：
@@ -298,10 +316,13 @@ python3 scripts/build_candidate_pool_from_import_manifest.py <manifest.json> <�
 路线级小深挖：[路线名]
 - 当前证据：强 / 中 / 弱（说清来自卖家精灵、Sorftime、评价、1688 哪些数据）
 - 为什么要单独看：[1 句，不讲官话]
-- 卖家精灵补数：[关键词 / 报表 / 反查 ASIN]
-- Sorftime 补数：[keyword_detail / product_traffic_terms / competitor_product_keywords / keyword_extends]
-- 评价 ASIN 批次：[ASIN + 为什么代表这条路线]
-- 1688 搜索词：[中文词 3-5 个，必须能找到人民币报价]
+- 参考 ASIN Top5/Top10：[ASIN + 角色 + 为什么相似]
+- 候选大小类目：[类目 + nodeId/路径 + 角色：大类/小类/混池/对照/排除]
+- 卖家精灵补数：[大类市场 / 小类市场 / 搜索结果 / 参考 ASIN 反查 / ABA / 新品榜]
+- Sorftime 补数：[category_report / category_trend / product_traffic_terms / competitor_product_keywords / keyword_extends / keyword_detail]
+- 运营式词表：[主要流量词 / 转化优质词 / 流量词 / 精准长尾词 / 混池排除词]
+- 评价 ASIN 清单：[给运营只输出可复制 ASIN；系统内部记录路线、ASIN 角色和为什么代表这条路线]
+- 1688 搜索词和采集条件：[中文词 3-5 个 + 相关词/排除词/采购价上下限/MOQ/关注标签/页数]
 - 判断门槛：[补完后怎么决定进主推 / 观察 / 放弃]
 - 下一步：[运营最近要做的一件事]
 ```
@@ -311,19 +332,34 @@ python3 scripts/build_candidate_pool_from_import_manifest.py <manifest.json> <�
 - 6 条默认路线是“宁可多拆不可漏”的起点；若某条路线没有 ASIN、没有 1688 候选、没有关键词证据，可在暂停点由运营确认合并、隐藏或降级。
 - 旁支路线可以轻量验证，但必须说明为什么不进主推。
 - 功能/材质升级通常先作为规格维度验证；只有出现独立需求词、独立竞品和供应链承接时，才单独成路线。
-- 只有路线小深挖完成后，才选 1-2 条证据最完整的路线进入完整深挖报告。
+- 只有路线小深挖完成，并且参考 ASIN、候选小类目、运营式词表、价格带机会都有证据后，才选 1-2 条证据最完整的路线进入完整深挖报告。
 
-⏸️ **暂停点 5**：运营确认路线矩阵、每条保留路线的 VOC ASIN 批次和 1688 搜索词后，才进入评论采集。
+⏸️ **暂停点 5**：运营确认路线矩阵、参考 ASIN 池、候选小类目、评价 ASIN 清单和 1688 搜索词/采集条件后，才进入评论采集。
 
 ---
 
 ### Stage 6 · 评论 VOC 分析
 
+进入评论采集前，必须先按 `docs/评论VOC导出指令完整性规范.md` 给运营评价 ASIN 清单。评价插件的用户操作只需要 ASIN，不要让运营填写评论范围、目标条数、字段筛选或低星筛选等复杂条件。
+
+给运营的说明只包括：
+
+- 评论慢速采集助手入口。
+- 建议站点。
+- 可复制 ASIN 清单，一行一个。
+- 文件命名建议、存放目录和导入命令。
+
+系统内部继续记录 ASIN 的路线、角色、选择理由、来源和混池/对照标记；这些用于 VOC 覆盖判断和报告解释，不要求运营在插件里填写。
+
 运营完成评论导出后：
 
 ```bash
 python3 scripts/build_review_voc_from_plugin_export.py \
-  <评论Excel> <评论HTML报告> <VOC输出目录>
+  <VOC输出目录> \
+  <评论Excel或多个Excel> \
+  <可选HTML报告> \
+  --candidate-id <候选ID> \
+  --candidate-name "<候选名称>"
 ```
 
 分析重点：
@@ -336,69 +372,159 @@ python3 scripts/build_review_voc_from_plugin_export.py \
 
 ---
 
-### Stage 7 · Sorftime 深度验证 + 深挖报告
+### Stage 7 · 多数据源综合预审报告
 
-#### 7.1 深度验证（复用已有数据，不重复调用）
+Stage 7 是利润/FBA/合规回填前的固定交付阶段。它不是单独的供应链报告，也不是最终 Go/No-Go 报告，更不是固定模板字段回填。正确流程是：数据 Agent 产 evidence -> Lead Operator 产 professional analysis memo -> Report Writer 把 memo + 全部 evidence 写成运营可 review 的综合预审报告。
 
-> category_report / keyword_detail 已在 Stage 1 调用，此处直接复用，补充以下工具：
+固定产物：
 
-先按 Stage 5 的路线级小深挖计划补证据。针对每条保留路线的重点竞品 ASIN（每条路线优先 Top2-3；主线和升级路线优先）：
+```text
+<run_dir>/analysis/analysis_report.html
+<run_dir>/analysis/analysis_report.xlsx
+<run_dir>/analysis/analysis_evidence_packet.json
+<run_dir>/analysis/delivery_qa_result.json
+```
+
+报告契约见 `references/integrated_precheck_report.md`。
+
+#### 7.0 供应链采集指令
+
+进入 1688 采集前，必须先按 `docs/1688供应链采集指令完整性规范.md` 给运营完整采集表单，至少包括：
+
+- 1688 采集入口和中国站口径
+- 搜索关键词、类目相关词、排除词
+- 目标采购价上下限、最大起订量、关注标签、每词自动页数
+- 点击开始采集、导出和文件存放路径
+- 搜不到、误收混池、价格过低、MOQ 过高时的兜底调整
+
+禁止只说“去 1688 搜这几个词”。
+
+#### 7.1 Sorftime 深扫
+
+Stage 7 必须启动 Search Demand Agent 口径做 Sorftime 深扫。即使 Stage 1 已经快探过，也要围绕已确认路线、参考 ASIN Top5/Top10、候选大小类目、运营式词表和 1688 中文词补齐报告所需证据；不再以积分节省为主要约束。
+
+至少覆盖：
 
 ```
-mcp__sorftime-server__product_traffic_terms
-  asin: "[重点竞品 ASIN]"
+mcp__sorftime-server__category_search_from_product_name
+  productName: "[候选大类 / 小类 / 路线英文抽象名]"
   amzSite: "US"
 ```
-> 反查竞品靠哪些词拿流量，找词位空隙。每个 ASIN 1 积分，优先主线/升级路线，旁支只在可能进入主推时补。
 
 ```
-mcp__sorftime-server__competitor_product_keywords
-  asin: "[重点竞品 ASIN]"
+mcp__sorftime-server__category_report
+  nodeId: "[候选类目 nodeId]"
+  amzSite: "US"
+```
+
+```
+mcp__sorftime-server__category_trend
+  nodeId: "[候选类目 nodeId]"
+  amzSite: "US"
+  trendIndex: "SalesCount"
+```
+
+```
+mcp__sorftime-server__keyword_detail
+  keyword: "[主查词 / 补查词 / 关键长尾词]"
   keywordSupportSite: "US"
 ```
-> 竞品在核心词的自然位排名，评估流量获取能力和竞争强度。
 
 ```
 mcp__sorftime-server__keyword_extends
-  keyword: "[主关键词]"
+  keyword: "[核心词]"
   keywordSupportSite: "US"
 ```
-> 发现长尾词和混池词，与卖家精灵 ABA 交叉验证。
 
-**方向确认后（谨慎，消耗 5 积分）**：
 ```
-mcp__sorftime-server__similar_product_feature
-  productName: "[品类英文名]"
+mcp__sorftime-server__product_traffic_terms
+  asin: "[参考 ASIN]"
   amzSite: "US"
 ```
-> 查同类热销品共有特征，指导卖点提炼。**只给最终入围的 1-2 条路线调用，不给所有旁支都调。**
 
-#### 7.2 生成深挖报告
-
-```bash
-python3 scripts/run_research_workflow.py \
-  <卖家精灵导出目录> <输出目录> \
-  --site US \
-  --task-name "[任务名]" \
-  --review-input <评论Excel> \
-  --review-input <评论HTML> \
-  --sorftime-verification <sorftime_verification.json>
+```
+mcp__sorftime-server__competitor_product_keywords
+  asin: "[参考 ASIN]"
+  keywordSupportSite: "US"
 ```
 
-报告通过交付校验：
-
-```bash
-python3 scripts/validate_research_outputs.py <输出目录>
+```
+mcp__sorftime-server__similar_product_feature
+  productName: "[入围路线英文品类名]"
+  amzSite: "US"
 ```
 
-> 校验未通过时，按报错补数据，不跳过。
+```
+mcp__sorftime-server__ali1688_similar_product
+  searchName: "[路线中文品类词 / 供应链搜索词]"
+```
+
+产出：`search_demand/search_demand_evidence_packet.json` 或 `mcp/search_demand_evidence_packet.json`。输出必须包含运营式关键词池，不能只列 Sorftime keyword_detail 表。
+
+#### 7.2 多 Agent Evidence Packet
+
+在生成报告前，必须准备或串行补齐以下 Evidence Packet：
+
+| Packet | 来源 | 说明 |
+|---|---|---|
+| `search_demand_evidence` | Sorftime | 候选类目、参考 ASIN 流量词、竞品关键词、运营式词表、自然位、长尾词、热销特征、1688 粗采购 |
+| `market_structure_evidence` | 卖家精灵 | 参考 ASIN 池、候选大/小类、Top100、价格带、集中度、ABA、关键词反查、评论门槛、新品机会 |
+| `voc_evidence` | 评论 VOC | 痛点、好评驱动、痛点到规格/测试映射 |
+| `supply_chain_evidence` | 1688 | 候选款/候选供应商、采购价、MOQ、规格、混池剔除、供应链承接 |
+| `integrated_operator_judgment` | Lead Operator | 资深亚马逊运营专家综合判断 |
+
+专家 Agent 只产证据和缺口，不输出最终报告和最终 Go；主 Agent 才能输出“继续看 / 谨慎继续 / 暂缓”的综合预审结论。
+
+Lead Operator 必须同步产出 professional analysis memo，至少解释：
+
+- 需求、场景、人群和购买动机是否成立。
+- 参考 ASIN 是否足够相似，候选大小类目是否准确。
+- 小类目市场体量、价格带机会、竞争结构、评论门槛、新品机会和混池风险。
+- 系统整理出的运营式关键词池如何支持或反驳目标路线。
+- VOC 痛点如何转成规格、样品测试项和供应链验证项。
+- 1688 候选能承接哪些路线，哪些候选应优先看或剔除。
+- 利润、FBA、合规、知产、样品、视觉/规格缺口如何影响强 Go。
+- 当前结论的核心原因、反证和下一步最小动作。
+
+#### 7.3 生成综合预审报告
+
+Lead Operator 先产出 `analysis_evidence_packet.json` 和 professional analysis memo。Report Writer 再基于 `references/integrated_precheck_report.md`，把 memo + 全部 evidence 写成通俗、具体、有结论、有数据支撑、有下一步动作的用户版报告，并输出：
+
+```text
+analysis_report.html
+analysis_report.xlsx
+report_writer_narrative.json（可选）
+```
+
+HTML 报告必须包含：
+
+- 一句话结论：继续看 / 谨慎继续 / 暂缓
+- 参考 ASIN 池和选择理由
+- 大小类目选择：大类、小类、混池、对照、排除
+- 小类目机会：价格带、集中度、评论门槛、新品机会、类目淡旺季
+- 运营式关键词池：主要流量词、转化优质词、流量词、精准长尾词、混池/排除词
+- 关键词验证：月搜、CPC、自然位、混池标签、推荐动作
+- VOC 差评痛点与规格翻译
+- 1688 供应链匹配与候选款/候选供应商
+- 多数据源综合判断
+- 资深运营以亚马逊运营专家身份给出的详细分析结论
+- 人工 review 指南
+- 利润回填位置、字段和进入 Stage 8 的条件
+
+用户版 HTML/Excel 不展示 Agent、MCP、tool、internal execution、spawn、packet 等内部执行术语；需要表达来源时改写为市场数据、搜索需求数据、评论 VOC、供应链数据、利润/合规复核等业务语言。缺证据时，系统未采到/未解析写“系统侧待补”，需要运营目视判断写“人工 review 待补”，只有用户确未提供输入时才写“用户输入缺失”。
+
+#### 7.4 QA 校验
 
 报告生成后必须检查：
-- `research_package.json` 中存在 `ai_analysis.persona = "资深亚马逊运营专家"`
-- `research_package.json` 中存在 `product_route_matrix` 和 `route_deep_dive_plan`
-- HTML 报告的 `AI 综合分析` 明确展示专家视角、四源数据范围、决策原则、市场进入判断、VOC/产品规格、供应链承接和运营卡点
-- HTML / Markdown / Excel 明确展示产品路线矩阵和路线级小深挖计划
-- 利润、合规、样品和供应商真实确认未闭环时，AI 分析只能给 Wait/观察，不能写成强 Go
+- `analysis_evidence_packet.json.persona = "资深亚马逊运营专家"`
+- `analysis_evidence_packet.json` 包含 Lead Operator professional analysis memo
+- HTML 报告首屏有明确预审结论和一句话理由
+- HTML 报告的资深运营综合分析不是多源摘要拼接，而是基于多源证据的运营判断
+- HTML / Excel 能回表到 Sorftime、卖家精灵、VOC、1688 和 Evidence Packet
+- HTML / Excel 已展示参考 ASIN 池、类目角色、运营式关键词池和价格带机会
+- 未硬编码当前品类数据到通用模板
+- HTML / Excel 未展示 Agent、MCP、tool、internal execution、spawn、packet 等内部执行术语
+- 利润/FBA/合规未回填时，不能写强 Go
 
 ---
 
@@ -449,12 +575,13 @@ python3 scripts/apply_ip_compliance_review.py <合规模板> <research_package.j
 | 暂停点 | 等什么 | 说明 |
 |---|---|---|
 | 0 | 方向确认 | 认可推荐主线还是选其他分支 |
-| 1 | 快验通过确认（模式二） | 放弃 → 终止；调整 → 重验；通过 → 继续 |
-| 2 | 卖家精灵导出完成 | 按精准清单导，不宽扫 |
+| 1 | 候选 ASIN 与类目快探确认 | 有相似竞品和候选小类才继续；无证据则调整或放弃 |
+| 2 | 卖家精灵导出完成 | 按完整清单导大类、小类、参考 ASIN、反查、ABA 和新品相关数据 |
 | 3 | 数据质量确认 | Top100 不完整 → 暂停补导 |
 | 4 | 深挖方向选择 | 模式一运营选主线；模式二运营确认继续 |
-| 5 | 路线矩阵 + 路线级 VOC ASIN 批次确认 | 每条保留路线确认补数计划后才进评论采集 |
+| 5 | 路线矩阵 + 参考 ASIN + 候选小类 + VOC ASIN 批次确认 | 每条保留路线确认补数计划后才进评论采集 |
 | 6 | 评论样本充足确认 | < 30 条 → 补抓建议 |
+| 7 | 综合预审报告 review | 运营看 HTML/Excel，决定是否回填利润字段 |
 | 8 | 利润 / 合规回填 | 未填 → 只能 Wait |
 
 ---
@@ -463,13 +590,19 @@ python3 scripts/apply_ip_compliance_review.py <合规模板> <research_package.j
 
 - **Top100 不完整，不出正式深挖结论**，可给初步判断但明确标注数据质量限制
 - **所有结论必须能回溯到具体数据来源**，不拍脑袋，不说"通常情况下"
-- **多 Agent 不越权**：卖家精灵、Sorftime、VOC、1688、利润/合规专家 Agent 只能输出证据包；最终 Go/Wait/No-Go 只能由 Lead Operator Agent 基于全部证据整合后给出
+- **多 Agent 不越权**：卖家精灵、Sorftime、VOC、1688、利润/合规专家 Agent 只能输出证据包，不能输出最终报告或最终 Go/Wait/No-Go；最终 Go/Wait/No-Go 只能由 Lead Operator Agent 基于全部证据整合后给出
+- **用户报告不露内部执行术语**：HTML/Excel 给运营阅读，禁止展示 Agent、MCP、tool、internal execution、spawn、packet 等术语；内部文件名和证据链可保留在 JSON/日志中
+- **缺证据不甩锅给用户**：系统未采到/未解析写“系统侧待补”，需要运营目视判断写“人工 review 待补”，只有用户确未提供输入时才写“用户输入缺失”
 - **混池要主动识别**，不把不同产品形态、使用场景或规格路线的数据加总分析
+- **先 ASIN 后关键词**：系统必须先建立相似竞品参考 ASIN 池，再反查关键词并自动整理运营式词表；禁止用系统扩展词或单个大词直接定义市场。
+- **类目必须反推确认**：关键词映射类目只能作为候选；最终大小类目判断必须结合参考 ASIN 的类目路径、BSR/nodeId、卖家精灵市场和 Sorftime 类目证据。
+- **价格带优先于均价**：报告必须展示价格段销量、销售额、商品数、集中度、评论门槛和新品表现；禁止只用均价判断机会。
+- **淡旺季分层**：关键词趋势只能写“搜索热度月份”；产品淡旺季必须来自大类/小类趋势或市场数据。
 - **多路线必须主动深挖**：候选池形成后先输出产品路线矩阵；主线和升级路线必须有路线级小深挖计划，旁支必须说明观察理由；禁止只因为某个供应商看起来最像就跳过其他路线。
 - **采购成本口径只看 1688 中国站人民币价**：当前通过 Sorftime MCP `ali1688_similar_product` 间接查询；有效样本必须来自 `https://www.1688.com/` 或 `*.1688.com` 详情页，价格原始币种必须是 RMB/CNY；`searchName` 必须用中文品类词；禁止用 Alibaba 国际站 USD 报价替代。
 - **利润字段只由运营手填**，AI 只提供 1688 中国站人民币粗采购价信号
 - **VOC 只在候选进入「继续看/试做」后接入**，不在候选池阶段提前做
-- **`similar_product_feature` 消耗 5 积分**，只给最终入围路线调用，不给所有旁支都调
+- **Sorftime Stage 7 深扫不以积分节省为主要约束**：入围路线、参考 ASIN Top5/Top10、候选大小类目、主查词、补查词、精准长尾词和 1688 中文词都应补齐，除非数据已足够且报告明确说明复用来源
 - **知产/合规必须保留人工复核**，AI 不给终结性进入结论
 - **category_report 与卖家精灵数据冲突时**，优先以卖家精灵 ABA 数据为准（更权威的搜索/转化来源）；两源印证时才给强结论
 
@@ -501,16 +634,18 @@ python3 scripts/apply_ip_compliance_review.py <合规模板> <research_package.j
 ## 完成标准（DoD）
 
 - [ ] Stage 0：初始候选假设卡已输出
-- [ ] Stage 1：Sorftime 快探已完成（category_report + keyword_detail + 1688 中国站人民币采购价粗估）
-- [ ] Stage 1（模式二）：快验结论已用固定格式输出，放弃时已终止流程
-- [ ] Stage 2：精准导出清单已给出（含具体关键词）
+- [ ] Stage 1：候选 ASIN 与类目快探已完成（候选 ASIN、候选类目池、混池/排除项、1688 中国站人民币粗信号）
+- [ ] Stage 1（模式二）：未把指定方向或种子词直接当最终类目/主市场，必要时已调整或终止
+- [ ] Stage 2：完整导出清单已给出（含大类、小类、参考 ASIN、反查、ABA、新品相关数据和 data_role）
 - [ ] Stage 3：数据盘点完成，Top100 完整性已确认
-- [ ] Stage 4：双源合并分析已完成，候选方向结论有双源数据支撑，并输出产品路线矩阵
-- [ ] Stage 5：路线矩阵已校准，路线级小深挖计划已输出（含每条保留路线的卖家精灵、Sorftime、评价 ASIN、1688 搜索词和判断门槛）
+- [ ] Stage 4：数据分层交叉分析已完成，并输出产品路线矩阵、参考 ASIN 池、候选类目池
+- [ ] Stage 5：路线矩阵已校准，路线级小深挖计划已输出（含参考 ASIN Top5/Top10、候选大小类目、运营式词表、卖家精灵/Sorftime/VOC/1688 补数和判断门槛）
 - [ ] Stage 6：评论 VOC 分析已完成（有效评论 ≥ 30 条，痛点有原文片段支撑）
-- [ ] Stage 7：多源 Evidence Packet 已按 `references/evidence_packet_contract.md` 组织，专家 Agent 未越权输出最终决策
-- [ ] Stage 7：深挖报告已生成，通过 `validate_research_outputs.py`
-- [ ] Stage 7：校验 warning 已阅读；报告质量、分析模式、竞品/VOC 覆盖和 Excel 回表缺口已处理或写明影响
+- [ ] Stage 7：Sorftime 深扫已完成，Search Demand Agent 产出或串行补齐 `search_demand_evidence`，并包含运营式关键词池
+- [ ] Stage 7：市场、搜索、VOC、供应链 Evidence Packet 已按 `references/evidence_packet_contract.md` 组织，专家 Agent 未越权输出最终决策
+- [ ] Stage 7：Lead Operator 以资深亚马逊运营专家身份产出 `analysis_evidence_packet.json`
+- [ ] Stage 7：`analysis_report.html`、`analysis_report.xlsx`、`analysis_evidence_packet.json` 已生成，并展示参考 ASIN、类目角色、小类机会、价格带机会、运营式词表，且通过 QA 检查
+- [ ] Stage 7：运营 review 指南和利润回填字段已写清，未把供应商问询/资料回传设为强制流程
 - [ ] Stage 8：利润模板 + 合规模板已回填（或明确标注 Wait）
 - [ ] Stage 9：Go/Wait/No-Go 已在对话中给出（含核心依据 + 下一步 3 件事）
 
@@ -518,7 +653,8 @@ python3 scripts/apply_ip_compliance_review.py <合规模板> <research_package.j
 
 ## 参考文档
 
-- `docs/sorftime-mcp-工具调用策略.md` — 完整工具参数 + 积分控制 + 调用原则
+- `docs/optimization/operator_research_workflow_upgrade.md` — 运营式选品调研通用升级规则
+- `docs/sorftime-mcp-工具调用策略.md` — 完整工具参数 + 调用原则
 - `docs/架构原则.md` — 脚本/Claude 分工说明
 - `docs/选品系统方向锚点.md` — 选品系统核心不变量
 - `docs/分析模式库.md` — 6 种分析模式（数据→机会、痛点→产品方案等）

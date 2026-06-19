@@ -38,12 +38,303 @@ from packages.report_renderer.render_report import (
     render_markdown,
     render_report_html,
 )
+from scripts.build_stage7_analysis_report import build_analysis_packet, build_workbook_sheets, render_html_report
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class RegressionTests(unittest.TestCase):
+    def test_stage7_analysis_report_uses_operator_research_objects(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = Path(tmpdir) / "generic_stage7_run"
+            run_dir.mkdir()
+            paths = {
+                "search_demand": run_dir / "search_demand" / "search_demand_evidence_packet.json",
+                "market_structure": run_dir / "market_structure" / "market_structure_evidence_packet.json",
+                "voc": run_dir / "review_voc" / "voc_evidence_packet.json",
+                "supply_chain": run_dir / "supply_chain" / "supply_chain_evidence_packet.stage7.json",
+                "route_matrix": run_dir / "route_matrix_confirm.json",
+                "workflow_state": run_dir / "workflow_state.json",
+                "report_writer_narrative": run_dir / "analysis" / "report_writer_narrative.json",
+            }
+            for path in paths.values():
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("{}", encoding="utf-8")
+
+            search_packet = {
+                "packet_id": "search_demand_evidence",
+                "agent_role": "Search Demand Agent",
+                "confidence": "medium",
+                "execution_provenance": {
+                    "executed_by_agent": True,
+                    "agent_role": "Search Demand Agent",
+                    "execution_mode": "real_subagent_spawn",
+                },
+                "reference_asin_inputs": [
+                    {
+                        "asin": "ASINREF001",
+                        "route_ref": "base_route",
+                        "asin_role": "primary_reference",
+                        "similarity_reason": "形态和使用场景接近",
+                    }
+                ],
+                "category_candidates": [
+                    {
+                        "category_name": "General Utility Holders",
+                        "node_id": "100100",
+                        "category_role": "subcategory_market",
+                        "source_type": "asin_category_mapping",
+                        "matched_asin_count": 1,
+                        "evidence_strength": "strong",
+                        "recommended_use": "analyze_entry",
+                    }
+                ],
+                "keyword_pool_by_role": {
+                    "main_traffic": [
+                        {
+                            "keyword": "utility holder",
+                            "keyword_role": "main_traffic",
+                            "source_type": "product_traffic_terms",
+                            "matched_asin_count": 3,
+                            "monthly_search_volume": 12000,
+                            "cpc": 1.2,
+                            "recommended_action": "main_check",
+                            "reason": "多个参考 ASIN 命中且搜索结果相似",
+                        }
+                    ],
+                    "conversion_quality": [],
+                    "traffic": [],
+                    "precise_long_tail": [
+                        {
+                            "keyword": "compact utility holder for desk",
+                            "keyword_role": "precise_long_tail",
+                            "source_type": "competitor_product_keywords",
+                            "matched_asin_count": 2,
+                            "monthly_search_volume": 1400,
+                            "recommended_action": "supplement_check",
+                            "reason": "规格和场景更明确",
+                        }
+                    ],
+                    "mixed_or_excluded": [
+                        {
+                            "keyword": "branded replacement accessory",
+                            "keyword_role": "mixed_or_excluded",
+                            "source_type": "keyword_search_results",
+                            "mix_pool_tags": ["品牌词", "配件"],
+                            "recommended_action": "exclude",
+                            "reason": "搜索结果不是目标产品形态",
+                        }
+                    ],
+                },
+                "category_seasonality": [
+                    {
+                        "category_ref": "Utility Holders",
+                        "category_role": "subcategory_market",
+                        "trend_source": "category_trend",
+                        "trend_index": "SalesCount",
+                        "peak_months": ["November", "December"],
+                        "low_months": ["February"],
+                        "seasonality_level": "medium",
+                        "trend_direction": "stable",
+                        "keyword_heat_note": "关键词热度仅作搜索参考",
+                        "category_seasonality_note": "类目销量在 Q4 更强",
+                    }
+                ],
+                "data_gaps": [],
+            }
+            market_packet = {
+                "packet_id": "market_structure_evidence",
+                "agent_role": "Market Structure Agent",
+                "confidence": "medium",
+                "execution_provenance": {
+                    "executed_by_agent": False,
+                    "agent_role": "Market Structure Agent",
+                    "execution_mode": "script_generated",
+                },
+                "reference_asin_pool": [
+                    {
+                        "asin": "ASINREF001",
+                        "route_ref": "base_route",
+                        "asin_role": "primary_reference",
+                        "similarity_reason": "形态、价格带和使用场景接近",
+                        "category_path": "Home > Utility Holders",
+                        "category_role": "小类",
+                        "price": 24.99,
+                        "monthly_sales": 900,
+                        "rating_count": 180,
+                    }
+                ],
+                "category_candidates": [
+                    {
+                        "category_name": "Home Utility",
+                        "node_id": "100000",
+                        "category_role": "broad_market",
+                        "source_type": "seller_sprite_market",
+                        "evidence_strength": "medium",
+                        "recommended_use": "analyze_capacity",
+                    },
+                    {
+                        "category_name": "Utility Holders",
+                        "node_id": "100100",
+                        "category_role": "subcategory_market",
+                        "source_type": "asin_category_mapping",
+                        "matched_asin_count": 1,
+                        "evidence_strength": "strong",
+                        "recommended_use": "analyze_entry",
+                    },
+                ],
+                "asin_category_mapping": [
+                    {
+                        "asin": "ASINREF001",
+                        "route_ref": "base_route",
+                        "category_path": "Home > Utility Holders",
+                        "node_id": "100100",
+                        "category_role": "小类",
+                        "mapping_source": "seller_sprite",
+                    }
+                ],
+                "market_size": {
+                    "primary_market": {
+                        "market_label": "Utility Holders",
+                        "overview_all": {
+                            "样本商品数": 100,
+                            "月均销量": 850,
+                            "月均销售额($)": 24000,
+                            "平均价格($)": 24.5,
+                            "平均评分数": 260,
+                        },
+                    }
+                },
+                "price_band_opportunity": [
+                    {
+                        "category_ref": "Utility Holders",
+                        "price_band": "$20-$30",
+                        "product_count": 32,
+                        "sales_share": 0.42,
+                        "revenue_share": 0.46,
+                        "median_rating_count": 160,
+                        "top3_product_share": 0.18,
+                        "top3_brand_share": 0.24,
+                        "new_release_count": 5,
+                        "low_review_winner_count": 3,
+                        "opportunity_level": "strong",
+                        "reason": "销量和销售额都有占比，且低评论样本存在",
+                    }
+                ],
+                "new_release_opportunity": [
+                    {
+                        "category_ref": "Utility Holders",
+                        "new_release_count": 5,
+                        "new_release_sales_share": 0.08,
+                        "new_release_revenue_share": 0.07,
+                        "low_review_samples": ["ASINNEW001", "ASINNEW002"],
+                        "ranking_entry_signal": "watch",
+                    }
+                ],
+                "route_market_fit": [
+                    {
+                        "route_id": "base_route",
+                        "route_name": "基础收纳路线",
+                        "role": "主推代表",
+                        "status": "继续看",
+                        "facts": {
+                            "price_min_usd": 20,
+                            "price_max_usd": 30,
+                            "avg_price_usd": 24.5,
+                            "avg_monthly_units": 850,
+                            "median_rating_count": 160,
+                        },
+                        "representative_asins": ["ASINREF001"],
+                    }
+                ],
+                "data_gaps": [],
+            }
+            voc_packet = {
+                "packet_id": "voc_evidence",
+                "agent_role": "VOC Evidence Agent",
+                "confidence": "medium",
+                "review_scope": {
+                    "review_count": 48,
+                    "low_rating_count": 12,
+                    "primary_review_region": "United States",
+                    "review_region_distribution": [{"name": "United States", "count": 42}],
+                },
+                "pain_points_by_dimension": [
+                    {
+                        "dimension": "耐用性",
+                        "keyword_hits": 8,
+                        "low_rating_hits": 5,
+                        "fact_summary": "低分评论反复提到结构松动",
+                    }
+                ],
+                "data_gaps": [],
+            }
+            supply_packet = {
+                "packet_id": "supply_chain_evidence",
+                "agent_role": "Supply Chain Agent",
+                "confidence": "medium",
+                "screening_scope": {
+                    "candidate_count": 6,
+                    "raw_1688_evidence_count": 20,
+                    "core_valid_1688_rmb_sample_count": 4,
+                },
+                "price_range_rmb": {"min": 18, "max": 36},
+                "visual_and_spec_review_status": {"overall_status": "pending_human_visual_and_sample_review"},
+                "recommended_candidates": [
+                    {
+                        "review_priority": 1,
+                        "offer_id": "offer-generic-1",
+                        "title": "通用候选款",
+                        "url": "https://detail.1688.com/offer/123.html",
+                        "price_rmb_conservative": 28,
+                        "moq_text": "2件",
+                        "recommendation_level": "优先 review",
+                        "stage7_review_reason": "规格接近目标路线",
+                        "must_verify_before_use": ["最终 SKU", "包装尺寸"],
+                    }
+                ],
+                "data_gaps": [],
+            }
+            route_matrix = {"route_matrix": market_packet["route_market_fit"]}
+
+            analysis = build_analysis_packet(
+                run_dir,
+                {
+                    "paths": paths,
+                    "search_demand": search_packet,
+                    "market_structure": market_packet,
+                    "voc": voc_packet,
+                    "supply_chain": supply_packet,
+                    "route_matrix": route_matrix,
+                    "workflow_state": {},
+                    "report_writer_narrative": {},
+                },
+            )
+
+            self.assertEqual(len(analysis["reference_asin_pool"]), 1)
+            self.assertEqual(analysis["category_opportunity"]["price_band_opportunity"][0]["price_band"], "$20-$30")
+            self.assertEqual(analysis["category_opportunity"]["category_seasonality"][0]["trend_source"], "category_trend")
+            self.assertEqual(len(analysis["keyword_pool"]["roles"]["mixed_or_excluded"]), 1)
+            new_release = analysis["category_opportunity"]["new_release_opportunity"][0]
+            self.assertGreaterEqual(new_release["new_release_opportunity_score"], 35)
+            self.assertIn(new_release["new_release_opportunity_level"], {"watch", "strong"})
+            mixed_keyword = analysis["keyword_pool"]["roles"]["mixed_or_excluded"][0]
+            self.assertGreaterEqual(mixed_keyword["mix_pool_score"], 70)
+            self.assertEqual(mixed_keyword["mix_pool_risk_level"], "high")
+
+            html = render_html_report(analysis)
+            for text in ["参考 ASIN 池", "大小类目与小类机会", "运营式关键词池", "价格带机会", "混池高风险", "类目淡旺季"]:
+                self.assertIn(text, html)
+            for forbidden in ["供应商预审", "主市场均价"]:
+                self.assertNotIn(forbidden, html)
+
+            sheet_names = [name for name, _rows in build_workbook_sheets(analysis)]
+            for name in ["Reference ASINs", "Category Candidates", "Keyword Pool", "Price Bands"]:
+                self.assertIn(name, sheet_names)
+            keyword_sheet = dict(build_workbook_sheets(analysis))["Keyword Pool"]
+            self.assertIn("mix_pool_score", keyword_sheet[0])
+
     def test_parse_top100_dimensions_confidence_layers_and_capture_groups(self) -> None:
         products = [
             {"asin": "B000000001", "title": "Premium 12 Inch Window Squeegee Large Kit", "monthly_sales": 100},

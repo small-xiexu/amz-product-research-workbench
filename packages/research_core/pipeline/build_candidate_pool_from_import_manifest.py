@@ -1139,6 +1139,31 @@ def _apply_sorftime_verification_signals(candidate: dict[str, Any], sorftime_ver
     candidate["data_quality"] = data_quality
 
 
+def build_market_source_lineage(named_records: dict[str, dict[str, Any]]) -> dict[str, str]:
+    lineage: dict[str, str] = {}
+    for metric_name, record in named_records.items():
+        if not isinstance(record, dict):
+            continue
+        source_file = record.get("__source_file")
+        if source_file:
+            lineage[metric_name] = str(source_file)
+    return lineage
+
+
+def source_conflicts(lineage: dict[str, str]) -> list[dict[str, Any]]:
+    sources = sorted({source for source in lineage.values() if source})
+    if len(sources) <= 1:
+        return []
+    return [
+        {
+            "type": "market_analysis_source_conflict",
+            "source_files": sources,
+            "metrics": lineage,
+            "impact": "核心市场指标来自多个卖家精灵市场分析文件，解读市场规模、集中度和价格带时需要保留来源口径。",
+        }
+    ]
+
+
 def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
     overview_records = load_role_records(manifest, "seller_sprite_market_analysis", "market_overview")
     product_concentration = load_role_records(manifest, "seller_sprite_market_analysis", "product_concentration")
@@ -1206,6 +1231,20 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
         for item in manifest.get("files", [])
         if item.get("parse_status") == "parsed" and item.get("source_type") != "system_file"
     ]
+    market_source_lineage = build_market_source_lineage(
+        {
+            "market_overview": all_products,
+            "top10_overview": top10,
+            "new_products": new_products,
+            "product_concentration": top_product,
+            "brand_concentration": top_brand,
+            "seller_location": top_location,
+            "price_distribution": top_price_band,
+            "market_demand_signal": demand_12m,
+            "listing_age_distribution": recent_listing,
+        }
+    )
+    source_file_conflicts = source_conflicts(market_source_lineage)
 
     result = {
         "candidate_id": candidate_id,
@@ -1294,6 +1333,8 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
             "sf_warnings": _sf_warnings,
             "search_result_quality": search_quality,
             "top_product_quality": market_structure.get("data_quality", {}),
+            "market_source_lineage": market_source_lineage,
+            "source_file_conflicts": source_file_conflicts,
         },
         "missing_data": [
             "采购价",
@@ -1306,6 +1347,8 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
         "next_step": "先看报表后多方向候选卡，确认主线/旁支/排除项，再按选定方向抓评论 VOC。",
         "source_refs": source_refs,
     }
+    if source_file_conflicts:
+        result.setdefault("risk_flags", []).append("卖家精灵核心市场指标来自多个市场分析文件，需在报告中保留来源冲突提示。")
     if _sf_category or _sf_keywords:
         _apply_sorftime_enrichment(result, _sf_keywords, _sf_category)
     if _sorftime_snapshot:

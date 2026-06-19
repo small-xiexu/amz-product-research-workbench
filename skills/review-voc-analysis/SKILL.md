@@ -28,6 +28,12 @@
 
 ## 数据入口
 
+### 采集前置
+
+如果还没有评论文件，先按 `docs/评论VOC导出指令完整性规范.md` 给运营输出评价 ASIN 清单。评价插件的用户操作只需要 ASIN，说明里只给评论慢速采集助手入口、建议站点、可复制 ASIN、存放目录、命名和导入命令。
+
+不要让运营填写评论范围、目标条数、字段筛选、低星筛选等复杂条件。系统必须根据参考 ASIN 池、产品路线、价格带、新品样本和痛点参考自动生成 ASIN 批次，并在内部记录路线、ASIN 角色和选择理由。
+
 ### 标准路径（有脚本输出）
 
 已运行 `build_review_voc_from_plugin_export.py` 生成的 `review_voc_package.json`，包含：
@@ -36,8 +42,22 @@
 - `pain_points`、`highlights`、`opportunity_hypotheses`：默认为空，由 Claude 填写
 
 ```bash
-python3 scripts/build_review_voc_from_plugin_export.py <评论文件> <输出目录> \
-  --candidate-id <候选ID> --candidate-name <候选名称>
+python3 scripts/build_review_voc_from_plugin_export.py \
+  <VOC输出目录> \
+  <评论Excel或多个Excel> \
+  <可选HTML报告> \
+  --candidate-id <候选ID> \
+  --candidate-name "<候选名称>"
+```
+
+如果插件支持工作台 JSON 导出：
+
+```bash
+python3 scripts/build_review_voc_from_plugin_export.py \
+  <VOC输出目录> \
+  --json-input <评论JSON> \
+  --candidate-id <候选ID> \
+  --candidate-name "<候选名称>"
 ```
 
 ### 直接读取路径（无脚本）
@@ -51,9 +71,10 @@ python3 scripts/build_review_voc_from_plugin_export.py <评论文件> <输出目
 ### 第一步：确认覆盖范围
 
 读取评论数据前，先向用户确认或自行核查：
-- 覆盖了哪些 ASIN？各是什么角色（Top10 标杆 / 近半年新品 / 痛点参考）？
+- 覆盖了哪些 ASIN？各是什么角色（主推代表 / 量级标杆 / 近半年新品 / 高客单样本 / 痛点参考 / 混池对照）？
+- 覆盖了哪些产品路线和价格带？
 - 评论总数、低分评论（≤3星）数量
-- 数据时效（评论采集时间）
+- 目标站点、采集入口站点、评论地区和数据时效（评论采集时间）
 
 ⚠️ 未能获取上述信息时，直接标注"覆盖范围待确认"，不猜测。
 
