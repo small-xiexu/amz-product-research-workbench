@@ -15,6 +15,7 @@ outputs/
 评价导出_*/
 评论插件导出_*/
 imports/
+runs/
 
 # Runtime/cache files
 node_modules/
