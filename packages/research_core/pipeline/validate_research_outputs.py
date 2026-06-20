@@ -70,21 +70,7 @@ ANALYSIS_MODE_SECTION_HINTS = {
     "竞品角色 -> VOC 证据链": "竞品池与竞品选择逻辑 / 评论 VOC 与真实痛点",
     "数据点 -> 含义 -> 行动建议": "Executive Summary / 当前结论",
 }
-FORMAL_REPORT_SECTION_TITLES = (
-    "Executive Summary / 当前结论",
-    "数据来源与口径",
-    "品类选择推导链路",
-    "候选方向与边界",
-    "市场结构与数据质量",
-    "关键词与需求信号",
-    "产品属性分布与交叉分析",
-    "竞品池与竞品选择逻辑",
-    "评论 VOC 与真实痛点",
-    "市场机会评分",
-    "风险与待验证项",
-    "继续研究优先级",
-    "下一步动作与证据附录",
-)
+from packages.report_renderer.constants import FORMAL_REPORT_SECTION_TITLES
 INTERACTIVE_REPORT_REQUIRED_TERMS = (
     "交互式流程状态",
     "交互式下一步动作",

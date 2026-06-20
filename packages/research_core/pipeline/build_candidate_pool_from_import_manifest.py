@@ -765,6 +765,66 @@ def source_conflicts(lineage: dict[str, str]) -> list[dict[str, Any]]:
     ]
 
 
+
+def _extract_asin_from_filename(filename: str) -> str:
+    """从反查关键词文件名中提取 ASIN，如 ReverseASIN-US-B0XXXXXXXX-... -> B0XXXXXXXX"""
+    m = re.search(r"[A-Z0-9]{10}", str(filename or ""))
+    return m.group(0) if m else ""
+
+
+def _pick_core_keyword(reverse_keywords: list[dict[str, Any]], aba_signal: dict[str, Any] | None) -> dict[str, Any]:
+    """从反查关键词中选取最具代表性的核心词。
+
+    不按纯搜索量排序（泛类目词会碾压精准词），而是用「跨 ASIN 命中数 × log(搜索量)」综合排序。
+    ABA 关键词信号中的词额外加权，因为它们经过运营人工筛选。
+    完全不依赖具体品类词牌，纯统计驱动。
+    """
+    import math
+    if not reverse_keywords:
+        return {}
+
+    kw_asins: dict[str, set[str]] = {}
+    kw_best: dict[str, dict[str, Any]] = {}
+
+    for record in reverse_keywords:
+        kw = str(record.get("关键词") or "").strip()
+        if not kw:
+            continue
+        asin = _extract_asin_from_filename(str(record.get("__source_file") or ""))
+        if not asin:
+            continue
+        if kw not in kw_asins:
+            kw_asins[kw] = set()
+            kw_best[kw] = record
+        kw_asins[kw].add(asin)
+        cur_vol = to_float(record.get("月搜索量")) or 0.0
+        best_vol = to_float(kw_best[kw].get("月搜索量")) or 0.0
+        if cur_vol > best_vol:
+            kw_best[kw] = record
+
+    if not kw_asins:
+        return {}
+
+    aba_set: set[str] = set()
+    if aba_signal:
+        for item in aba_signal.get("top_keywords", []):
+            if isinstance(item, dict):
+                ak = str(item.get("keyword") or "").strip().lower()
+                if ak:
+                    aba_set.add(ak)
+
+    def _score(kw: str) -> float:
+        n = len(kw_asins[kw])
+        vol = to_float(kw_best[kw].get("月搜索量")) or 0.0
+        base = n * math.log(1.0 + max(vol, 1.0))
+        if kw.lower() in aba_set:
+            base *= 2.0
+        return base
+
+    best = max(kw_asins.keys(), key=_score)
+    return kw_best.get(best, {})
+
+
 def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
     overview_records = load_role_records(manifest, "seller_sprite_market_analysis", "market_overview")
     product_concentration = load_role_records(manifest, "seller_sprite_market_analysis", "product_concentration")
@@ -784,10 +844,10 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
     top_location = top_record(seller_location, "月销量") if seller_location else {}
     top_price_band = top_record(price_distribution, "月销量") if price_distribution else {}
     recent_listing = first_by_value(listing_age, "上架时间", "半年") if listing_age else {}
-    top_keyword = top_record(reverse_keywords, "月搜索量") if reverse_keywords else {}
     top_aba = aba_keywords[0] if aba_keywords else {}
     seed_keyword = extract_seed_keyword(manifest)
     aba_keyword_signal = build_aba_keyword_signal(aba_keyword_trends, seed_keyword)
+    top_keyword = _pick_core_keyword(reverse_keywords, aba_keyword_signal)
     market_name = derive_market_name(manifest, seed_keyword)
     candidate_id = "cand-" + slugify(seed_keyword or market_name)
     all_products = best_by_value(overview_records, "样品分类", "全部商品", "月均销售额($)")

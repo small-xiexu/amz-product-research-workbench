@@ -11,21 +11,18 @@ from typing import Any
 
 from packages.research_core.pipeline.cross_analysis import build_cross_analysis
 from packages.research_core.pipeline.parse_top100_dimensions import parse_top100_dimensions
-from packages.research_core.pipeline.build_research_package_from_candidate import (
-    _build_competitor_deep_dive,
-    _build_review_sources,
-    _build_voc_analysis,
-    _apply_market_boundary_quality,
-    _brand_concentration_text,
-    _collect_voc_evidence,
-    _competitor_items,
-    _market_size_text,
-    _new_listing_text,
-    _price_band_text,
-    _return_rate_text,
-    _select_candidate,
-    _seller_concentration_text,
+from packages.research_core.pipeline.market_boundary import _apply_market_boundary_quality
+from packages.research_core.pipeline.market_text import (
+    _brand_concentration_text, _market_size_text, _new_listing_text,
+    _price_band_text, _return_rate_text, _seller_concentration_text,
 )
+from packages.research_core.pipeline.competitor_analysis import (
+    _build_competitor_deep_dive, _competitor_items,
+)
+from packages.research_core.pipeline.voc_analysis import (
+    _build_review_sources, _build_voc_analysis, _collect_voc_evidence,
+)
+from packages.research_core.pipeline.shared import _select_candidate
 
 
 DIMENSION_RULE_KEYS = (

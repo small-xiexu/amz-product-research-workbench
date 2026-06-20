@@ -38,7 +38,7 @@ from packages.report_renderer.render_report import (
     render_markdown,
     render_report_html,
 )
-from scripts.build_stage7_analysis_report import build_analysis_packet, build_workbook_sheets, render_html_report
+from packages.research_core.pipeline.build_stage7_analysis_report import build_analysis_packet, build_workbook_sheets, render_html_report
 
 
 ROOT = Path(__file__).resolve().parents[1]
