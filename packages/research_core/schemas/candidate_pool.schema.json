@@ -111,14 +111,17 @@
             },
             "additionalProperties": true
           },
-          "preliminary_profit_space": {
+          "price_band_context": {
             "type": "object",
-            "description": "Early proxy only. Formal profit review happens after a candidate enters continue/trial.",
+            "description": "Market price-band context only. It supports opportunity judgment and does not model downstream execution economics.",
             "properties": {
               "price_band": { "type": "string" },
-              "size_weight_assumption": { "type": "string" },
-              "fee_pressure": { "type": "string" },
-              "confidence": { "type": "string" }
+              "top_price_band_by_units": { "type": "string" },
+              "top_price_band_by_revenue": { "type": "string" },
+              "target_entry_band": { "type": "string" },
+              "price_pressure": { "type": "string" },
+              "confidence": { "type": "string" },
+              "note": { "type": "string" }
             },
             "additionalProperties": true
           },
@@ -127,7 +130,7 @@
             "items": { "type": "string" }
           },
           "return_risk": { "type": "object", "additionalProperties": true },
-          "ip_compliance_risk": { "type": "object", "additionalProperties": true },
+          "market_validation_risk": { "type": "object", "additionalProperties": true },
           "data_quality": { "type": "object", "additionalProperties": true },
           "missing_data": {
             "type": "array",
@@ -195,10 +198,10 @@
                 "description": "Sorftime category_report 返回的 Top100 类目快照，可包含 products/product_list/top100/items 等产品列表字段",
                 "additionalProperties": true
               },
-              "supply_chain_signal": {
-                "type": "object",
-                "description": "Sorftime ali1688_similar_product 返回的 1688 粗采购价信号",
-                "additionalProperties": true
+              "hot_product_features": {
+                "type": "array",
+                "description": "Sorftime similar_product_feature 或等价来源提炼的热销共同特征",
+                "items": { "type": "object" }
               }
             },
             "additionalProperties": true

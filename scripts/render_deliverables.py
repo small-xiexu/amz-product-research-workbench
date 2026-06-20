@@ -14,9 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from packages.report_renderer.dashboard import render_dashboard
 from packages.report_renderer.html_report import render_report_html
-from packages.report_renderer.markdown import render_markdown, render_summary
+from packages.report_renderer.markdown import render_markdown
 from packages.report_renderer.workbook import render_data_workbook
 from packages.research_core.pipeline.validate_research_outputs import (
     ValidationResult,
@@ -25,7 +24,7 @@ from packages.research_core.pipeline.validate_research_outputs import (
 )
 
 
-MODES = ("all", "report", "html", "dashboard", "xlsx", "validate")
+MODES = ("all", "report", "html", "xlsx", "validate")
 
 
 def render_deliverables(
@@ -48,16 +47,13 @@ def render_deliverables(
         _write_research_package_copy(package, out)
         _write_report_markdown(package, out)
         _write_report_html(package, out)
-        _write_dashboard(package, out)
         _write_workbook(package, out)
-        _write_summary(package, out)
+        _remove_legacy_outputs(out)
         return validate_workflow_output(out) if validate else None
     if mode == "report":
         _write_report_markdown(package, out)
     elif mode == "html":
         _write_report_html(package, out)
-    elif mode == "dashboard":
-        _write_dashboard(package, out)
     elif mode == "xlsx":
         _write_workbook(package, out)
     return None
@@ -85,16 +81,13 @@ def _write_report_html(package: dict[str, Any], output_dir: Path) -> None:
     (output_dir / "report.html").write_text(render_report_html(package), encoding="utf-8")
 
 
-def _write_dashboard(package: dict[str, Any], output_dir: Path) -> None:
-    (output_dir / "dashboard.html").write_text(render_dashboard(package), encoding="utf-8")
-
-
 def _write_workbook(package: dict[str, Any], output_dir: Path) -> None:
     render_data_workbook(package, output_dir / "data.xlsx")
 
 
-def _write_summary(package: dict[str, Any], output_dir: Path) -> None:
-    (output_dir / "summary.md").write_text(render_summary(package), encoding="utf-8")
+def _remove_legacy_outputs(output_dir: Path) -> None:
+    for legacy_name in ("summary.md", "dashboard.html"):
+        (output_dir / legacy_name).unlink(missing_ok=True)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

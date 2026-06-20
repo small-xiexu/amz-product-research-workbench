@@ -1,1 +1,1 @@
-"""Decision and profit rules."""
+"""Decision and market-opportunity rules."""

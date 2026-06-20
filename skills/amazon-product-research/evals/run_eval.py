@@ -63,8 +63,7 @@ def _run_minimal_research_package_eval() -> int:
 def _write_workflow_summary(run_dir: Path) -> None:
     summary = {
         "review_voc": {"enabled": True, "status": "已接入最小 eval 评论证据"},
-        "profit_review": {"applied": False, "status": "待填写模板"},
-        "ip_compliance_review": {"applied": False, "status": "待填写模板"},
+        "market_opportunity_review": {"enabled": True, "status": "最小 eval 市场机会报告待替换真实数据"},
     }
     (run_dir / "workflow_summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2),
@@ -73,8 +72,7 @@ def _write_workflow_summary(run_dir: Path) -> None:
     (run_dir / "workflow_summary.md").write_text(
         "# 选品流程运行摘要\n\n"
         "- 评论 VOC：已接入最小 eval 评论证据\n"
-        "- 利润复核：待填写模板\n"
-        "- 知产/合规初筛：待填写模板\n",
+        "- 市场机会分析：最小 eval 样例用于验证报告链路，真实判断需替换市场、关键词、竞品和 VOC 数据\n",
         encoding="utf-8",
     )
 
@@ -221,7 +219,7 @@ def _build_attribute_distributions() -> list[dict[str, Any]]:
         {
             "dimension": "review_band",
             "label": "评论门槛",
-            "summary": "中评论门槛样本较多，新品进入仍需看 VOC 和供应链。",
+            "summary": "中评论门槛样本较多，新品进入仍需看 VOC 和关键词证据。",
             "buckets": [
                 {"value": "低评论门槛", "count": 20, "share": 0.2},
                 {"value": "中评论门槛", "count": 55, "share": 0.55},
@@ -238,7 +236,7 @@ def _build_cross_analysis() -> list[dict[str, Any]]:
             "purpose": "识别中价位路线薄供给",
             "summary": "$20-$35 的升级款样本少但销量不低，属于待验证机会。",
             "cells": [
-                {"row": "$20-$35", "column": "升级款", "count": 2, "avg_price": 29.99, "avg_monthly_units": 980, "avg_rating": 4.2, "opportunity_type": "薄供给", "interpretation": "需要验证供应链是否能承接升级结构。"},
+                {"row": "$20-$35", "column": "升级款", "count": 2, "avg_price": 29.99, "avg_monthly_units": 980, "avg_rating": 4.2, "opportunity_type": "薄供给", "interpretation": "需要验证 VOC 是否能支撑升级结构。"},
                 {"row": "$35+", "column": "基础款", "count": 0, "avg_price": 0, "avg_monthly_units": 0, "avg_rating": 0, "opportunity_type": "伪空白", "interpretation": "高价基础款缺少合理需求场景。"},
             ],
         },
@@ -272,7 +270,7 @@ def _build_opportunity_judgments() -> list[dict[str, Any]]:
             "avg_monthly_units": 980,
             "avg_rating": 4.2,
             "basis": "薄供给但销量信号存在。",
-            "next_check": "补供应商结构和 VOC 痛点到规格映射。",
+            "next_check": "补代表 ASIN、关键词和 VOC 痛点到规格映射。",
             "sample_asins": ["B000000001", "B000000002"],
         },
         {
@@ -374,8 +372,8 @@ def _build_route_matrix() -> list[dict[str, Any]]:
             "watchlist_count": 3,
             "price_text": "$20-$35",
             "opportunity": "中价位承接强，VOC 可转规格。",
-            "risks": "供应链结构需打样确认。",
-            "validation_actions": ["问供应商扣具结构", "样品做耐用测试", "补 3 个竞品 VOC"],
+            "risks": "升级结构需样品验证。",
+            "validation_actions": ["确认扣具结构", "样品做耐用测试", "补 3 个竞品 VOC"],
             "decision_hint": "优先继续验证。",
         },
         {
@@ -400,7 +398,7 @@ def _build_route_plan(competitors: list[dict[str, Any]]) -> list[dict[str, Any]]
             "route_type": "主线",
             "recommended_depth": "完整深挖",
             "current_evidence_level": "中",
-            "why": "市场、VOC 和供应链都有可验证证据。",
+            "why": "市场、VOC 和关键词都有可验证证据。",
             "seller_sprite_exports": ["主词搜索结果", "Top100 完整明细"],
             "sorftime_checks": ["keyword_detail", "product_traffic_terms"],
             "review_voc_asin_plan": [
@@ -408,10 +406,10 @@ def _build_route_plan(competitors: list[dict[str, Any]]) -> list[dict[str, Any]]
                 for item in competitors[:3]
             ],
             "review_coverage": {"matched_review_count": 12, "matched_asins": [item["asin"] for item in competitors[:3]]},
-            "supply_chain_search_terms": ["中价 升级款 供应商", "防滑 结构 配件"],
-            "data_gaps": ["需要真实供应商样品测试"],
-            "decision_gate": ["样品通过耐用测试", "利润模板回填后仍可接受"],
-            "next_step": "补供应商样品和利润模板。",
+            "route_search_terms": ["eval product", "upgrade eval product"],
+            "data_gaps": ["需要真实样品测试和更完整 VOC 样本"],
+            "decision_gate": ["样品通过耐用测试", "VOC 能解释核心痛点"],
+            "next_step": "补代表 ASIN、关键词反查和真实 VOC 样本。",
         }
     ]
 

@@ -50,16 +50,13 @@ def _build_workbook_sheets(package: dict) -> list[tuple[str, list[list[object]]]
     market = package.get("market_analysis", {})
     market_structure = package.get("market_structure", {})
     competitors = package.get("competitor_pool", {})
-    profit = package.get("profit_reference", {})
     return_risk = package.get("return_risk", {})
-    ip_screening = package.get("ip_screening", {})
-    compliance = package.get("compliance_screening", {})
-    ip_compliance_review = package.get("ip_compliance_review", {})
     status = package.get("status_card", {})
     decision = package.get("decision_review", {})
 
     return [
         ("数据来源说明", _source_rows(meta)),
+        ("品类推导链路", _category_selection_derivation_rows(package)),
         (
             "调研边界",
             _dict_rows(
@@ -71,7 +68,7 @@ def _build_workbook_sheets(package: dict) -> list[tuple[str, list[list[object]]]
                 }
             ),
         ),
-        ("运营手填项", _profit_input_rows(operator_inputs, currency_code)),
+        ("价格带上下文", _dict_rows(package.get("price_band_context", {}))),
         ("市场结构", _dict_rows(market)),
         (
             "Top100原始明细",
@@ -84,186 +81,104 @@ def _build_workbook_sheets(package: dict) -> list[tuple[str, list[list[object]]]
         ("属性分布", _attribute_distribution_rows(market_structure.get("attribute_distributions", []))),
         ("属性交叉分析", _cross_analysis_rows(market_structure.get("cross_analysis", []), currency_code)),
         ("机会判断", _opportunity_judgment_rows(market_structure.get("opportunity_judgments", []), currency_code)),
+        ("市场边界审计", _market_boundary_audit_rows(competitors.get("market_boundary_audit", {}) if isinstance(competitors, dict) else {})),
         ("竞品选择逻辑", _competitor_selection_logic_rows(package.get("competitor_selection_logic", []), currency_code)),
         ("竞品池", _competitor_rows(competitors, currency_code)),
         ("竞品深拆卡", _competitor_deep_dive_rows(package.get("competitor_deep_dive", []), currency_code)),
         ("产品路线矩阵", _product_route_matrix_rows(package.get("product_route_matrix", []))),
         ("路线深挖计划", _route_deep_dive_plan_rows(package.get("route_deep_dive_plan", []))),
         ("进入壁垒", _entry_barriers_rows(package.get("entry_barriers", []))),
-        ("Go_No-Go评分卡", _go_nogo_scorecard_rows(package.get("decision_review", {}).get("go_nogo_scorecard", {}) if isinstance(package.get("decision_review"), dict) else {})),
-        ("利润测算输入", _profit_input_rows(operator_inputs, currency_code)),
-        ("利润参考结果", _dict_rows(profit)),
-        ("利润成本拆分", _profit_breakdown_rows(profit)),
-        ("供应链粗估", _supply_chain_signal_rows(profit.get("supply_chain_signal", {}) if isinstance(profit, dict) else {})),
+        ("市场机会评分卡", _go_nogo_scorecard_rows(package.get("decision_review", {}).get("go_nogo_scorecard", {}) if isinstance(package.get("decision_review"), dict) else {})),
         ("决策检查", _decision_rows(decision)),
         ("风险矩阵", _risk_matrix_rows(decision.get("risk_matrix", []) if isinstance(decision, dict) else [])),
         ("交互决策记录", _workflow_trace_rows(package.get("workflow_trace", {}))),
         ("评论VOC", _voc_summary_rows(package.get("voc_analysis", {}))),
         ("VOC证据", _voc_evidence_rows(package.get("normalized_tables", {}).get("voc_evidence", []))),
         ("退货风险", _dict_rows(return_risk)),
-        ("知产合规复核", _dict_rows(ip_compliance_review)),
-        ("知产初筛", _ip_screening_rows(ip_screening)),
-        ("合规认证预判", _compliance_screening_rows(compliance)),
         ("状态卡", _dict_rows(status)),
     ]
 
 
-def _profit_breakdown_rows(profit: dict) -> list[list[object]]:
-    currency_code = profit.get("currency_code", "USD")
-    rows: list[list[object]] = [["项目", "值"]]
-    if not profit:
-        rows.append(["状态", "未生成"])
+def _category_selection_derivation_rows(package: dict) -> list[list[object]]:
+    candidate = package.get("normalized_tables", {}).get("candidate", {}) if isinstance(package.get("normalized_tables"), dict) else {}
+    if not isinstance(candidate, dict):
+        candidate = {}
+    workflow_trace = package.get("workflow_trace", {}) if isinstance(package.get("workflow_trace"), dict) else {}
+    derivation = package.get("category_selection_derivation")
+    if not isinstance(derivation, dict):
+        ai_analysis = package.get("ai_analysis") if isinstance(package.get("ai_analysis"), dict) else {}
+        derivation = ai_analysis.get("category_selection_derivation") if isinstance(ai_analysis.get("category_selection_derivation"), dict) else {}
+    rows: list[list[object]] = [["section", "step", "evidence", "implication", "decision", "lineage"]]
+    if derivation:
+        rows.append([
+            "summary",
+            derivation.get("selected_category") or derivation.get("selected_route") or "待确认",
+            "",
+            f"证据强度：{derivation.get('confidence', '待补')}",
+            "按证据链收敛，不按单一关键词拍板",
+            "",
+        ])
+        for item in derivation.get("steps", []) if isinstance(derivation.get("steps"), list) else []:
+            if not isinstance(item, dict):
+                continue
+            evidence = item.get("evidence")
+            rows.append([
+                "step",
+                item.get("name") or item.get("step") or "",
+                _join_or_default(evidence if isinstance(evidence, list) else [evidence], "证据待补"),
+                item.get("implication") or item.get("read") or "",
+                item.get("decision") or item.get("action") or "",
+                _join_or_default(item.get("lineage") if isinstance(item.get("lineage"), list) else [item.get("lineage")], ""),
+            ])
+            for point in item.get("evidence_points", []) if isinstance(item.get("evidence_points"), list) else []:
+                if not isinstance(point, dict):
+                    continue
+                rows.append([
+                    "fact_meaning_action",
+                    item.get("name") or item.get("step") or "",
+                    point.get("fact", ""),
+                    point.get("meaning", ""),
+                    point.get("action", ""),
+                    _join_or_default(point.get("lineage") if isinstance(point.get("lineage"), list) else [point.get("lineage")], ""),
+                ])
+        for item in derivation.get("rejected_alternatives", []) if isinstance(derivation.get("rejected_alternatives"), list) else []:
+            if not isinstance(item, dict):
+                continue
+            rows.append([
+                "rejected",
+                item.get("name") or item.get("route") or item.get("keyword") or "",
+                item.get("evidence") or "",
+                item.get("reason") or "",
+                item.get("decision") or "不进入主线",
+                _join_or_default(item.get("lineage") if isinstance(item.get("lineage"), list) else [item.get("lineage")], ""),
+            ])
+        for item in derivation.get("disconfirming_evidence", []) if isinstance(derivation.get("disconfirming_evidence"), list) else []:
+            if not isinstance(item, dict):
+                continue
+            rows.append([
+                "disconfirming",
+                item.get("risk", ""),
+                item.get("current_signal", ""),
+                item.get("would_change_decision_if", ""),
+                item.get("next_check", ""),
+                "",
+            ])
         return rows
-    breakdown = profit.get("cost_breakdown", {})
-    for key, label in (
-        ("sale_price", "建议售价"),
-        ("purchase_cost", "采购价"),
-        ("first_leg_shipping", "头程费用"),
-        ("fba_fee", "FBA费用"),
-        ("commission", "佣金"),
-        ("storage_fee", "仓储费"),
-        ("inbound_placement_fee", "入库配置费"),
-        ("ad_cost", "广告费"),
-        ("return_loss", "退款损失"),
-    ):
-        if isinstance(breakdown, dict) and key in breakdown:
-            rows.append([label, breakdown.get(key)])
-    for key, value in (profit.get("rate_assumptions", {}) if isinstance(profit, dict) else {}).items():
-        rows.append([key, value])
-    if len(rows) == 1:
-        rows.append(["状态", profit.get("status", "未计算")])
-    return rows
 
-
-def _supply_chain_signal_rows(signal: dict) -> list[list[object]]:
-    rows: list[list[object]] = [["字段", "值"]]
-    if not signal:
-        rows.append(["状态", "未接入"])
-        return rows
-    for key, label in (
-        ("source_tool", "来源工具"),
-        ("source_site", "来源站点"),
-        ("source_url", "来源入口"),
-        ("quote_currency", "原始报价币种"),
-        ("search_name", "搜索词"),
-        ("raw_supplier_count", "原始样本数"),
-        ("text_screened_candidate_count", "文本初筛候选数"),
-        ("detail_structured_review_count", "详情结构化复核样本数"),
-        ("detail_structured_pass_count", "详情结构化通过数"),
-        ("detail_structured_partial_count", "详情结构化部分通过数"),
-        ("detail_structured_fail_count", "详情结构化失败数"),
-        ("supplier_count", "RMB报价有效样本数"),
-        ("visual_review_queue_count", "待视觉复核队列数"),
-        ("visual_confirmed_count", "视觉确认通过数"),
-        ("visual_partial_count", "视觉观察待核数"),
-        ("visual_rejected_count", "视觉剔除数"),
-        ("relevant_supplier_count", "最终可继续验证供应商数"),
-        ("rejected_sample_count", "剔除样本数"),
-        ("rejection_reasons", "剔除原因"),
-        ("purchase_price_cny_min", "文本初筛采购价下限(RMB)"),
-        ("purchase_price_cny_max", "文本初筛采购价上限(RMB)"),
-        ("conservative_purchase_price_cny", "保守采购价(RMB，区间上限)"),
-        ("conservative_purchase_price_usd", "保守采购价(USD)"),
-        ("conservative_purchase_price_basis", "保守价口径"),
-        ("purchase_price_cny_avg", "文本初筛采购价均值(RMB)"),
-        ("conservative_purchase_price_cny_median", "保守采购价中位数(RMB)"),
-        ("purchase_price_cny_median", "文本初筛采购价中位数(RMB)"),
-        ("purchase_price_usd_avg", "采购价均值(USD)"),
-        ("exchange_rate", "折算汇率"),
-        ("confidence", "置信度"),
-        ("note", "口径说明"),
-    ):
-        rows.append([label, _display_value(signal.get(key))])
-    sample_products = signal.get("sample_products", [])
-    rows.extend([[], ["样本商品", "供应商", "价格下限(RMB)", "价格上限(RMB)", "保守价(RMB)", "链接"]])
-    if isinstance(sample_products, list) and sample_products:
-        for item in sample_products:
-            if isinstance(item, dict):
-                rows.append(
-                    [
-                        item.get("title"),
-                        item.get("supplier"),
-                        item.get("price_cny_min"),
-                        item.get("price_cny_max"),
-                        item.get("conservative_price_cny"),
-                        item.get("url"),
-                    ]
-                )
-    else:
-        rows.append(["未提供", "", "", "", "", ""])
-    return rows
-
-
-def _ip_screening_rows(ip_screening: dict) -> list[list[object]]:
-    rows: list[list[object]] = [
-        ["字段", "值"],
-        ["状态", ip_screening.get("status", "未生成")],
-        ["风险等级", ip_screening.get("level", "")],
-        ["整体风险", ip_screening.get("overall_level", "")],
-        ["摘要", ip_screening.get("summary", "")],
-        ["边界", ip_screening.get("boundary", "")],
-        [],
-        ["风险类型", "触发原因", "检索入口", "检索网址", "建议关键词", "结果", "证据链接", "证据说明", "下一步"],
-    ]
-    for item in ip_screening.get("rows", []):
-        if isinstance(item, dict):
-            rows.append(
-                [
-                    item.get("risk_type"),
-                    item.get("trigger_reason"),
-                    item.get("search_entry"),
-                    item.get("search_url"),
-                    item.get("suggested_keywords"),
-                    item.get("result"),
-                    item.get("evidence_link"),
-                    item.get("evidence_note"),
-                    item.get("next_step"),
-                ]
-            )
-    if len(rows) == 8:
-        rows.append(["未生成", "", "", "", "", "", "", "", ""])
-    return rows
-
-
-def _compliance_screening_rows(compliance: dict) -> list[list[object]]:
-    rows: list[list[object]] = [
-        ["字段", "值"],
-        ["状态", compliance.get("status", "未生成")],
-        ["风险等级", compliance.get("level", "")],
-        ["整体风险", compliance.get("overall_level", "")],
-        ["摘要", compliance.get("summary", "")],
-        ["边界", compliance.get("boundary", "")],
-        [],
-        ["产品属性字段", "属性值"],
-    ]
-    product_flags = compliance.get("product_flags", {})
-    if isinstance(product_flags, dict) and product_flags:
-        for key, value in product_flags.items():
-            rows.append([key, value])
-    else:
-        rows.append(["未填写", ""])
-    rows.extend(
-        [
-            [],
-            ["触发字段", "产品属性", "美国可能材料", "欧盟/英国可能材料", "早期状态", "推荐入口", "结果", "证据链接", "证据说明", "下一步"],
-        ]
-    )
-    for item in compliance.get("rows", []):
-        if isinstance(item, dict):
-            rows.append(
-                [
-                    item.get("trigger_field"),
-                    item.get("product_attribute"),
-                    item.get("us_possible_materials"),
-                    item.get("eu_uk_possible_materials"),
-                    item.get("early_status"),
-                    item.get("recommended_entries"),
-                    item.get("result"),
-                    item.get("evidence_link"),
-                    item.get("evidence_note"),
-                    item.get("next_step"),
-                ]
-            )
+    boundary = candidate.get("candidate_boundary_review") if isinstance(candidate.get("candidate_boundary_review"), dict) else {}
+    demand = candidate.get("demand_evidence") if isinstance(candidate.get("demand_evidence"), dict) else {}
+    category_report = demand.get("sorftime_category_report") if isinstance(demand.get("sorftime_category_report"), dict) else {}
+    top_asins = candidate.get("next_review_voc_asins") if isinstance(candidate.get("next_review_voc_asins"), list) else []
+    keywords = (demand.get("aba_keyword_signal") or {}).get("top_keywords") if isinstance(demand.get("aba_keyword_signal"), dict) else []
+    decision_log = workflow_trace.get("decision_log") if isinstance(workflow_trace.get("decision_log"), list) else []
+    rows.extend([
+        ["summary", boundary.get("recommended_mainline") or candidate.get("name") or "待确认", "", "证据链兜底生成", "后续报告应补 category_selection_derivation", ""],
+        ["step", "初始约束", (decision_log[0].get("reason") if decision_log and isinstance(decision_log[0], dict) else "用户输入、站点、场景、禁区和偏好"), "限定可研究范围", "排除明显不符合边界的候选", "workflow_trace.decision_log"],
+        ["step", "类目候选", category_report.get("category_name") or category_report.get("node_id") or "候选类目待补", "关键词映射只能作为候选，需要类目和 ASIN 共同确认", "保留候选类目并标记混池风险", "candidate.demand_evidence.sorftime_category_report"],
+        ["step", "参考竞品", f"代表 ASIN {len(top_asins)} 个", "相似 ASIN 支撑方向不是抽象词", "按主线、升级、新品、痛点、对照覆盖竞品池", "candidate.next_review_voc_asins"],
+        ["step", "关键词交叉", f"关键词样本 {len(keywords) if isinstance(keywords, list) else 0} 条", "搜索词用于验证需求和混池，不直接定义市场", "拆分主词、转化词、长尾词和排除词", "candidate.demand_evidence.aba_keyword_signal"],
+        ["step", "最终收敛", boundary.get("recommended_mainline") or "路线矩阵和候选边界", "选择证据最完整且边界可解释的主线", "进入 VOC、关键词和竞品证据验证", "candidate.candidate_boundary_review"],
+    ])
     return rows
 
 
@@ -340,7 +255,7 @@ def _route_deep_dive_plan_rows(plan: object) -> list[list[object]]:
             "Sorftime检查",
             "评价ASIN",
             "评价覆盖",
-            "1688搜索词",
+            "路线搜索词",
             "当前缺口",
             "判断门槛",
             "下一步",
@@ -368,7 +283,7 @@ def _route_deep_dive_plan_rows(plan: object) -> list[list[object]]:
                     "；".join(str(x) for x in item.get("sorftime_checks", []) if x),
                     asin_text,
                     f"{coverage.get('matched_review_count', 0)} 条 / {len(coverage.get('matched_asins', []) if isinstance(coverage.get('matched_asins'), list) else [])} 个 ASIN",
-                    "；".join(str(x) for x in item.get("supply_chain_search_terms", []) if x),
+                    "；".join(str(x) for x in item.get("route_search_terms", []) if x),
                     "；".join(str(x) for x in item.get("data_gaps", []) if x),
                     "；".join(str(x) for x in item.get("decision_gate", []) if x),
                     item.get("next_step"),
@@ -407,6 +322,34 @@ def _voc_summary_rows(voc: dict) -> list[list[object]]:
             ["证据规则", voc.get("evidence_policy")],
         ]
     )
+    return rows
+
+
+def _market_boundary_audit_rows(audit: object) -> list[list[object]]:
+    rows: list[list[object]] = [["类型", "ASIN", "标题", "分组", "状态", "原因", "命中词"]]
+    if not isinstance(audit, dict) or not audit:
+        rows.append(["状态", "", "", "", "未生成", "", ""])
+        return rows
+    rows.append(["汇总", "", "", "", audit.get("quality_status"), "；".join(str(x) for x in audit.get("notes", []) if x), _display_value(audit.get("anchor_terms") or audit.get("anchor_tokens"))])
+    rows.append(["计数", "", "", "", "相关", audit.get("relevant_competitor_count"), ""])
+    rows.append(["计数", "", "", "", "待复核", audit.get("suspect_competitor_count"), ""])
+    rows.append(["计数", "", "", "", "剔除", audit.get("excluded_competitor_count"), ""])
+    for key, row_type in (("excluded_samples", "剔除样本"), ("suspect_samples", "待复核样本")):
+        samples = audit.get(key) if isinstance(audit.get(key), list) else []
+        for item in samples:
+            if not isinstance(item, dict):
+                continue
+            rows.append(
+                [
+                    row_type,
+                    item.get("asin"),
+                    _compact_title(item.get("title"), 90),
+                    item.get("group"),
+                    item.get("status"),
+                    item.get("reason"),
+                    _display_value(item.get("matched_terms")),
+                ]
+            )
     return rows
 
 
@@ -695,39 +638,6 @@ def _dict_rows(data: dict) -> list[list[object]]:
     rows: list[list[object]] = [["字段", "值"]]
     for key, value in data.items():
         rows.append([key, _display_value(value)])
-    if len(rows) == 1:
-        rows.append(["待填", ""])
-    return rows
-
-
-def _profit_input_rows(inputs: dict, currency_code: str) -> list[list[object]]:
-    rows: list[list[object]] = [["字段", "值"]]
-    labels = [
-        ("sale_price", f"建议售价（{currency_code}）"),
-        ("purchase_cost", f"采购价（{currency_code}）"),
-        ("purchase_cost_cny", "采购价（RMB）"),
-        ("exchange_rate", f"站点汇率（RMB/{currency_code}）"),
-        ("fba_fee", f"FBA费用（{currency_code}）"),
-        ("first_leg_shipping", f"头程费用（{currency_code}）"),
-        ("first_leg_shipping_cny", "头程费用（RMB）"),
-        ("inbound_placement_fee", f"入库配置费（{currency_code}）"),
-        ("inbound_placement_fee_cny", "入库配置费（RMB）"),
-        ("commission_rate", "佣金率"),
-        ("storage_fee_rate", "仓储费率"),
-        ("ad_rate_assumption", "广告费率"),
-        ("return_rate_assumption", "退货率"),
-        ("actual_weight_g", "实际重量（g）"),
-        ("volume_weight_g", "体积重（g）"),
-        ("first_leg_channel", "头程渠道"),
-    ]
-    seen = set()
-    for key, label in labels:
-        if key in inputs:
-            rows.append([label, _display_value(inputs.get(key))])
-            seen.add(key)
-    for key, value in inputs.items():
-        if key not in seen:
-            rows.append([key, _display_value(value)])
     if len(rows) == 1:
         rows.append(["待填", ""])
     return rows

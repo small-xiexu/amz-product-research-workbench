@@ -25,7 +25,7 @@ PRODUCT_ROUTE_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "match_terms": ("基础", "标准", "basic", "standard", "classic"),
         "competitor_terms": ("basic", "standard", "classic"),
         "review_terms": ("basic", "standard", "easy to use", "fit", "quality", "基础", "标准", "好用", "质量"),
-        "supply_chain_search_terms": ["{candidate_name} 基础款", "{candidate_name} 标准款", "{candidate_name} 工厂"],
+        "route_search_terms": ["{candidate_name} 基础款", "{candidate_name} 标准款"],
         "seller_sprite_exports": [
             "用主关键词导出搜索结果、市场分析 Top100 和 ABA。",
             "挑 3-5 个标准形态 ASIN 做关键词反查，看真实成交词是不是目标场景。",
@@ -37,15 +37,14 @@ PRODUCT_ROUTE_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "opportunity": "先建立主线基准，看这个品类最常见、最容易量产的标准形态是否值得进入样品验证。",
         "risks": "标准款往往同质化强，不能只看低价；要确认差评是否集中在质量、尺寸、稳定性或使用体验。",
         "validation_actions": [
-            "让供应商报标准款真实阶梯价、样品价、包装重量和交期。",
-            "样品先测最容易差评的基础体验：尺寸、稳定性、耐用性和使用门槛。",
+            "补标准形态代表 ASIN、关键词反查和评论 VOC，确认基础需求是否真实存在。",
+            "把最容易差评的基础体验转成后续产品验证点：尺寸、稳定性、耐用性和使用门槛。",
         ],
         "decision_gate": [
             "标准形态能解决核心使用痛点。",
-            "按真实最高规格采购价和包装重量测算后，利润仍能接受。",
             "主关键词与目标形态一致，不是被泛词或混池词带偏。",
         ],
-        "decision_hint": "作为主推基准款观察，但必须和升级款/场景款一起比较利润和差异化。",
+        "decision_hint": "作为主推基准款观察，但必须和升级款/场景款一起比较需求、评论门槛和差异化。",
     },
     {
         "route_id": "upgraded_core",
@@ -68,7 +67,7 @@ PRODUCT_ROUTE_DEFINITIONS: tuple[dict[str, Any], ...] = (
         ),
         "competitor_terms": ("premium", "upgraded", "heavy duty", "reinforced", "pro"),
         "review_terms": ("premium", "upgraded", "durable", "sturdy", "heavy duty", "加强", "耐用", "结实"),
-        "supply_chain_search_terms": ["{candidate_name} 升级款", "{candidate_name} 高配", "{candidate_name} 加强"],
+        "route_search_terms": ["{candidate_name} 升级款", "{candidate_name} 高配", "{candidate_name} 加强"],
         "seller_sprite_exports": [
             "用升级/高配/专业款长尾词补搜索结果和关键词反查。",
             "单独拉升级款竞品 ASIN，不和标准款混在同一批 VOC 里判断。",
@@ -78,16 +77,16 @@ PRODUCT_ROUTE_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "product_traffic_terms：升级款代表 ASIN，确认是否有独立成交流量。",
             "competitor_product_keywords：看升级款是否避开纯低价竞争。",
         ],
-        "opportunity": "升级款通常更适合做差异化和客单价，需要单独看是否真的有需求，而不是只把它当供应商图片里的一个规格。",
+        "opportunity": "升级款通常更适合做差异化和客单价，需要单独看是否真的有需求，而不是只把它当标题或图片里的一个规格。",
         "risks": "升级配置如果只是标题词或图片装饰，样品不达标会直接变成差评；成本也容易被低估。",
         "validation_actions": [
-            "让供应商拆分标准款和升级款报价，并确认升级点是否能稳定量产。",
-            "样品要单独测试升级点：强度、材质、结构、配件和实际使用差异。",
+            "把标准款和升级款分别拉代表 ASIN，看升级点是否有独立需求和转化词。",
+            "用评论证据单独验证升级点：强度、材质、结构、配件和实际使用差异。",
         ],
         "decision_gate": [
             "升级点有独立竞品、独立需求词或明确 VOC 痛点承接。",
-            "供应商能拆分报价，并确认最高规格真实价格。",
-            "升级后售价空间能覆盖新增成本和广告/退货风险。",
+            "升级路线有独立关键词、竞品或评论痛点承接。",
+            "升级后价格带仍有销量和低评论切入口。",
         ],
         "decision_hint": "不要混在标准款里看；作为升级路线单独算成本、售价和样品测试。",
     },
@@ -117,7 +116,7 @@ PRODUCT_ROUTE_DEFINITIONS: tuple[dict[str, Any], ...] = (
         ),
         "competitor_terms": ("outdoor", "travel", "car", "shower", "kitchen", "camping", "office"),
         "review_terms": ("outdoor", "travel", "car", "shower", "kitchen", "场景", "户外", "旅行", "汽车", "浴室"),
-        "supply_chain_search_terms": ["{candidate_name} 场景款", "{candidate_name} 户外", "{candidate_name} 家用"],
+        "route_search_terms": ["{candidate_name} 场景款", "{candidate_name} 户外", "{candidate_name} 家用"],
         "seller_sprite_exports": [
             "按场景词补搜索结果，不和泛品类词混在一起看。",
             "为每个高潜场景挑 2-3 个代表 ASIN 做关键词反查。",
@@ -127,7 +126,7 @@ PRODUCT_ROUTE_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "product_traffic_terms：场景款代表 ASIN，确认它是否真靠场景词成交。",
         ],
         "opportunity": "场景款能避开纯泛词竞争，适合寻找更清晰的人群、用途和页面卖点。",
-        "risks": "场景不清会把不同需求混在一起，导致 VOC、供应商和利润判断互相拉偏。",
+        "risks": "场景不清会把不同需求混在一起，导致 VOC、关键词和竞品判断互相拉偏。",
         "validation_actions": [
             "确认这个场景有独立关键词、独立竞品和独立评论痛点。",
             "样品要按真实使用场景测试，而不是只看标题是否写了场景词。",
@@ -135,7 +134,7 @@ PRODUCT_ROUTE_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "decision_gate": [
             "场景词有搜索量或竞品流量支撑。",
             "评论证据能证明该场景存在未满足需求。",
-            "供应链能提供匹配场景的结构、材质或包装方案。",
+            "页面和评论证据能解释该场景为什么需要不同结构、材质或包装方案。",
         ],
         "decision_hint": "适合作为副主线观察；若证据强，可升级为主推路线。",
     },
@@ -165,7 +164,7 @@ PRODUCT_ROUTE_DEFINITIONS: tuple[dict[str, Any], ...] = (
         ),
         "competitor_terms": ("set", "kit", "combo", "bundle", "replacement", "2 in 1", "3 in 1"),
         "review_terms": ("set", "kit", "replacement", "parts", "bundle", "套装", "替换", "配件", "组合"),
-        "supply_chain_search_terms": ["{candidate_name} 套装", "{candidate_name} 组合", "{candidate_name} 替换件"],
+        "route_search_terms": ["{candidate_name} 套装", "{candidate_name} 组合", "{candidate_name} 替换件"],
         "seller_sprite_exports": [
             "用 kit / set / replacement 等组合词补搜索结果和关键词反查。",
             "把套装款和单品款分开看价格带、评论门槛和退货风险。",
@@ -174,16 +173,16 @@ PRODUCT_ROUTE_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "keyword_detail：套装/组合/替换件长尾词。",
             "product_traffic_terms：套装代表 ASIN，确认套装是否带来独立流量。",
         ],
-        "opportunity": "组合/套装有机会提高客单价或降低同质化，但必须确认买家是真的需要整套，而不是供应商随便打包。",
-        "risks": "套装会增加重量、缺件、包装和退货风险；利润不能按单品最低价粗算。",
+        "opportunity": "组合/套装有机会提高客单价或降低同质化，但必须确认买家是真的需要整套，而不是随便打包。",
+        "risks": "套装会增加重量、缺件、包装和退货风险；不能只看套装看起来更丰富。",
         "validation_actions": [
-            "让供应商拆分单品、套装、替换件报价和包装重量。",
-            "样品要检查缺件、包装保护、替换件兼容性和说明书。",
+            "单独看套装款代表 ASIN 的价格带、评论门槛和关键词入口。",
+            "从评论里确认缺件、包装保护、替换件兼容性和说明书是否是高频风险。",
         ],
         "decision_gate": [
             "套装有独立需求词或评论痛点支撑。",
-            "套装后重量/FBA/包装成本仍可接受。",
-            "供应商能稳定提供全套配件并支持质检。",
+            "套装价格带有销量，并且低评论样本不是偶然个案。",
+            "评论和竞品证据能证明整套配件有真实需求。",
         ],
         "decision_hint": "不要只因看起来更丰富就选套装；先把成本和缺件风险算清。",
     },
@@ -220,7 +219,7 @@ PRODUCT_ROUTE_DEFINITIONS: tuple[dict[str, Any], ...] = (
         ),
         "competitor_terms": ("waterproof", "reflective", "foldable", "extendable", "reinforced", "stainless", "microfiber"),
         "review_terms": ("durable", "sturdy", "waterproof", "slip", "break", "耐用", "结实", "防滑", "断", "坏"),
-        "supply_chain_search_terms": ["{candidate_name} 加强", "{candidate_name} 防滑", "{candidate_name} 耐用"],
+        "route_search_terms": ["{candidate_name} 加强", "{candidate_name} 防滑", "{candidate_name} 耐用"],
         "seller_sprite_exports": [
             "不用一开始单独拉大盘，先放进主线/升级款竞品反查里看功能词。",
             "若功能词有明显流量，再单独补搜索结果和关键词反查。",
@@ -232,8 +231,8 @@ PRODUCT_ROUTE_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "opportunity": "功能/材质升级能转成页面卖点，也能解释为什么比低价款贵。",
         "risks": "这些升级如果只停留在标题词，样品不达标反而更容易被差评打回来。",
         "validation_actions": [
-            "把功能/材质升级写进打样清单，并要求供应商提供细节图、视频或测试说明。",
-            "样品要按差评痛点做压力测试，确认升级点不是装饰词。",
+            "把功能/材质升级写成可验证规格，并回到代表 ASIN、评论和页面卖点核对。",
+            "按差评痛点设计后续验证问题，确认升级点不是标题装饰词。",
         ],
         "decision_gate": [
             "功能升级能承接真实 VOC 痛点。",
@@ -250,7 +249,7 @@ PRODUCT_ROUTE_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "match_terms": ("旁支", "混池", "相近", "待确认", "不明确", "其他", "adjacent", "similar"),
         "competitor_terms": (),
         "review_terms": (),
-        "supply_chain_search_terms": ["{candidate_name} 相似款", "{candidate_name} 替代款"],
+        "route_search_terms": ["{candidate_name} 相似款", "{candidate_name} 替代款"],
         "seller_sprite_exports": [
             "只在主线/升级路线证据不足时补旁支数据。",
             "旁支候选必须单独标记，不能混进主推款评分。",
@@ -259,14 +258,14 @@ PRODUCT_ROUTE_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "keyword_extends：确认旁支词是否只是混池，还是有独立需求。",
         ],
         "opportunity": "可能有可借鉴结构、低价供给或备用方向，可留作观察。",
-        "risks": "相近不等于目标产品，混进去会拉偏 VOC、利润和供应链判断。",
+        "risks": "相近不等于目标产品，混进去会拉偏 VOC、关键词和竞品判断。",
         "validation_actions": [
             "打开详情确认它和目标形态的关键差异。",
-            "证据不足时只留观察，不进入优先询价和主推评分。",
+            "证据不足时只留观察，不进入主推评分。",
         ],
         "decision_gate": [
             "确认它不是主线/升级路线的低质量混池。",
-            "若要升级为主线，必须补独立需求、供应链和 VOC 证据。",
+            "若要升级为主线，必须补独立需求、关键词、竞品和 VOC 证据。",
         ],
         "decision_hint": "先观察，不抢主线资源；证据变强后再升级。",
     },
@@ -282,16 +281,16 @@ def build_research_package(
 
     data_packet = build_research_data_packet(candidate_pool, candidate_id, voc_package, route_profile)
     candidate = data_packet["normalized_tables"]["candidate"]
-    profit_space = candidate.get("preliminary_profit_space", {})
     competitor_candidates = candidate.get("competitor_candidates", {})
     status = candidate.get("status", "观察")
-    supply_chain_signal = profit_space.get("supply_chain_signal", {}) if isinstance(profit_space, dict) else {}
+    voc_analysis = _build_voc_analysis(voc_package)
+    effective_voc_package = _with_effective_voc_findings(voc_package, voc_analysis)
     voc_opportunities = _build_voc_opportunities(voc_package, candidate.get("candidate_id"))
     voc_summary_line = _voc_summary_line(voc_package)
     entry_barriers = _build_entry_barriers(candidate)
-    go_nogo_scorecard = _build_go_nogo_scorecard(candidate, entry_barriers, voc_package)
+    go_nogo_scorecard = _build_go_nogo_scorecard(candidate, entry_barriers, effective_voc_package)
     decision_review = _build_decision_review(candidate, voc_package, go_nogo_scorecard)
-    product_route_matrix = _build_product_route_matrix(candidate, supply_chain_signal)
+    product_route_matrix = _build_product_route_matrix(candidate)
     route_deep_dive_plan = _build_route_deep_dive_plan(candidate, product_route_matrix, voc_package)
     ai_analysis = _build_ai_analysis_brief(
         candidate,
@@ -303,6 +302,7 @@ def build_research_package(
 
     package = {
         **data_packet,
+        "voc_analysis": voc_analysis,
         "competitor_selection_logic": _build_competitor_selection_logic(candidate),
         "opportunity_hypotheses": [
             {
@@ -323,12 +323,16 @@ def build_research_package(
         "route_deep_dive_plan": route_deep_dive_plan,
         "validation_actions": {},
         "entry_barriers": entry_barriers,
-        "competitor_deep_dive": _build_competitor_deep_dive(competitor_candidates),
+        "competitor_deep_dive": _build_competitor_deep_dive(
+            competitor_candidates,
+            candidate.get("demand_evidence", {}).get("sorftime_traffic_terms", {}) if isinstance(candidate.get("demand_evidence"), dict) else {},
+        ),
         "report_summary": {
             "bullets": [
                 candidate.get("reason", "待补"),
                 f"当前状态：{status}",
-                "正式结论需要补齐利润、知产/合规和供应链复核。",
+                "正式结论聚焦市场机会：需要补齐小类、关键词、竞品和评论证据后再决定是否继续深挖。",
+                _market_boundary_summary_line(candidate),
             ] + ([voc_summary_line] if voc_summary_line else [])
         },
         "dashboard_views": {
@@ -357,7 +361,6 @@ def build_research_package(
 def _build_entry_barriers(candidate: dict[str, Any]) -> list[dict[str, Any]]:
     competition = candidate.get("competition_structure", {})
     return_risk = candidate.get("return_risk", {})
-    ip_risk = candidate.get("ip_compliance_risk", {})
     new_listing = candidate.get("new_listing_opportunity", {})
 
     top10_avg_review = None
@@ -375,7 +378,6 @@ def _build_entry_barriers(candidate: dict[str, Any]) -> list[dict[str, Any]]:
     else:
         brand_share_pct = None
 
-    ip_level = str(ip_risk.get("level", "待确认"))
     return_level = str(return_risk.get("level", "待确认"))
 
     def review_barrier_level(avg: float | None) -> str:
@@ -396,28 +398,16 @@ def _build_entry_barriers(candidate: dict[str, Any]) -> list[dict[str, Any]]:
             "rule": ">2000=高，500-2000=中，<500=低",
         },
         {
-            "type": "资金壁垒",
-            "level": "待补",
-            "data_basis": "首批备货 + FBA + 头程估算待运营填写利润模板后计算",
-            "rule": "依赖运营填写利润复核模板",
+            "type": "价格带壁垒",
+            "level": "中",
+            "data_basis": _price_band_text(candidate),
+            "rule": "价格带有销量且低评论样本存在=低；价格带被头部垄断或样本不足=中/高",
         },
         {
-            "type": "技术壁垒",
-            "level": "待确认" if "待确认" in ip_level else ("高" if "高" in ip_level else "低"),
-            "data_basis": f"知产/合规初筛状态：{ip_level}",
-            "rule": "有认证要求=高，无=低",
-        },
-        {
-            "type": "合规壁垒",
-            "level": "待确认" if "待确认" in ip_level else ("高" if "高" in ip_level else "低"),
-            "data_basis": f"知产/合规初筛状态：{ip_level}。强认证（UL/FCC/CE等）判为高。",
-            "rule": "有强认证=高，无=低",
-        },
-        {
-            "type": "供应链壁垒",
+            "type": "退货/体验壁垒",
             "level": "中" if return_level in ("中", "高") else "低",
             "data_basis": f"退货风险等级：{return_level}",
-            "rule": "定制件/强季节/高退货=高，通用白牌=低",
+            "rule": "退货率高、评论痛点集中或体验门槛高=高；否则按中低处理",
         },
         {
             "type": "品牌壁垒",
@@ -436,7 +426,6 @@ def _build_go_nogo_scorecard(
 ) -> dict[str, Any]:
     demand = candidate.get("demand_evidence", {})
     competition = candidate.get("competition_structure", {})
-    profit = candidate.get("preliminary_profit_space", {})
     new_listing = candidate.get("new_listing_opportunity", {})
 
     def score_market_size() -> tuple[float, str]:
@@ -513,6 +502,7 @@ def _build_go_nogo_scorecard(
         trend_signal = demand.get("trend_signal", "")
         has_aba = bool(demand.get("aba_top_search_term"))
         has_keyword = bool(demand.get("top_keyword"))
+        broad_keyword = _is_broad_market_keyword(str(demand.get("top_keyword") or ""))
         # Sorftime keyword verification supplements SellerSprite signals
         sf_kw_list = demand.get("sorftime_keyword_verification", [])
         sf_top_kw = sf_kw_list[0] if sf_kw_list else {}
@@ -526,8 +516,12 @@ def _build_go_nogo_scorecard(
         score = 5.0
         note_parts = []
         if has_keyword:
-            score += 1.0
-            note_parts.append(f"卖家精灵核心词：{demand.get('top_keyword')}")
+            if broad_keyword:
+                score -= 1.0
+                note_parts.append(f"卖家精灵核心词过宽：{demand.get('top_keyword')}")
+            else:
+                score += 1.0
+                note_parts.append(f"卖家精灵核心词：{demand.get('top_keyword')}")
         if has_aba:
             score += 0.5
             note_parts.append("ABA 搜索词有数据")
@@ -546,6 +540,33 @@ def _build_go_nogo_scorecard(
         score = max(1.0, min(10.0, score))
         return score, "；".join(note_parts) or "待补"
 
+    def score_category_clarity() -> tuple[float, str]:
+        category_report = demand.get("sorftime_category_report", {}) if isinstance(demand.get("sorftime_category_report"), dict) else {}
+        boundary = candidate.get("candidate_boundary_review", {}) if isinstance(candidate.get("candidate_boundary_review"), dict) else {}
+        audit = candidate.get("market_boundary_audit", {}) if isinstance(candidate.get("market_boundary_audit"), dict) else {}
+        score = 5.0
+        notes: list[str] = []
+        if category_report.get("category_name") or category_report.get("node_id"):
+            score += 1.5
+            notes.append("已有 Sorftime/类目候选信号")
+        if boundary.get("recommended_mainline"):
+            score += 1.5
+            notes.append(f"主线边界：{boundary.get('recommended_mainline')}")
+        mixed = boundary.get("exclude_routes") if isinstance(boundary.get("exclude_routes"), list) else []
+        if mixed:
+            score += 0.5
+            notes.append(f"已记录排除/混池 {len(mixed)} 项")
+        if audit.get("broad_keyword"):
+            score = min(score, 5.0)
+            notes.append(f"核心词过宽：{audit.get('broad_keyword')}")
+        if _positive_count(audit.get("excluded_competitor_count")):
+            score = min(score, 4.5)
+            notes.append(f"竞品池发现 {audit.get('excluded_competitor_count')} 个非同类样本")
+        if _positive_count(audit.get("suspect_competitor_count")):
+            score = min(score, 6.0)
+            notes.append(f"仍有 {audit.get('suspect_competitor_count')} 个边界样本待复核")
+        return max(1.0, min(10.0, score)), "；".join(notes) or "小类边界待补"
+
     def score_entry_barriers() -> tuple[float, str]:
         barrier_score_map = {"低": 9.0, "中": 6.0, "高": 3.0, "待确认": 5.0, "待补": 5.0}
         scores = []
@@ -561,25 +582,6 @@ def _build_go_nogo_scorecard(
         if high_barriers:
             note += f"；高壁垒项：{'、'.join(high_barriers)}"
         return round(avg, 1), note
-
-    def score_profitability() -> tuple[float, str]:
-        margin = None
-        for field in ("post_ads_returns_margin", "base_fba_margin"):
-            val = profit.get(field)
-            if isinstance(val, (int, float)):
-                margin = float(val)
-                break
-        if margin is None:
-            return 5.0, "利润数据待补，无法计算"
-        margin_pct = margin * 100 if -1 <= margin <= 1 else margin
-        if margin_pct >= 25:
-            return 9.0, f"利润率 {margin_pct:.1f}%（空间充足）"
-        elif margin_pct >= 15:
-            return 6.5, f"利润率 {margin_pct:.1f}%（利润一般）"
-        elif margin_pct >= 5:
-            return 4.0, f"利润率 {margin_pct:.1f}%（利润偏紧）"
-        else:
-            return 2.0, f"利润率 {margin_pct:.1f}%（利润不健康）"
 
     def score_new_listing_friendliness() -> tuple[float, str]:
         friendliness = new_listing.get("friendliness", {}) if isinstance(new_listing, dict) else {}
@@ -598,9 +600,7 @@ def _build_go_nogo_scorecard(
         return_score = 5.0
         return_level = ""
         for barrier in entry_barriers:
-            if barrier.get("type") in {"技术壁垒", "合规壁垒"} and barrier.get("level") == "高":
-                return 3.0, f"{barrier.get('type')}为高，需要专业复核"
-            if barrier.get("type") == "供应链壁垒":
+            if barrier.get("type") == "退货/体验壁垒":
                 return_level = str(barrier.get("level", "待确认"))
         if return_level == "低":
             return_score = 7.0
@@ -608,37 +608,68 @@ def _build_go_nogo_scorecard(
             return_score = 5.0
         elif return_level == "高":
             return_score = 3.0
-        return return_score, f"退货/供应链壁垒：{return_level or '待确认'}；知产/合规未专业复核前仅作早期风险参考"
+        return return_score, f"退货/体验壁垒：{return_level or '待确认'}"
 
     def score_data_completeness() -> tuple[float, str]:
         quality = candidate.get("market_structure", {}).get("data_quality", {})
+        audit = candidate.get("market_boundary_audit", {}) if isinstance(candidate.get("market_boundary_audit"), dict) else {}
         quality_score_value = quality.get("quality_score")
         if isinstance(quality_score_value, (int, float)):
-            return max(1.0, min(10.0, quality_score_value / 10)), (
-                f"Top商品质量分 {quality_score_value}；实际 {quality.get('actual_count')} / 要求 {quality.get('expected_count')}"
-            )
+            score = max(1.0, min(10.0, quality_score_value / 10))
+            note = f"Top商品质量分 {quality_score_value}；实际 {quality.get('actual_count')} / 要求 {quality.get('expected_count')}"
+            if _positive_count(audit.get("excluded_competitor_count")) or audit.get("broad_keyword"):
+                score = min(score, 6.0)
+                note += "；但竞品/关键词边界存在污染，完整度按可用证据降权"
+            return score, note
         return 5.0, "数据完整度待确认"
 
-    gating_reasons = [
-        "利润复核未回填",
-        "知产/合规初筛未回填",
-    ]
+    def score_voc_evidence() -> tuple[float, str]:
+        summary = _voc_summary(voc_package)
+        review_count = _positive_count(summary.get("review_count"))
+        asin_count = _positive_count(summary.get("asin_count"))
+        curated_count = len(voc_package.get("pain_points", [])) if isinstance(voc_package, dict) and isinstance(voc_package.get("pain_points"), list) else 0
+        if review_count >= 100 and asin_count >= 5:
+            if curated_count:
+                return 8.0, f"VOC 样本 {review_count} 条，覆盖 {asin_count} 个 ASIN，已形成 {curated_count} 个痛点"
+            return 6.0, f"VOC 样本 {review_count} 条，覆盖 {asin_count} 个 ASIN，但仍需把原始评论归纳成痛点"
+        if review_count >= 30 and asin_count >= 2:
+            return 6.5 if curated_count else 5.5, f"VOC 样本 {review_count} 条，覆盖 {asin_count} 个 ASIN"
+        if review_count:
+            return 5.0, f"VOC 样本 {review_count} 条，覆盖 {asin_count} 个 ASIN，样本偏少"
+        return 4.0, "评论 VOC 待接入"
+
+    gating_reasons: list[str] = []
+    if not candidate.get("market_structure"):
+        gating_reasons.append("市场结构证据不足")
+    if not candidate.get("competitor_candidates"):
+        gating_reasons.append("代表竞品证据不足")
+    if not voc_package:
+        gating_reasons.append("评论 VOC 未接入")
+    boundary_audit = candidate.get("market_boundary_audit", {}) if isinstance(candidate.get("market_boundary_audit"), dict) else {}
+    if boundary_audit.get("broad_keyword"):
+        gating_reasons.append(f"核心词过宽：{boundary_audit.get('broad_keyword')}")
+    if _positive_count(boundary_audit.get("excluded_competitor_count")):
+        gating_reasons.append(f"竞品池存在 {boundary_audit.get('excluded_competitor_count')} 个非同类样本，需先清洗边界")
+    if voc_package and not voc_package.get("pain_points"):
+        gating_reasons.append("VOC 已接入但痛点尚未完成结构化归纳")
 
     weights = {
         "市场规模": 0.16,
         "竞争格局": 0.16,
         "需求清晰度": 0.14,
+        "小类边界清晰度": 0.12,
         "新品友好度": 0.12,
-        "利润可行性": 0.16,
-        "知产/合规/退货风险": 0.14,
+        "VOC证据质量": 0.14,
+        "退货/体验风险": 0.10,
         "数据完整度": 0.12,
     }
 
     s_market, n_market = score_market_size()
     s_competition, n_competition = score_competition()
     s_demand, n_demand = score_demand_clarity()
+    s_category, n_category = score_category_clarity()
     s_new, n_new = score_new_listing_friendliness()
-    s_profit, n_profit = score_profitability()
+    s_voc, n_voc = score_voc_evidence()
     s_risk, n_risk = score_risk()
     s_data, n_data = score_data_completeness()
 
@@ -646,18 +677,17 @@ def _build_go_nogo_scorecard(
         "市场规模": {"score": round(s_market, 1), "weight": weights["市场规模"], "note": n_market},
         "竞争格局": {"score": round(s_competition, 1), "weight": weights["竞争格局"], "note": n_competition},
         "需求清晰度": {"score": round(s_demand, 1), "weight": weights["需求清晰度"], "note": n_demand},
+        "小类边界清晰度": {"score": round(s_category, 1), "weight": weights["小类边界清晰度"], "note": n_category},
         "新品友好度": {"score": round(s_new, 1), "weight": weights["新品友好度"], "note": n_new},
-        "利润可行性": {"score": round(s_profit, 1), "weight": weights["利润可行性"], "note": n_profit},
-        "知产/合规/退货风险": {"score": round(s_risk, 1), "weight": weights["知产/合规/退货风险"], "note": n_risk},
+        "VOC证据质量": {"score": round(s_voc, 1), "weight": weights["VOC证据质量"], "note": n_voc},
+        "退货/体验风险": {"score": round(s_risk, 1), "weight": weights["退货/体验风险"], "note": n_risk},
         "数据完整度": {"score": round(s_data, 1), "weight": weights["数据完整度"], "note": n_data},
     }
 
     weighted_total = sum(dim["score"] * dim["weight"] for dim in dimensions.values())
     weighted_total = round(weighted_total, 2)
 
-    if gating_reasons:
-        decision = "WAIT"
-    elif weighted_total >= 7.5:
+    if weighted_total >= 7.5 and not gating_reasons:
         decision = "GO"
     elif weighted_total >= 6.0:
         decision = "WAIT"
@@ -671,7 +701,7 @@ def _build_go_nogo_scorecard(
         "decision": decision,
         "gating_reasons": gating_reasons,
         "dimensions": dimensions,
-        "note": "评分基于当前已有数据自动估算；利润或知产/合规未回填时只能给 WAIT/观察，不给强 GO。",
+        "note": "评分基于当前市场、关键词、竞品、VOC 和数据完整度自动估算；GO 只表示市场机会可继续深挖，不代表进入采购或上架。",
     }
 
 
@@ -731,18 +761,14 @@ def _build_ai_analysis_brief(
     product_route_matrix: list[dict[str, Any]] | None = None,
     route_deep_dive_plan: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    profit = candidate.get("preliminary_profit_space", {})
-    supply_chain_signal = profit.get("supply_chain_signal", {}) if isinstance(profit, dict) else {}
     voc_summary = _voc_summary(voc_package)
     data_source_scope = [
         "卖家精灵：先看市场大不大、头部强不强、价格好不好打",
         "Sorftime：看实时词和竞品流量，别只信一份历史表",
         "评价插件：看买家到底在吐槽什么",
-        "1688 插件：看有没有货、多少钱、供应商能不能聊",
+        "路线矩阵：看大类、小类、关键词和代表 ASIN 是否指向同一个机会",
     ]
     gating = go_nogo_scorecard.get("gating_reasons") if isinstance(go_nogo_scorecard.get("gating_reasons"), list) else []
-    supply_price = _supply_chain_purchase_cost_text(supply_chain_signal)
-    supplier_count = supply_chain_signal.get("visual_confirmed_count") or supply_chain_signal.get("supplier_count") or 0
     review_count = _positive_count(voc_summary.get("review_count"))
     low_rating_count = _positive_count(voc_summary.get("low_rating_count"))
     asin_count = _positive_count(voc_summary.get("asin_count"))
@@ -753,10 +779,10 @@ def _build_ai_analysis_brief(
         "persona": "资深亚马逊运营专家",
         "role_scope": "先说人话结论，再看证据：这块就是先告诉你能不能继续、还差什么、卡在哪。",
         "data_source_scope": data_source_scope,
-        "decision_principle": "数据越多越好，但不是拿来堆字。利润、合规、供应商没闭环前，不直接开干。",
+        "decision_principle": "数据越多越好，但不是拿来堆字。本报告只判断市场机会和继续研究优先级，不输出采购或上架结论。",
         "thesis": {
             "title": _expert_thesis_title(go_nogo_scorecard),
-            "body": _expert_thesis_body(review_count, supplier_count, gating),
+            "body": _expert_thesis_body(review_count, product_route_matrix or [], gating),
         },
         "insights": [
             {
@@ -780,9 +806,9 @@ def _build_ai_analysis_brief(
                 "body": _voc_plain_summary(voc_package, review_count, asin_count, low_rating_count),
             },
             {
-                "label": "供应链能不能接",
-                "title": "先问清能不能稳定做，再谈卖点",
-                "body": _supply_plain_summary(supplier_count, supply_price),
+                "label": "小类和竞品是否对齐",
+                "title": "先确认市场边界，再谈产品方案",
+                "body": _route_evidence_plain_summary(product_route_matrix or []),
             },
             {
                 "label": "现在卡哪",
@@ -791,16 +817,16 @@ def _build_ai_analysis_brief(
             },
         ],
         "product_spec_actions": _product_spec_actions(product_route_matrix),
-        "supplier_validation_actions": [
-            "先从 3-5 家开始聊，别一上来海问几十家。",
-            "直接问四件事：真实阶梯价、包装重量、能不能改款、样品多久到。",
-            "让供应商拍关键结构、材质、包装和使用场景视频，不只看主图。",
-            "基础款和升级款都要报价，别只看最低价把利润算歪。",
+        "market_validation_actions": [
+            "先把主线、升级、场景和套装路线分开看，不要混在一个泛词里判断。",
+            "每条保留路线至少补 2-3 个代表 ASIN、关键词反查和评论样本。",
+            "对混池词单独标记排除原因，避免把旁支销量误当主线机会。",
+            "把评论痛点转成后续产品验证问题，但本阶段不做后置落地判断。",
         ],
         "next_operator_actions": [
-            "先补利润模板：售价、FBA、头程、入库配置费、广告费率和退货假设。",
-            "再过一遍知产/合规：商标、外观/结构专利、材质安全和站点要求。",
-            "把 1688 优先联系清单压缩到 3-5 家，拿到真实报价和样品证据后再决策。",
+            "补齐目标小类 Top100 明细，确认大类和小类不是混池。",
+            "对主推路线补关键词反查和代表 ASIN 流量词。",
+            "按路线抓评论 VOC，确认痛点是否可转成产品验证问题。",
         ],
         "product_route_matrix": product_route_matrix or [],
         "route_deep_dive_plan": route_deep_dive_plan or [],
@@ -810,20 +836,20 @@ def _build_ai_analysis_brief(
 def _expert_thesis_title(go_nogo_scorecard: dict[str, Any]) -> str:
     decision = str(go_nogo_scorecard.get("decision") or "WAIT").upper()
     if decision == "GO":
-        return "可以进入试单准备，但仍要保留费用和合规复核。"
+        return "市场机会可以继续深挖，但不是采购或上架结论。"
     if decision == "NO-GO":
         return "暂不建议立项，先止损或换方向。"
     return "继续看，但不要直接立项。"
 
 
-def _expert_thesis_body(review_count: int, supplier_count: Any, gating: list[Any]) -> str:
+def _expert_thesis_body(review_count: int, routes: list[dict[str, Any]], gating: list[Any]) -> str:
     evidence = [
         f"评价样本 {review_count} 条" if review_count else "",
-        f"1688 优先联系款 {supplier_count} 个" if supplier_count else "",
+        f"路线矩阵 {len(routes)} 条" if routes else "",
     ]
-    gating_text = "；".join(map(str, gating[:3])) if gating else "利润、合规、样品和供应商真实确认仍需闭环"
+    gating_text = "；".join(map(str, gating[:3])) if gating else "大类、小类、关键词、竞品和 VOC 证据需要继续交叉验证"
     return _join_text(
-        "我的判断是：可以继续看，但现在还不到立项的时候。",
+        "我的判断是：可以继续看，但结论只停在市场机会层。",
         "；".join(item for item in evidence if item),
         f"还没闭环的是：{gating_text}",
     )
@@ -880,31 +906,21 @@ def _voc_plain_summary(
     return "评论还没进来前，不要急着定产品方案。"
 
 
-def _supply_plain_summary(supplier_count: Any, supply_price: str) -> str:
-    parts = []
-    if supplier_count:
-        parts.append(f"现在有 {supplier_count} 个供应链候选，说明不是找不到货")
-    else:
-        parts.append("供应链候选还不够，需要继续找货")
-    if supply_price != "待补":
-        parts.append(f"采购价大致在 {supply_price}")
-    parts.append("但真实报价、包装重量和能不能改款，必须问到供应商再算数")
-    return "；".join(parts)
+def _route_evidence_plain_summary(routes: list[dict[str, Any]]) -> str:
+    if not routes:
+        return "路线矩阵还没形成，下一步先按大类、小类、关键词和代表 ASIN 拆路线。"
+    strong = [route for route in routes if _positive_count(route.get("competitor_count")) or _positive_count(route.get("candidate_count"))]
+    return f"已拆出 {len(routes)} 条路线，其中 {len(strong)} 条有代表竞品或市场样本；下一步按路线补关键词和 VOC，而不是用一个泛词判断全部市场。"
 
 
 def _gating_plain_summary(gating: list[Any]) -> str:
     if not gating:
-        return "继续把利润、合规、样品和供应商确认补齐，再决定是否 Go。"
+        return "继续交叉验证小类、关键词、竞品和 VOC，再决定是否进入更深一轮市场研究。"
     friendly = []
     for item in gating[:4]:
         text = str(item)
-        if "利润" in text:
-            friendly.append("利润还没算完整")
-        elif "合规" in text or "知产" in text:
-            friendly.append("合规/知产还没查完")
-        else:
-            friendly.append(text)
-    return "；".join(friendly) + "。这些没补齐前，最多是继续看，不是直接开干。"
+        friendly.append(text)
+    return "；".join(friendly) + "。这些没补齐前，最多是继续看，不是进入采购或上架判断。"
 
 
 def _product_spec_actions(product_route_matrix: list[dict[str, Any]] | None) -> list[str]:
@@ -923,7 +939,7 @@ def _product_spec_actions(product_route_matrix: list[dict[str, Any]] | None) -> 
             break
     actions.extend(
         [
-            "把差评里的问题写成打样清单，让供应商逐条回答能不能改。",
+            "把差评里的问题写成后续验证清单，逐条确认是否值得转成产品规格。",
             "页面卖点必须对应样品证据，别只把标题词堆上去。",
             "基础款和升级款分开测，别用最低配样品替高配路线做判断。",
         ]
@@ -931,11 +947,10 @@ def _product_spec_actions(product_route_matrix: list[dict[str, Any]] | None) -> 
     return _dedupe_strings(actions)[:6]
 
 
-def _build_product_route_matrix(candidate: dict[str, Any], supply_chain_signal: dict[str, Any]) -> list[dict[str, Any]]:
-    review = supply_chain_signal.get("visual_review_candidates") if isinstance(supply_chain_signal, dict) else {}
-    review = review if isinstance(review, dict) else {}
-    profile = _route_profile(candidate, review, supply_chain_signal)
-    context = _build_product_context(candidate, review, supply_chain_signal, profile)
+def _build_product_route_matrix(candidate: dict[str, Any]) -> list[dict[str, Any]]:
+    review: dict[str, Any] = {}
+    profile = _route_profile(candidate, review)
+    context = _build_product_context(candidate, review, profile)
     definitions = [
         _route_definition_with_context(definition, context, profile, candidate)
         for definition in PRODUCT_ROUTE_DEFINITIONS
@@ -949,12 +964,12 @@ def _build_product_route_matrix(candidate: dict[str, Any], supply_chain_signal: 
             if not isinstance(item, dict):
                 continue
             item_with_group = {**item, "route_source_group": group_label}
-            for route_id in _classify_supply_route(item_with_group, definitions):
+            for route_id in _classify_market_route(item_with_group, definitions):
                 route_buckets.setdefault(route_id, []).append(item_with_group)
 
     if not any(route_buckets.values()):
         for item in _market_route_reference_items(candidate):
-            item_route_ids = _classify_supply_route(item, definitions)
+            item_route_ids = _classify_market_route(item, definitions)
             for route_id in item_route_ids:
                 route_buckets.setdefault(route_id, []).append(item)
 
@@ -982,13 +997,14 @@ def _build_product_route_matrix(candidate: dict[str, Any], supply_chain_signal: 
                 "review_terms": list(definition.get("review_terms", [])),
                 "seller_sprite_exports": list(definition.get("seller_sprite_exports", [])),
                 "sorftime_checks": list(definition.get("sorftime_checks", [])),
-                "supply_chain_search_terms": list(definition.get("supply_chain_search_terms", [])),
+                "route_search_terms": list(definition.get("route_search_terms", [])),
                 "decision_gate": list(definition.get("decision_gate", [])),
                 "candidate_count": len(items),
+                "competitor_count": len(items),
                 "priority_count": priority_count,
                 "watchlist_count": watchlist_count,
-                "price_cny_min": price_min,
-                "price_cny_max": price_max,
+                "price_usd_min": price_min,
+                "price_usd_max": price_max,
                 "price_text": _route_price_text(price_min, price_max),
                 "representative_items": [_route_item_summary(item) for item in items[:3]],
                 "opportunity": definition["opportunity"],
@@ -1001,12 +1017,12 @@ def _build_product_route_matrix(candidate: dict[str, Any], supply_chain_signal: 
     return routes
 
 
-def _route_profile(candidate: dict[str, Any], review: dict[str, Any], supply_chain_signal: dict[str, Any] | None = None) -> dict[str, Any]:
+def _route_profile(candidate: dict[str, Any], review: dict[str, Any], route_signal: dict[str, Any] | None = None) -> dict[str, Any]:
     profile_sources = [
         candidate.get("product_route_profile"),
         candidate.get("route_profile"),
         (candidate.get("product_context") or {}).get("route_profile") if isinstance(candidate.get("product_context"), dict) else None,
-        (supply_chain_signal or {}).get("product_route_profile") if isinstance(supply_chain_signal, dict) else None,
+        (route_signal or {}).get("product_route_profile") if isinstance(route_signal, dict) else None,
         review.get("product_route_profile") if isinstance(review, dict) else None,
     ]
     for profile in profile_sources:
@@ -1029,11 +1045,11 @@ def _route_definition_with_context(
     for key, value in inferred.items():
         merged[key] = value
     for key, value in override.items():
-        if key in {"match_terms", "require_any_terms", "competitor_terms", "review_terms", "supply_chain_search_terms"}:
+        if key in {"match_terms", "require_any_terms", "competitor_terms", "review_terms", "route_search_terms"}:
             merged[key] = _dedupe_strings([str(item) for item in value]) if isinstance(value, (list, tuple)) else value
         else:
             merged[key] = value
-    merged["supply_chain_search_terms"] = _format_route_terms(merged.get("supply_chain_search_terms", []), candidate)
+    merged["route_search_terms"] = _format_route_terms(merged.get("route_search_terms", []), candidate)
     return merged
 
 
@@ -1047,7 +1063,6 @@ def _route_definition_index(route_id: str) -> int:
 def _build_product_context(
     candidate: dict[str, Any],
     review: dict[str, Any],
-    supply_chain_signal: dict[str, Any],
     profile: dict[str, Any],
 ) -> dict[str, Any]:
     explicit = candidate.get("product_context") if isinstance(candidate.get("product_context"), dict) else {}
@@ -1058,8 +1073,6 @@ def _build_product_context(
         candidate.get("name"),
         demand.get("top_keyword"),
         demand.get("aba_top_search_term"),
-        supply_chain_signal.get("search_name") if isinstance(supply_chain_signal, dict) else None,
-        supply_chain_signal.get("searchName") if isinstance(supply_chain_signal, dict) else None,
     )
     route_terms = {
         "base_core": _context_terms_from_values(explicit.get("base_terms"), explicit.get("standard_terms")),
@@ -1117,7 +1130,7 @@ def _inferred_route_overrides(route_id: str, context: dict[str, Any]) -> dict[st
         "match_terms": _dedupe_strings(list(PRODUCT_ROUTE_DEFINITIONS[_route_definition_index(route_id)].get("match_terms", ())) + route_terms),
         "competitor_terms": evidence_terms,
         "review_terms": evidence_terms,
-        "supply_chain_search_terms": search_terms,
+        "route_search_terms": search_terms,
         "seller_sprite_exports": exports,
         "sorftime_checks": checks,
     }
@@ -1152,11 +1165,6 @@ def _route_source_items(candidate: dict[str, Any], review: dict[str, Any]) -> li
         value = review.get(key)
         if isinstance(value, list):
             items.extend(item for item in value if isinstance(item, dict))
-    supply = candidate.get("preliminary_profit_space", {})
-    signal = supply.get("supply_chain_signal", {}) if isinstance(supply, dict) else {}
-    sample_products = signal.get("sample_products") if isinstance(signal, dict) else []
-    if isinstance(sample_products, list):
-        items.extend(item for item in sample_products if isinstance(item, dict))
     return items[:30]
 
 
@@ -1327,12 +1335,12 @@ def _route_keyword_hints(candidate: dict[str, Any], definition: dict[str, Any]) 
     ):
         if value:
             hints.append(str(value))
-    for term in definition.get("supply_chain_search_terms", [])[:2]:
+    for term in definition.get("route_search_terms", [])[:2]:
         hints.append(str(term))
     return _dedupe_strings(hints)[:5]
 
 
-def _classify_supply_route(item: dict[str, Any], definitions: list[dict[str, Any]]) -> list[str]:
+def _classify_market_route(item: dict[str, Any], definitions: list[dict[str, Any]]) -> list[str]:
     text = _route_item_text(item)
     routes: list[str] = []
     for definition in definitions:
@@ -1369,7 +1377,7 @@ def _route_item_text(item: dict[str, Any], include_review_notes: bool = True) ->
     ]
     if include_review_notes:
         fields.append(item.get("rationale"))
-    for key in ("sku_texts", "sku_options", "supplier_tags", "risk_notes"):
+    for key in ("sku_texts", "sku_options", "risk_notes"):
         value = item.get(key)
         if isinstance(value, list):
             fields.extend(value)
@@ -1427,15 +1435,12 @@ def _route_price_range(items: list[dict[str, Any]]) -> tuple[Any, Any]:
     highs: list[float] = []
     for item in items:
         low = _first_numeric(
-            item.get("detail_price_cny_min"),
-            item.get("price_cny_min"),
-            item.get("conservative_price_cny"),
+            item.get("price_usd"),
+            item.get("price"),
         )
         high = _first_numeric(
-            item.get("conservative_price_cny"),
-            item.get("detail_price_cny_max"),
-            item.get("price_cny_max"),
-            item.get("price_cny_min"),
+            item.get("price_usd"),
+            item.get("price"),
         )
         if low is not None:
             lows.append(low)
@@ -1464,11 +1469,11 @@ def _first_numeric(*values: Any) -> float | None:
 
 def _route_price_text(low: Any, high: Any) -> str:
     if low is None and high is None:
-        return "待询价"
+        return "价格待补"
     if low is not None and high is not None and low != high:
         return f"¥{_compact_number(low)}-{_compact_number(high)}"
     value = low if low is not None else high
-    return f"¥{_compact_number(value)}"
+    return f"${_compact_number(value)}"
 
 
 def _compact_number(value: Any) -> str:
@@ -1479,6 +1484,7 @@ def _compact_number(value: Any) -> str:
 
 def _route_item_summary(item: dict[str, Any]) -> dict[str, Any]:
     return {
+        "asin": item.get("asin"),
         "title": item.get("title") or "未命名商品",
         "url": item.get("url"),
         "price_text": _route_item_price_text(item),
@@ -1488,8 +1494,8 @@ def _route_item_summary(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def _route_item_price_text(item: dict[str, Any]) -> str:
-    low = _first_numeric(item.get("detail_price_cny_min"), item.get("price_cny_min"))
-    high = _first_numeric(item.get("conservative_price_cny"), item.get("detail_price_cny_max"), item.get("price_cny_max"))
+    low = _first_numeric(item.get("price_usd"), item.get("price"))
+    high = _first_numeric(item.get("price_usd"), item.get("price"))
     return _route_price_text(low, high)
 
 
@@ -1504,18 +1510,24 @@ def _market_route_reference_items(candidate: dict[str, Any], limit: int = 5) -> 
     tagged = candidate.get("market_structure", {}).get("tagged_products", [])
     if not isinstance(tagged, list):
         return []
+    anchors = _market_anchor_terms(candidate)
     result: list[dict[str, Any]] = []
     for item in tagged:
         if not isinstance(item, dict):
+            continue
+        relevance = _competitor_market_relevance(item, anchors)
+        if relevance["status"] == "剔除":
             continue
         result.append(
             {
                 "title": item.get("title"),
                 "url": item.get("url"),
-                "price_cny_min": None,
-                "price_cny_max": None,
                 "route_source_group": "市场样本",
-                "rationale": "卖家精灵 Top 商品样本，供应链路线待 1688 进一步验证。",
+                "price_usd": item.get("price_usd") or item.get("price"),
+                "asin": item.get("asin"),
+                "market_boundary_status": relevance["status"],
+                "rationale": "卖家精灵 Top 商品样本，用于路线级市场证据验证。"
+                + (f" 边界状态：{relevance['status']}，{relevance['reason']}" if relevance["status"] != "相关" else ""),
             }
         )
         if len(result) >= limit:
@@ -1525,7 +1537,7 @@ def _market_route_reference_items(candidate: dict[str, Any], limit: int = 5) -> 
 
 def _product_route_plain_summary(routes: list[dict[str, Any]]) -> str:
     if not routes:
-        return "供应链路线还没拆开，下一步先把 1688 候选按基础款、升级款、场景款、组合/套装和旁支观察分组。"
+        return "产品路线还没拆开，下一步先按基础款、升级款、场景款、组合/套装和旁支观察分组。"
     parts = []
     for route in routes[:4]:
         name = str(route.get("route_name") or "未命名路线")
@@ -1536,8 +1548,8 @@ def _product_route_plain_summary(routes: list[dict[str, Any]]) -> str:
         elif route.get("always_consider"):
             parts.append(f"{name}暂时证据不足，但仍要主动补数，避免漏掉潜在路线")
     if not parts:
-        parts.append("目前只有旁支或待确认候选，先补路线标签和供应链证据。")
-    parts.append("不要只盯一个看起来最像的供应商，先逐路线小深挖再决定主推。")
+        parts.append("目前只有旁支或待确认候选，先补路线标签、关键词和代表竞品证据。")
+    parts.append("不要只盯一个看起来最像的商品，先逐路线小深挖再决定主推。")
     return "；".join(parts)
 
 
@@ -1585,11 +1597,11 @@ def _route_deep_dive_item(
         "sorftime_checks": _route_list(route, "sorftime_checks"),
         "review_voc_asin_plan": competitor_asins,
         "review_coverage": review_summary,
-        "supply_chain_search_terms": _route_list(route, "supply_chain_search_terms"),
+        "route_search_terms": _route_list(route, "route_search_terms"),
         "decision_gate": _route_list(route, "decision_gate") or _default_route_decision_gate(route),
         "data_gaps": data_gap,
         "next_step": _route_next_step(recommended_depth, data_gap, route),
-        "representative_1688_items": representative_items[:3],
+        "representative_market_items": representative_items[:3],
         "sort_priority": _route_plan_priority(route_type, recommended_depth, route_id),
     }
 
@@ -1640,7 +1652,7 @@ def _route_data_gaps(
 ) -> list[str]:
     gaps: list[str] = []
     if candidate_count <= 0:
-        gaps.append("1688 还没有明确候选，需要按这条路线重新搜。")
+        gaps.append("这条路线还没有明确市场样本，需要补代表 ASIN 或关键词结果。")
     if not competitor_asins:
         gaps.append("还缺这条路线的代表 ASIN，评价和 Sorftime 流量词无法单独判断。")
     matched_review_count = _positive_count(review_summary.get("matched_review_count"))
@@ -1659,9 +1671,9 @@ def _route_plan_why(
 ) -> str:
     route_name = str(route.get("route_name") or "这条路线")
     count = _positive_count(route.get("candidate_count"))
-    price = str(route.get("price_text") or "待询价")
+    price = str(route.get("price_text") or "价格待补")
     if "必须" in recommended_depth:
-        return f"{route_name}不能混在大方向里看；现在有 {count} 个 1688 候选、价格 {price}，还要单独看竞品、评价和最高规格成本。"
+        return f"{route_name}不能混在大方向里看；现在有 {count} 个市场样本、价格 {price}，还要单独看竞品、评价和关键词入口。"
     if competitor_asins:
         return f"{route_name}已有可参考 ASIN，但还要确认它是主线机会还是旁支需求。"
     return f"{route_name}先保留观察，不要因为关键词相近就直接放进主推判断。"
@@ -1673,7 +1685,7 @@ def _route_next_step(recommended_depth: str, data_gaps: list[str], route: dict[s
     if "规格维度" in recommended_depth:
         return "把这条路线的功能点写进基础款/升级款样品检查表。"
     if "必须" in recommended_depth:
-        return "先补路线专属 ASIN、评价和 1688 定向搜索，再决定是否进完整深挖。"
+        return "先补路线专属 ASIN、评价和关键词反查，再决定是否进完整深挖。"
     return str(route.get("decision_hint") or "先作为旁支观察，等证据变强再升级。")
 
 
@@ -1793,9 +1805,9 @@ def _route_review_evidence_summary(voc_package: dict[str, Any] | None, route: di
 
 def _default_route_decision_gate(route: dict[str, Any]) -> list[str]:
     return [
-        "这条路线有独立竞品、独立需求词和可承接供应商。",
-        "评论痛点能被样品或供应商改款动作解决。",
-        "按最高规格采购价测算后仍有合理利润空间。",
+        "这条路线有独立竞品、独立需求词和可追溯评论证据。",
+        "评论痛点能转成明确产品规格或后续验证动作。",
+        "该路线所在价格带有销量，并且不是被头部品牌完全锁死。",
     ]
 
 
@@ -1831,30 +1843,11 @@ def _decision_inferences(candidate: dict[str, Any], voc_package: dict[str, Any] 
     return []
 
 
-def _supply_chain_purchase_cost_text(signal: dict[str, Any]) -> str:
-    if not isinstance(signal, dict) or not signal:
-        return "待补"
-    low = signal.get("purchase_price_cny_min")
-    high = signal.get("purchase_price_cny_max")
-    conservative = signal.get("conservative_purchase_price_cny") or high
-    if low is None and high is None:
-        return "待补"
-    if low is not None and high is not None and low != high:
-        suffix = f"（保守按 RMB {conservative}）" if conservative is not None else ""
-        return f"RMB {low}-{high}{suffix}"
-    value = low if low is not None else high
-    suffix = f"（保守按 RMB {conservative}）" if conservative is not None and conservative != value else ""
-    return f"RMB {value}{suffix}"
-
-
 def _decision_missing_inputs(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> list[str]:
     missing = list(candidate.get("missing_data", []))
     if voc_package:
         missing = [item for item in missing if "评论" not in item and "VOC" not in item]
-    supply_chain_signal = (candidate.get("preliminary_profit_space") or {}).get("supply_chain_signal", {})
-    required_items = ["建议售价", "FBA费用", "头程费用", "入库配置费", "商标/专利复核", "合规认证复核"]
-    if not isinstance(supply_chain_signal, dict) or not supply_chain_signal.get("purchase_price_cny_min"):
-        required_items.insert(1, "采购价")
+    required_items = ["小类 Top100 明细", "关键词反查", "代表竞品 ASIN", "评论 VOC 证据"]
     for item in required_items:
         if item not in missing:
             missing.append(item)
@@ -1869,16 +1862,23 @@ def _decision_missing_inputs(candidate: dict[str, Any], voc_package: dict[str, A
 
 
 def _decision_action_items(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> list[str]:
-    # Action items are Claude's work, not hardcoded script rules.
-    return []
+    audit = candidate.get("market_boundary_audit", {}) if isinstance(candidate.get("market_boundary_audit"), dict) else {}
+    actions: list[str] = []
+    if audit.get("broad_keyword") or _positive_count(audit.get("excluded_competitor_count")):
+        actions.append("先清洗市场边界：剔除非同类 ASIN，并把泛词拆成可验证的小类词。")
+    actions.append("把识别到的产品路线分开拉 Top100 和关键词反查。")
+    actions.append("每条保留路线补 2-3 个强相关代表 ASIN，再看 Sorftime product_traffic_terms。")
+    if voc_package and not voc_package.get("pain_points"):
+        actions.append("把已接入评论按真实原文归纳成 VOC 痛点，并保留 review_id、ASIN、评分和原文证据。")
+    elif not voc_package:
+        actions.append("接入评论 VOC 后再判断痛点能否转成产品规格。")
+    actions.append("清洗后重新计算评分卡，再决定是否继续深挖。")
+    return _dedupe_strings(actions)[:6]
 
 
 def _decision_risk_matrix(candidate: dict[str, Any], voc_package: dict[str, Any] | None) -> list[dict[str, str]]:
     competition = candidate.get("competition_structure", {})
     return_risk = candidate.get("return_risk", {})
-    ip_risk = candidate.get("ip_compliance_risk", {})
-    supply_chain_signal = (candidate.get("preliminary_profit_space") or {}).get("supply_chain_signal", {})
-    has_purchase_cost = isinstance(supply_chain_signal, dict) and supply_chain_signal.get("purchase_price_cny_min") is not None
     top10_share = competition.get("top10_product_units_share")
     first_pain = _first_pain_name(voc_package)
     voc_summary = _voc_summary(voc_package)
@@ -1918,16 +1918,9 @@ def _decision_risk_matrix(candidate: dict[str, Any], voc_package: dict[str, Any]
             "basis": _return_rate_text(candidate),
         },
         {
-            "dimension": "利润不确定性",
+            "dimension": "小类边界",
             "level": "待补",
-            "basis": "FBA、头程和入库配置费仍未补齐。"
-            if has_purchase_cost
-            else "采购价、FBA、头程和入库配置费仍未补齐。",
-        },
-        {
-            "dimension": "知产/合规",
-            "level": str(ip_risk.get("level", "待确认")),
-            "basis": str(ip_risk.get("notes", "待复核")),
+            "basis": "需要确认大类、小类、关键词和代表 ASIN 是否指向同一市场。",
         },
         {
             "dimension": "数据质量",
@@ -1938,8 +1931,10 @@ def _decision_risk_matrix(candidate: dict[str, Any], voc_package: dict[str, Any]
 
 
 def _status_next_step(decision_review: dict[str, Any], candidate: dict[str, Any]) -> str:
-    # Next step suggestion is Claude's work.
-    return ""
+    actions = decision_review.get("action_items") if isinstance(decision_review.get("action_items"), list) else []
+    if actions:
+        return str(actions[0])
+    return "先清洗小类边界、代表竞品和评论 VOC，再重新判断市场机会。"
 
 
 def _first_pain_name(voc_package: dict[str, Any] | None) -> str:
@@ -1962,6 +1957,20 @@ def _voc_summary(voc_package: dict[str, Any] | None) -> dict[str, Any]:
     if isinstance(voc_analysis, dict) and isinstance(voc_analysis.get("summary"), dict):
         return voc_analysis["summary"]
     return {}
+
+
+def _with_effective_voc_findings(
+    voc_package: dict[str, Any] | None,
+    voc_analysis: dict[str, Any],
+) -> dict[str, Any] | None:
+    if not voc_package:
+        return None
+    merged = dict(voc_package)
+    if isinstance(voc_analysis.get("pain_points"), list):
+        merged["pain_points"] = voc_analysis["pain_points"]
+    if isinstance(voc_analysis.get("highlights"), list):
+        merged["highlights"] = voc_analysis["highlights"]
+    return merged
 
 
 def _voc_risk_basis(summary: dict[str, Any], first_pain: str) -> str:
@@ -1991,6 +2000,291 @@ def _positive_count(value: Any) -> int:
     return 0
 
 
+_BOUNDARY_STOPWORDS = {
+    "for",
+    "and",
+    "with",
+    "the",
+    "a",
+    "an",
+    "of",
+    "to",
+    "in",
+    "on",
+    "by",
+    "from",
+    "home",
+    "household",
+    "amazon",
+    "product",
+    "products",
+    "item",
+    "items",
+    "tool",
+    "tools",
+    "kit",
+    "set",
+    "pack",
+    "accessory",
+    "accessories",
+    "supplies",
+    "cleaning",
+    "cleaner",
+    "用品",
+    "工具",
+    "套装",
+    "配件",
+    "清洁",
+}
+
+_BROAD_KEYWORD_PATTERNS = (
+    "accessories",
+    "supplies",
+    "home goods",
+    "household",
+    "car accessories",
+    "bathroom accessories",
+    "cleaning supplies",
+)
+
+_MARKET_NOISE_TERMS = (
+    "wet wipes",
+    "flushable wipes",
+    "adult wipes",
+    "baby wipes",
+    "wipe",
+    "wipes",
+    "battery",
+    "batteries",
+    "aa alkaline",
+    "coffee scented",
+    "menthol",
+    "floor scrubber machine",
+    "ride-on",
+    "commercial floor scrubber",
+)
+
+
+def _apply_market_boundary_quality(candidate: dict[str, Any]) -> dict[str, Any]:
+    cleaned = dict(candidate)
+    audit = _build_market_boundary_audit(cleaned)
+    cleaned["competitor_candidates"] = _filtered_competitor_candidates(cleaned, audit)
+    cleaned["next_review_voc_asins"] = _filtered_review_voc_asins(cleaned, audit)
+    cleaned["market_boundary_audit"] = audit
+    return cleaned
+
+
+def _build_market_boundary_audit(candidate: dict[str, Any]) -> dict[str, Any]:
+    anchors = _market_anchor_terms(candidate)
+    groups = candidate.get("competitor_candidates", {}) if isinstance(candidate.get("competitor_candidates"), dict) else {}
+    total_count = 0
+    excluded: list[dict[str, Any]] = []
+    suspect: list[dict[str, Any]] = []
+    relevant_count = 0
+    for group_key, items in groups.items():
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            total_count += 1
+            relevance = _competitor_market_relevance(item, anchors)
+            row = {
+                "asin": item.get("asin"),
+                "title": item.get("title"),
+                "group": group_key,
+                "status": relevance["status"],
+                "reason": relevance["reason"],
+                "matched_terms": relevance["matched_terms"],
+            }
+            if relevance["status"] == "剔除":
+                excluded.append(row)
+            elif relevance["status"] == "需复核":
+                suspect.append(row)
+            else:
+                relevant_count += 1
+    top_keyword = str((candidate.get("demand_evidence", {}) or {}).get("top_keyword") or "").strip()
+    broad_keyword = top_keyword if _is_broad_market_keyword(top_keyword) else ""
+    notes: list[str] = []
+    if broad_keyword:
+        notes.append(f"核心词「{broad_keyword}」过宽，不能作为目标小类成交词。")
+    if excluded:
+        notes.append(f"竞品池剔除 {len(excluded)} 个明显非同类样本。")
+    if suspect:
+        notes.append(f"仍有 {len(suspect)} 个边界样本需要运营复核。")
+    quality_status = "待清洗" if excluded or broad_keyword else ("需复核" if suspect else "通过")
+    return {
+        "quality_status": quality_status,
+        "anchor_terms": anchors["phrases"][:12],
+        "anchor_tokens": anchors["tokens"][:12],
+        "broad_keyword": broad_keyword,
+        "total_competitor_count": total_count,
+        "relevant_competitor_count": relevant_count,
+        "suspect_competitor_count": len(suspect),
+        "excluded_competitor_count": len(excluded),
+        "excluded_samples": excluded[:12],
+        "suspect_samples": suspect[:12],
+        "notes": notes,
+    }
+
+
+def _filtered_competitor_candidates(candidate: dict[str, Any], audit: dict[str, Any]) -> dict[str, Any]:
+    anchors = {
+        "phrases": audit.get("anchor_terms", []),
+        "tokens": audit.get("anchor_tokens", []),
+    }
+    groups = candidate.get("competitor_candidates", {}) if isinstance(candidate.get("competitor_candidates"), dict) else {}
+    cleaned: dict[str, Any] = {}
+    for group_key, items in groups.items():
+        if not isinstance(items, list):
+            cleaned[group_key] = items
+            continue
+        kept: list[dict[str, Any]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            relevance = _competitor_market_relevance(item, anchors)
+            if relevance["status"] == "剔除":
+                continue
+            kept.append(
+                {
+                    **item,
+                    "market_boundary_status": relevance["status"],
+                    "market_boundary_reason": relevance["reason"],
+                    "market_boundary_terms": relevance["matched_terms"],
+                }
+            )
+        cleaned[group_key] = kept
+    return cleaned
+
+
+def _filtered_review_voc_asins(candidate: dict[str, Any], audit: dict[str, Any]) -> list[dict[str, Any]]:
+    items = candidate.get("next_review_voc_asins")
+    if not isinstance(items, list):
+        return []
+    anchors = {
+        "phrases": audit.get("anchor_terms", []),
+        "tokens": audit.get("anchor_tokens", []),
+    }
+    result: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        relevance = _competitor_market_relevance(item, anchors)
+        if relevance["status"] == "剔除":
+            continue
+        result.append(
+            {
+                **item,
+                "market_boundary_status": relevance["status"],
+                "market_boundary_reason": relevance["reason"],
+                "market_boundary_terms": relevance["matched_terms"],
+            }
+        )
+    return result
+
+
+def _market_anchor_terms(candidate: dict[str, Any]) -> dict[str, list[str]]:
+    demand = candidate.get("demand_evidence", {}) if isinstance(candidate.get("demand_evidence"), dict) else {}
+    raw_terms: list[str] = []
+    for key in ("aba_top_search_term", "top_keyword"):
+        value = demand.get(key)
+        if value and not _is_broad_market_keyword(str(value)):
+            raw_terms.append(str(value))
+    aba_signal = demand.get("aba_keyword_signal", {}) if isinstance(demand.get("aba_keyword_signal"), dict) else {}
+    top_keywords = aba_signal.get("top_keywords") if isinstance(aba_signal.get("top_keywords"), list) else []
+    for item in top_keywords[:10]:
+        if isinstance(item, dict) and item.get("keyword"):
+            raw_terms.append(str(item.get("keyword")))
+    sf_keywords = demand.get("sorftime_keyword_verification") if isinstance(demand.get("sorftime_keyword_verification"), list) else []
+    for item in sf_keywords[:10]:
+        if isinstance(item, dict) and item.get("keyword"):
+            raw_terms.append(str(item.get("keyword")))
+    category = demand.get("sorftime_category_report", {}) if isinstance(demand.get("sorftime_category_report"), dict) else {}
+    if category.get("category_name"):
+        raw_terms.append(str(category.get("category_name")))
+    title_token_counts: dict[str, int] = {}
+    title_sources = []
+    market_structure = candidate.get("market_structure", {}) if isinstance(candidate.get("market_structure"), dict) else {}
+    for source in (candidate.get("top_products"), market_structure.get("tagged_products")):
+        if isinstance(source, list):
+            title_sources.extend(item for item in source[:120] if isinstance(item, dict))
+    for item in title_sources:
+        title = _normalize_market_text(item.get("title") or item.get("Title") or "")
+        for token in re.findall(r"[a-z0-9]+", title):
+            if len(token) >= 4 and token not in _BOUNDARY_STOPWORDS and token not in _MARKET_NOISE_TERMS:
+                title_token_counts[token] = title_token_counts.get(token, 0) + 1
+
+    phrases: list[str] = []
+    tokens: list[str] = []
+    for term in raw_terms:
+        clean = _normalize_market_text(term)
+        if not clean or _is_broad_market_keyword(clean):
+            continue
+        if len(clean) >= 4:
+            phrases.append(clean)
+        for token in re.findall(r"[a-z0-9]+", clean.lower()):
+            if len(token) >= 4 and token not in _BOUNDARY_STOPWORDS:
+                tokens.append(token)
+    frequent_title_tokens = [
+        token
+        for token, count in sorted(title_token_counts.items(), key=lambda item: (-item[1], item[0]))
+        if count >= 2
+    ]
+    tokens.extend(frequent_title_tokens[:12])
+    return {
+        "phrases": _dedupe_strings(phrases)[:16],
+        "tokens": _dedupe_strings(tokens)[:16],
+    }
+
+
+def _competitor_market_relevance(item: dict[str, Any], anchors: dict[str, list[str]]) -> dict[str, Any]:
+    text = _normalize_market_text(
+        " ".join(str(item.get(key) or "") for key in ("title", "brand", "note", "seller"))
+    )
+    phrases = [str(term).lower() for term in anchors.get("phrases", []) if term]
+    tokens = [str(term).lower() for term in anchors.get("tokens", []) if term]
+    matched_phrases = [term for term in phrases if term and term in text]
+    matched_tokens = [term for term in tokens if term and re.search(rf"\b{re.escape(term)}\b", text)]
+    noise_hits = [term for term in _MARKET_NOISE_TERMS if term in text]
+    if matched_phrases or len(matched_tokens) >= 2:
+        status = "相关"
+    elif matched_tokens and not noise_hits:
+        status = "需复核"
+    else:
+        status = "剔除"
+    if noise_hits and not matched_phrases and len(matched_tokens) < 2:
+        status = "剔除"
+    reason = "；".join(
+        part
+        for part in (
+            f"命中锚点：{', '.join((matched_phrases + matched_tokens)[:5])}" if matched_phrases or matched_tokens else "",
+            f"疑似噪音词：{', '.join(noise_hits[:4])}" if noise_hits else "",
+            "未命中目标小类锚点" if status == "剔除" and not matched_phrases and not matched_tokens else "",
+        )
+        if part
+    )
+    return {
+        "status": status,
+        "reason": reason or "需要运营复核是否属于目标小类",
+        "matched_terms": _dedupe_strings(matched_phrases + matched_tokens)[:8],
+        "noise_terms": noise_hits[:6],
+    }
+
+
+def _normalize_market_text(value: Any) -> str:
+    text = re.sub(r"[_/\\-]+", " ", str(value or "").lower())
+    text = re.sub(r"[^a-z0-9\u4e00-\u9fff\s]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _is_broad_market_keyword(value: str) -> bool:
+    text = _normalize_market_text(value)
+    if not text:
+        return False
+    return text in _BROAD_KEYWORD_PATTERNS or any(pattern == text for pattern in _BROAD_KEYWORD_PATTERNS)
+
+
 def _market_size_text(candidate: dict[str, Any]) -> str:
     demand = candidate.get("demand_evidence", {})
     competition = candidate.get("competition_structure", {})
@@ -2014,13 +2308,13 @@ def _market_size_text(candidate: dict[str, Any]) -> str:
 
 def _price_band_text(candidate: dict[str, Any]) -> str:
     demand = candidate.get("demand_evidence", {})
-    profit = candidate.get("preliminary_profit_space", {})
+    price_context = candidate.get("price_band_context", {}) if isinstance(candidate.get("price_band_context"), dict) else {}
     category_report = demand.get("sorftime_category_report", {})
     parts = []
-    if profit.get("top_price_band_by_units"):
-        parts.append(f"销量集中价格带 {profit.get('top_price_band_by_units')} USD")
-    if profit.get("top_price_band_units_share") is not None:
-        parts.append(f"该价格带销量占比 {_fmt_percent(profit.get('top_price_band_units_share'))}")
+    if price_context.get("top_price_band_by_units"):
+        parts.append(f"销量集中价格带 {price_context.get('top_price_band_by_units')} USD")
+    if price_context.get("top_price_band_units_share") is not None:
+        parts.append(f"该价格带销量占比 {_fmt_percent(price_context.get('top_price_band_units_share'))}")
     if demand.get("market_avg_price_usd") is not None:
         parts.append(f"市场平均价 USD {_fmt_number(demand.get('market_avg_price_usd'))}")
     if isinstance(category_report, dict) and category_report.get("avg_price_usd") is not None:
@@ -2148,6 +2442,10 @@ def _build_voc_analysis(voc_package: dict[str, Any] | None) -> dict[str, Any]:
     if not voc_package:
         return {}
     summary = voc_package.get("summary", {})
+    pain_points = _trim_findings(voc_package.get("pain_points", []), finding_limit=8, evidence_limit=5)
+    highlights = _trim_findings(voc_package.get("highlights", []), finding_limit=6, evidence_limit=5)
+    if not pain_points:
+        pain_points = _derive_voc_findings_from_reviews(voc_package)
     return {
         "summary": summary,
         "source_scope": {
@@ -2157,11 +2455,49 @@ def _build_voc_analysis(voc_package: dict[str, Any] | None) -> dict[str, Any]:
             "review_region_distribution": summary.get("review_region_distribution", []),
             "note": summary.get("source_scope_note", ""),
         },
-        "pain_points": _trim_findings(voc_package.get("pain_points", []), finding_limit=8, evidence_limit=5),
-        "highlights": _trim_findings(voc_package.get("highlights", []), finding_limit=6, evidence_limit=5),
+        "pain_points": pain_points,
+        "highlights": highlights,
         "opportunity_hypotheses": voc_package.get("opportunity_hypotheses", [])[:8],
-        "evidence_policy": "评论结论必须追溯到 review_id、ASIN、评分和评论链接。",
+        "evidence_policy": "评论结论必须追溯到 review_id、ASIN、评分和评论链接；自动归纳只作初筛，需运营复核。",
     }
+
+
+def _derive_voc_findings_from_reviews(voc_package: dict[str, Any], limit: int = 6) -> list[dict[str, Any]]:
+    reviews = [item for item in voc_package.get("normalized_reviews", []) if isinstance(item, dict)]
+    if not reviews:
+        return []
+    rated_reviews = [review for review in reviews if review_rating_sort_key(review) < 9]
+    low_rating_reviews = [review for review in rated_reviews if review_rating_sort_key(review) <= 3]
+    if not low_rating_reviews:
+        return []
+    average_rating = sum(review_rating_sort_key(review) for review in rated_reviews) / len(rated_reviews) if rated_reviews else 0.0
+    low_rating_share = len(low_rating_reviews) / len(rated_reviews) if rated_reviews else 0.0
+    evidence = []
+    for review in sorted(low_rating_reviews, key=review_rating_sort_key)[:limit]:
+        evidence.append(
+            {
+                "review_id": review.get("review_id"),
+                "asin": review.get("asin"),
+                "rating": review.get("rating"),
+                "snippet": review_snippet(review),
+                "url": review.get("url"),
+                "site": review.get("site"),
+                "review_region": review.get("review_region"),
+                "review_date": review.get("review_date"),
+            }
+        )
+    return [
+        {
+            "name": "低分评论概览",
+            "review_count": len(low_rating_reviews),
+            "severity": "高" if low_rating_share >= 0.25 else "中",
+            "description": (
+                f"已接入 {len(rated_reviews)} 条可评分评论，平均评分 {average_rating:.1f}，"
+                f"低分评论占比 {low_rating_share:.1%}；脚本不自动分配品类主题，需由分析层阅读原文归纳痛点。"
+            ),
+            "evidence": evidence,
+        }
+    ]
 
 
 def _trim_findings(findings: list[dict[str, Any]], finding_limit: int, evidence_limit: int) -> list[dict[str, Any]]:
@@ -2307,7 +2643,8 @@ def _build_competitor_selection_logic(candidate: dict[str, Any]) -> list[dict[st
                     "rating_count": item.get("rating_count"),
                     "competitor_type": competitor_type,
                     "coverage_dimensions": item.get("coverage_dimensions", [competitor_type]),
-                    "selection_reason": item.get("note") or f"{competitor_type}样本，作为竞品选择逻辑兜底行。",
+                    "market_boundary_status": item.get("market_boundary_status", "相关"),
+                    "selection_reason": _competitor_selection_reason(item, competitor_type),
                 }
             )
     if rows:
@@ -2331,6 +2668,7 @@ def _build_competitor_selection_logic(candidate: dict[str, Any]) -> list[dict[st
                 "rating_count": item.get("rating_count"),
                 "competitor_type": "Top100 样本",
                 "coverage_dimensions": ["Top100 样本"],
+                "market_boundary_status": item.get("market_boundary_status", "待复核"),
                 "selection_reason": "Top100 商品样本兜底进入竞品选择逻辑，待运营补充竞品角色。",
             }
         )
@@ -2350,6 +2688,13 @@ def _build_competitor_selection_logic(candidate: dict[str, Any]) -> list[dict[st
             }
         )
     return rows
+
+
+def _competitor_selection_reason(item: dict[str, Any], competitor_type: str) -> str:
+    parts = [str(item.get("note") or f"{competitor_type}样本，作为竞品选择逻辑兜底行。")]
+    if item.get("market_boundary_status") == "需复核":
+        parts.append(f"边界待复核：{item.get('market_boundary_reason')}")
+    return "；".join(part for part in parts if part)
 
 
 def _voc_summary_line(voc_package: dict[str, Any] | None) -> str:
@@ -2379,6 +2724,22 @@ def _voc_dashboard_card(voc_package: dict[str, Any] | None) -> dict[str, Any] | 
     }
 
 
+def _market_boundary_summary_line(candidate: dict[str, Any]) -> str:
+    audit = candidate.get("market_boundary_audit", {}) if isinstance(candidate.get("market_boundary_audit"), dict) else {}
+    if not audit:
+        return ""
+    parts: list[str] = []
+    if audit.get("broad_keyword"):
+        parts.append(f"核心词「{audit.get('broad_keyword')}」过宽")
+    excluded = _positive_count(audit.get("excluded_competitor_count"))
+    if excluded:
+        parts.append(f"已剔除 {excluded} 个非同类竞品样本")
+    suspect = _positive_count(audit.get("suspect_competitor_count"))
+    if suspect:
+        parts.append(f"{suspect} 个边界样本待复核")
+    return "市场边界审计：" + "；".join(parts) if parts else ""
+
+
 def _voc_scope_text(summary: dict[str, Any]) -> str:
     if not summary:
         return ""
@@ -2401,7 +2762,7 @@ def _append_sentence(base: str, sentence: str) -> str:
 
 # ── 重点竞品深拆卡 ─────────────────────────────────────────────────────────────
 
-def _build_competitor_deep_dive(competitor_candidates: dict[str, Any]) -> list[dict[str, Any]]:
+def _build_competitor_deep_dive(competitor_candidates: dict[str, Any], sorftime_traffic: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     """Build raw competitor data cards for Claude to analyze.
 
     No analysis text is generated here — learnable points, barriers, and
@@ -2427,7 +2788,10 @@ def _build_competitor_deep_dive(competitor_candidates: dict[str, Any]) -> list[d
             "listing_days": item.get("listing_days"),
             "note": item.get("note"),
             "url": item.get("url"),
-            "traffic_keywords": [],  # P19 Sorftime 补充
+            "market_boundary_status": item.get("market_boundary_status", "相关"),
+            "market_boundary_reason": item.get("market_boundary_reason", ""),
+            "traffic_keywords": _traffic_keywords_for_asin(sorftime_traffic, asin),
+            "traffic_mixed_warnings": _traffic_warnings_for_asin(sorftime_traffic, asin),
         })
 
     for item in (competitor_candidates.get("top10") or [])[:3]:
@@ -2436,6 +2800,34 @@ def _build_competitor_deep_dive(competitor_candidates: dict[str, Any]) -> list[d
         add_card(item, "近半年新品")
 
     return cards
+
+
+def _traffic_keywords_for_asin(sorftime_traffic: dict[str, Any] | None, asin: str) -> list[dict[str, Any]]:
+    traffic = _traffic_item_for_asin(sorftime_traffic, asin)
+    if not traffic:
+        return []
+    words = traffic.get("top_traffic_words") if isinstance(traffic.get("top_traffic_words"), list) else []
+    return [item for item in words if isinstance(item, dict)][:8]
+
+
+def _traffic_warnings_for_asin(sorftime_traffic: dict[str, Any] | None, asin: str) -> list[str]:
+    traffic = _traffic_item_for_asin(sorftime_traffic, asin)
+    if not traffic:
+        return []
+    warnings = traffic.get("mixed_pool_warning") if isinstance(traffic.get("mixed_pool_warning"), list) else []
+    return [str(item) for item in warnings if item][:8]
+
+
+def _traffic_item_for_asin(sorftime_traffic: dict[str, Any] | None, asin: str) -> dict[str, Any]:
+    if not isinstance(sorftime_traffic, dict) or not asin:
+        return {}
+    if str(sorftime_traffic.get("asin") or "") == asin:
+        return sorftime_traffic
+    items = sorftime_traffic.get("asins") if isinstance(sorftime_traffic.get("asins"), list) else []
+    for item in items:
+        if isinstance(item, dict) and str(item.get("asin") or "") == asin:
+            return item
+    return {}
 
 
 def parse_args() -> argparse.Namespace:

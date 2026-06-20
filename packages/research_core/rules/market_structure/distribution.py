@@ -199,4 +199,4 @@ def cell_interpretation(row_value: str, column_value: str, items: list[dict[str,
         return "新品已有销量信号，适合继续看放量原因。"
     if avg_units is not None and avg_units <= 50:
         return "销量偏弱，不能只按供给少判断为空白机会。"
-    return "作为结构分布参考，需结合评论、关键词和利润复核。"
+    return "作为结构分布参考，需结合评论、关键词和竞品复核。"

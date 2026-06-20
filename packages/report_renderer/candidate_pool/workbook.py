@@ -95,9 +95,9 @@ def _candidate_detail_rows(candidates: list[dict[str, Any]]) -> list[list[object
         ("需求证据", "demand_evidence"),
         ("竞争结构", "competition_structure"),
         ("新品机会", "new_listing_opportunity"),
-        ("利润空间参考", "preliminary_profit_space"),
+        ("价格带上下文", "price_band_context"),
         ("退货风险", "return_risk"),
-        ("知产/合规风险", "ip_compliance_risk"),
+        ("市场验证风险", "market_validation_risk"),
         ("数据质量", "data_quality"),
     ]
     for candidate in candidates:
@@ -312,8 +312,8 @@ def _source_rows(candidates: list[dict[str, Any]]) -> list[list[object]]:
 def _gap_action(gap: str) -> str:
     if "评论" in gap or "VOC" in gap:
         return "进入深挖后读取自有评论插件导出"
-    if "FBA" in gap or "头程" in gap or "入库" in gap or "采购" in gap:
-        return "利润复核阶段由运营手填或后台核算"
+    if "价格" in gap or "价格带" in gap:
+        return "补卖家精灵市场分析或 Top100 价格分布"
     if "商标" in gap or "专利" in gap:
-        return "进入深挖后做知产初筛并保留人工复核"
+        return "仅作为人工风险提示，当前主链路不做结论"
     return "根据是否进入深挖决定是否补充"

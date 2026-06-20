@@ -55,14 +55,10 @@ def render_markdown(package: dict) -> str:
     market = package.get("market_analysis", {})
     market_structure = package.get("market_structure", {})
     competitors = package.get("competitor_pool", {})
-    profit = package.get("profit_reference", {})
     return_risk = package.get("return_risk", {})
     status = package.get("status_card", {})
     voc = package.get("voc_analysis", {})
     decision = package.get("decision_review", {})
-    ip_screening = package.get("ip_screening", {})
-    compliance = package.get("compliance_screening", {})
-    ip_compliance_review = package.get("ip_compliance_review", {})
     competitor_deep_dive = package.get("competitor_deep_dive", [])
     workflow_trace = package.get("workflow_trace", {})
     sorftime_traffic = candidate.get("demand_evidence", {}).get("sorftime_traffic_terms", {})
@@ -74,22 +70,20 @@ def render_markdown(package: dict) -> str:
     sections = (
         (FORMAL_REPORT_SECTION_TITLES[0], _executive_summary_markdown_lines(status, decision, package.get("report_summary", {}), currency_code, package.get("ai_analysis", {}))),
         (FORMAL_REPORT_SECTION_TITLES[1], _data_source_markdown_lines(meta, package.get("raw_sources", {}), workflow_trace)),
-        (FORMAL_REPORT_SECTION_TITLES[2], _candidate_boundary_markdown_lines(meta, constraints, candidate)),
-        (FORMAL_REPORT_SECTION_TITLES[3], _market_quality_markdown_lines(market, market_structure, currency_code)),
-        (FORMAL_REPORT_SECTION_TITLES[4], _keyword_demand_markdown_lines(candidate, package.get("keyword_analysis", {}))),
-        (FORMAL_REPORT_SECTION_TITLES[5], _attribute_analysis_markdown_lines(market_structure, currency_code)),
+        (FORMAL_REPORT_SECTION_TITLES[2], _category_selection_derivation_markdown_lines(package, candidate, workflow_trace)),
+        (FORMAL_REPORT_SECTION_TITLES[3], _candidate_boundary_markdown_lines(meta, constraints, candidate)),
+        (FORMAL_REPORT_SECTION_TITLES[4], _market_quality_markdown_lines(market, market_structure, currency_code)),
+        (FORMAL_REPORT_SECTION_TITLES[5], _keyword_demand_markdown_lines(candidate, package.get("keyword_analysis", {}))),
+        (FORMAL_REPORT_SECTION_TITLES[6], _attribute_analysis_markdown_lines(market_structure, currency_code)),
         (
-            FORMAL_REPORT_SECTION_TITLES[6],
+            FORMAL_REPORT_SECTION_TITLES[7],
             _competitor_selection_markdown_lines(package.get("competitor_selection_logic", []), competitors, competitor_deep_dive, currency_code, sorftime_traffic),
         ),
-        (FORMAL_REPORT_SECTION_TITLES[7], _voc_markdown_lines(voc) if voc else _empty_section_lines("评论插件导出未接入，需先补 review_voc_package。")),
-        (FORMAL_REPORT_SECTION_TITLES[8], _profit_review_markdown_lines(profit, package.get("operator_inputs", {}), currency_code)),
-        (
-            FORMAL_REPORT_SECTION_TITLES[9],
-            _risk_review_markdown_lines(return_risk, ip_screening, compliance, ip_compliance_review),
-        ),
-        (FORMAL_REPORT_SECTION_TITLES[10], _go_nogo_markdown_lines(decision, status, currency_code)),
-        (FORMAL_REPORT_SECTION_TITLES[11], _next_step_evidence_markdown_lines(status, decision, workflow_trace)),
+        (FORMAL_REPORT_SECTION_TITLES[8], _voc_markdown_lines(voc) if voc else _empty_section_lines("评论插件导出未接入，需先补 review_voc_package。")),
+        (FORMAL_REPORT_SECTION_TITLES[9], _market_opportunity_score_markdown_lines(decision, status, currency_code)),
+        (FORMAL_REPORT_SECTION_TITLES[10], _risk_review_markdown_lines(return_risk, decision)),
+        (FORMAL_REPORT_SECTION_TITLES[11], _research_priority_markdown_lines(decision, status, currency_code)),
+        (FORMAL_REPORT_SECTION_TITLES[12], _next_step_evidence_markdown_lines(status, decision, workflow_trace)),
     )
     for title, body in sections:
         lines.extend(_formal_section(title, body))
@@ -149,7 +143,7 @@ def _executive_summary_markdown_lines(
         f"- 待补项：{_join_or_default(missing_inputs[:8], '暂无')}",
         "",
     ]
-    bullets = report_summary.get("bullets", []) if isinstance(report_summary, dict) else []
+    bullets = [item for item in (report_summary.get("bullets", []) if isinstance(report_summary, dict) else []) if item]
     if bullets:
         lines.extend(["### 摘要要点"])
         for item in bullets[:5]:
@@ -162,7 +156,7 @@ def _executive_summary_markdown_lines(
             [
                 "### AI 综合分析口径",
                 f"- 角色前提：{ai_analysis.get('persona', '资深亚马逊运营专家')}",
-                f"- 判断原则：{ai_analysis.get('decision_principle', '利润、知产/合规和供应商真实确认未闭环时，只能给 Wait/观察。')}",
+                f"- 判断原则：{ai_analysis.get('decision_principle', '本报告只判断市场机会和继续研究优先级，不输出采购或上架结论。')}",
                 f"- 综合判断：{thesis.get('title', '待补')}",
                 "",
             ]
@@ -188,9 +182,9 @@ def _executive_chain_markdown_lines(
     dimensions = scorecard.get("dimensions", {}) if isinstance(scorecard.get("dimensions"), dict) else {}
     if isinstance(scorecard, dict) and scorecard.get("decision"):
         chains.append(
-            f"数据点：Go/Wait/No-Go 评分 {scorecard.get('weighted_score', '待补')}，结论 {scorecard.get('decision')} -> "
-            f"含义：当前决策受利润、合规和样品证据约束 -> "
-            f"行动建议：先补齐评分卡限制项再决定是否立项。"
+            f"数据点：市场机会评分 {scorecard.get('weighted_score', '待补')}，结论 {scorecard.get('decision')} -> "
+            f"含义：当前决策受市场、关键词、竞品和 VOC 证据约束 -> "
+            f"行动建议：先补齐评分卡限制项再决定是否继续深挖。"
         )
     for name, item in list(dimensions.items())[:2]:
         if not isinstance(item, dict):
@@ -208,11 +202,11 @@ def _executive_chain_markdown_lines(
             chains.append(
                 f"数据点：{insight.get('label', '关键洞察')}，{_normalize_money_text(insight.get('body', '待补'), currency_code)} -> "
                 f"含义：{insight.get('title', '需要转成进入策略判断')} -> "
-                f"行动建议：把该洞察转成下一步补数、打样或供应商问询。"
+                f"行动建议：把该洞察转成下一步补数、路线验证或 VOC 检查。"
             )
             if len(chains) >= 3:
                 break
-    bullets = report_summary.get("bullets", []) if isinstance(report_summary, dict) else []
+    bullets = [item for item in (report_summary.get("bullets", []) if isinstance(report_summary, dict) else []) if item]
     for item in bullets:
         chains.append(
             f"数据点：{_normalize_money_text(item, currency_code)} -> "
@@ -225,7 +219,7 @@ def _executive_chain_markdown_lines(
         chains.append(
             f"数据点：状态 {status.get('status', '待填') if isinstance(status, dict) else '待填'} -> "
             "含义：当前结论仍依赖待补证据 -> "
-            "行动建议：优先补齐利润、合规、VOC 或供应链证据。"
+            "行动建议：优先补齐小类、关键词、竞品或 VOC 证据。"
         )
     return ["### 数据点 -> 含义 -> 行动建议", *[f"- {item}" for item in chains[:3]], ""]
 
@@ -241,7 +235,7 @@ def _product_route_matrix_markdown_lines(routes: object) -> list[str]:
             f"- {route.get('route_name', '未命名路线')}：{route.get('route_type', '路线')}，"
             f"{route.get('candidate_count', 0)} 个候选，"
             f"优先 {route.get('priority_count', 0)}，观察 {route.get('watchlist_count', 0)}，"
-            f"价格 {route.get('price_text', '待询价')}。"
+            f"价格 {route.get('price_text', '价格带待补')}。"
             f"{route.get('decision_hint', '')}"
         )
     lines.append("")
@@ -328,6 +322,124 @@ def _data_source_markdown_lines(
     for section, sheets in REPORT_EXCEL_SHEET_MAP:
         lines.append(f"- {section}：`data.xlsx` -> {sheets}")
     lines.append("")
+    return lines
+
+
+def _category_selection_derivation_markdown_lines(
+    package: dict,
+    candidate: dict,
+    workflow_trace: dict | None = None,
+) -> list[str]:
+    derivation = package.get("category_selection_derivation")
+    if not isinstance(derivation, dict):
+        derivation = (package.get("ai_analysis") or {}).get("category_selection_derivation") if isinstance(package.get("ai_analysis"), dict) else {}
+    if not isinstance(derivation, dict):
+        derivation = {}
+
+    steps = derivation.get("steps") if isinstance(derivation.get("steps"), list) else []
+    rejected = derivation.get("rejected_alternatives") if isinstance(derivation.get("rejected_alternatives"), list) else []
+    source_refs = derivation.get("source_refs") if isinstance(derivation.get("source_refs"), list) else []
+    confidence = derivation.get("confidence") or "待补"
+
+    lines = [
+        "### 为什么是这个品类",
+        f"- 收敛结论：{derivation.get('selected_category') or derivation.get('selected_route') or _fallback_selected_category(candidate)}",
+        f"- 证据强度：{confidence}",
+        f"- 核心原则：先从约束和场景出发，再用类目、参考 ASIN、关键词、混池排除和多源交叉验证逐步收敛；不把单个大词或单个工具返回当最终市场。",
+        "",
+        "### 推导步骤",
+    ]
+    if steps:
+        for index, step in enumerate(steps[:10], start=1):
+            if not isinstance(step, dict):
+                continue
+            evidence = _join_or_default(step.get("evidence") if isinstance(step.get("evidence"), list) else [step.get("evidence")], "证据待补")
+            implication = step.get("implication") or step.get("read") or "待解释"
+            decision = step.get("decision") or step.get("action") or "继续验证"
+            lines.append(
+                f"{index}. {step.get('name') or step.get('step') or '推导节点'}："
+                f"证据：{evidence}；含义：{implication}；动作：{decision}。"
+            )
+            for point in step.get("evidence_points", []) if isinstance(step.get("evidence_points"), list) else []:
+                if not isinstance(point, dict):
+                    continue
+                lines.append(
+                    f"   - 事实：{point.get('fact', '待补')}；"
+                    f"含义：{point.get('meaning', '待解释')}；"
+                    f"行动建议：{point.get('action', '继续验证')}"
+                )
+    else:
+        lines.extend(_fallback_category_derivation_steps(candidate, workflow_trace))
+    lines.append("")
+
+    if rejected:
+        lines.append("### 为什么没有选其他方向")
+        for item in rejected[:8]:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"- {item.get('name') or item.get('route') or item.get('keyword') or '候选项'}："
+                f"{item.get('reason') or item.get('decision') or '证据不足或混池风险高'}"
+            )
+        lines.append("")
+
+    disconfirming = derivation.get("disconfirming_evidence") if isinstance(derivation.get("disconfirming_evidence"), list) else []
+    if disconfirming:
+        lines.append("### 什么证据会推翻当前判断")
+        for item in disconfirming[:8]:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"- {item.get('risk', '风险')}：若 {item.get('would_change_decision_if', '出现反证')}，"
+                f"则需要 {item.get('next_check', '重新验证')}；当前信号：{item.get('current_signal', '待补')}"
+            )
+        lines.append("")
+
+    if source_refs:
+        lines.append("### 主要证据来源")
+        for ref in source_refs[:10]:
+            lines.append(f"- {ref}")
+        lines.append("")
+    return lines
+
+
+def _fallback_selected_category(candidate: dict) -> str:
+    if not isinstance(candidate, dict):
+        return "待确认"
+    boundary = candidate.get("candidate_boundary_review") if isinstance(candidate.get("candidate_boundary_review"), dict) else {}
+    return str(boundary.get("recommended_mainline") or candidate.get("name") or candidate.get("candidate_id") or "待确认")
+
+
+def _fallback_category_derivation_steps(candidate: dict, workflow_trace: dict | None) -> list[str]:
+    lines: list[str] = []
+    boundary = candidate.get("candidate_boundary_review") if isinstance(candidate, dict) and isinstance(candidate.get("candidate_boundary_review"), dict) else {}
+    demand = candidate.get("demand_evidence") if isinstance(candidate, dict) and isinstance(candidate.get("demand_evidence"), dict) else {}
+    category_report = demand.get("sorftime_category_report") if isinstance(demand.get("sorftime_category_report"), dict) else {}
+    top_asins = candidate.get("next_review_voc_asins") if isinstance(candidate, dict) and isinstance(candidate.get("next_review_voc_asins"), list) else []
+    keywords = (demand.get("aba_keyword_signal") or {}).get("top_keywords") if isinstance(demand.get("aba_keyword_signal"), dict) else []
+    decision_log = workflow_trace.get("decision_log") if isinstance(workflow_trace, dict) and isinstance(workflow_trace.get("decision_log"), list) else []
+
+    if decision_log:
+        first = decision_log[0] if isinstance(decision_log[0], dict) else {}
+        lines.append(f"1. 初始约束：证据：{first.get('reason', '用户输入和流程决策记录')}；含义：先限定站点、场景、禁区和偏好；动作：只保留符合边界的候选方向。")
+    else:
+        lines.append("1. 初始约束：证据：用户输入、站点、场景、禁区和价格偏好；含义：先限定可研究范围；动作：排除明显不符合边界的候选。")
+    lines.append(
+        f"2. 类目候选：证据：{category_report.get('category_name') or category_report.get('node_id') or '候选类目与类目报告待补'}；"
+        "含义：关键词映射只能作为候选，需要类目和 ASIN 共同确认；动作：保留候选类目并标记混池风险。"
+    )
+    lines.append(
+        f"3. 参考竞品：证据：已选 {len(top_asins)} 个代表 ASIN；"
+        "含义：只有相似 ASIN 能支撑这个方向不是抽象词；动作：按主线、升级、新品、痛点、对照覆盖竞品池。"
+    )
+    lines.append(
+        f"4. 关键词交叉：证据：关键词样本 {len(keywords) if isinstance(keywords, list) else 0} 条；"
+        "含义：搜索词用于验证需求和混池，不直接定义市场；动作：拆分主词、转化词、长尾词和排除词。"
+    )
+    lines.append(
+        f"5. 最终收敛：证据：{boundary.get('recommended_mainline') or '路线矩阵和候选边界'}；"
+        "含义：选择证据最完整且边界可解释的主线；动作：进入 VOC、关键词和竞品证据验证。"
+    )
     return lines
 
 
@@ -505,84 +617,32 @@ def _attribute_analysis_markdown_lines(market_structure: dict, currency_code: st
     return lines or _empty_section_lines("属性分布和交叉分析未生成。")
 
 
-def _profit_breakdown_markdown_lines(profit: dict) -> list[str]:
-    breakdown = profit.get("cost_breakdown", {}) if isinstance(profit, dict) else {}
-    if not breakdown:
-        return []
-    currency_code = profit.get("currency_code", "USD")
-    labels = {
-        "sale_price": "建议售价",
-        "purchase_cost": "采购价",
-        "first_leg_shipping": "头程费用",
-        "fba_fee": "FBA费用",
-        "commission": "佣金",
-        "storage_fee": "仓储费",
-        "inbound_placement_fee": "入库配置费",
-        "ad_cost": "广告费",
-        "return_loss": "退款损失",
-    }
-    lines = ["### 利润成本拆分"]
-    for key, label in labels.items():
-        if key in breakdown:
-            value = breakdown.get(key)
-            lines.append(f"- {label}：{_format_money(value, currency_code) if isinstance(value, (int, float)) else value}")
-    if profit.get("notes"):
-        lines.append(f"- 说明：{profit.get('notes')}")
-    lines.append("")
-    return lines
-
-
-def _profit_review_markdown_lines(profit: dict, operator_inputs: dict, currency_code: str) -> list[str]:
+def _market_opportunity_score_markdown_lines(decision: dict, status: dict, currency_code: str) -> list[str]:
+    scorecard = decision.get("go_nogo_scorecard", {}) if isinstance(decision, dict) else {}
     lines = [
-        f"- 基础 FBA 毛利：{_format_money(profit.get('base_fba_gross_profit', '待填'), currency_code)}",
-        f"- 基础 FBA 毛利率：{_format_percent_or_text(profit.get('base_fba_margin', '待填'))}",
-        f"- 扣广告和退货后的 FBA 毛利：{_format_money(profit.get('post_ads_returns_gross_profit', '待填'), currency_code)}",
-        f"- 扣广告和退货后的 FBA 毛利率：{_format_percent_or_text(profit.get('post_ads_returns_margin', '待填'))}",
+        "### 市场机会评分卡",
+        f"- 当前状态：{status.get('status', '待填') if isinstance(status, dict) else '待填'}",
+        f"- 状态理由：{status.get('reason', '待填') if isinstance(status, dict) else '待填'}",
+        f"- 下一步：{status.get('next_step', '待填') if isinstance(status, dict) else '待填'}",
         "",
     ]
-    missing_inputs = [
-        label
-        for key, label in (
-            ("purchase_cost", "采购价"),
-            ("exchange_rate", "站点汇率"),
-            ("fba_fee", "FBA费用"),
-            ("first_leg_shipping", "头程费用"),
-            ("inbound_placement_fee", "入库配置费"),
-        )
-        if str(operator_inputs.get(key, "待补")) in {"", "待补", "待填", "None"}
-    ]
-    lines.append(f"- 利润待补：{_join_or_default(missing_inputs, '暂无')}")
-    lines.append("")
-    supply_chain = profit.get("supply_chain_signal", {}) if isinstance(profit, dict) else {}
-    if isinstance(supply_chain, dict) and supply_chain:
-        lines.extend(
-            [
-                "### 1688 中国站人民币粗采购价信号",
-                f"- 搜索词：{supply_chain.get('search_name', '待填')}",
-                f"- 来源：{supply_chain.get('source_site', '1688中国站')} / {supply_chain.get('source_url', 'https://www.1688.com/')}",
-                f"- 文本初筛候选：{_format_number(supply_chain.get('text_screened_candidate_count', supply_chain.get('relevant_supplier_count'))) if supply_chain.get('text_screened_candidate_count', supply_chain.get('relevant_supplier_count')) is not None else '待填'}",
-                f"- 详情结构化通过：{_format_number(supply_chain.get('detail_structured_pass_count')) if supply_chain.get('detail_structured_pass_count') is not None else '待生成'} / 详情复核样本 {_format_number(supply_chain.get('detail_structured_review_count')) if supply_chain.get('detail_structured_review_count') is not None else '待生成'}",
-                f"- RMB 报价有效样本：{_format_number(supply_chain.get('supplier_count')) if supply_chain.get('supplier_count') is not None else '待填'}",
-                f"- 待视觉复核队列：{_format_number(supply_chain.get('visual_review_queue_count')) if supply_chain.get('visual_review_queue_count') is not None else '待生成'}",
-                f"- 视觉确认通过：{_format_number(supply_chain.get('visual_confirmed_count')) if supply_chain.get('visual_confirmed_count') is not None else '0'}",
-                f"- 视觉观察待核：{_format_number(supply_chain.get('visual_partial_count')) if supply_chain.get('visual_partial_count') is not None else '0'}",
-                f"- 视觉剔除：{_format_number(supply_chain.get('visual_rejected_count')) if supply_chain.get('visual_rejected_count') is not None else '0'}",
-                f"- 最终供应链可继续验证：{_format_number(supply_chain.get('relevant_supplier_count')) if supply_chain.get('relevant_supplier_count') is not None else '0'}",
-                f"- 剔除样本：{_format_number(supply_chain.get('rejected_sample_count')) if supply_chain.get('rejected_sample_count') is not None else '0'}",
-                f"- 文本初筛采购价区间：RMB {_format_number(supply_chain.get('purchase_price_cny_min')) if supply_chain.get('purchase_price_cny_min') is not None else '待填'} - {_format_number(supply_chain.get('purchase_price_cny_max')) if supply_chain.get('purchase_price_cny_max') is not None else '待填'}",
-                f"- 保守采购价：RMB {_format_number(supply_chain.get('conservative_purchase_price_cny')) if supply_chain.get('conservative_purchase_price_cny') is not None else '待填'}（按区间上限，不按最低 SKU 价）",
-                f"- 采购价中位数：RMB {_format_number(supply_chain.get('purchase_price_cny_median')) if supply_chain.get('purchase_price_cny_median') is not None else '待填'}",
-                f"- 保守采购价折美元：{_format_money(supply_chain.get('conservative_purchase_price_usd'), currency_code) if supply_chain.get('conservative_purchase_price_usd') is not None else '待汇率'}",
-                f"- 折美元均价：{_format_money(supply_chain.get('purchase_price_usd_avg'), currency_code) if supply_chain.get('purchase_price_usd_avg') is not None else '待汇率'}",
-                f"- 口径：{supply_chain.get('note', '只作早期粗估，不替代运营利润模板。')}",
-                "",
-            ]
-        )
-    lines.extend(_profit_breakdown_markdown_lines(profit))
+    if scorecard:
+        if scorecard.get("gating_reasons"):
+            lines.append(f"- 证据缺口：{_join_or_default(scorecard.get('gating_reasons'), '无')}")
+        for name, item in scorecard.get("dimensions", {}).items():
+            score = item.get("score", "待填")
+            weight = item.get("weight", "待填")
+            weight_text = f"{weight * 100:.0f}%" if isinstance(weight, (int, float)) else str(weight)
+            lines.append(f"- {name}：{score}/10，权重 {weight_text}；依据：{item.get('note', '待填')}")
+        lines.append(f"- 加权总分：{scorecard.get('weighted_score', '待填')}")
+        lines.append(f"- 研究结论：{scorecard.get('decision', '待填')}")
+        if scorecard.get("note"):
+            lines.append(f"- 说明：{scorecard.get('note')}")
+        lines.append("")
     return lines
 
 
-def _risk_review_markdown_lines(return_risk: dict, ip_screening: dict, compliance: dict, review: dict) -> list[str]:
+def _risk_review_markdown_lines(return_risk: dict, decision: dict) -> list[str]:
     lines = [
         "### 退货风险",
         f"- 来源：{return_risk.get('source', '待填') if isinstance(return_risk, dict) else '待填'}",
@@ -590,7 +650,14 @@ def _risk_review_markdown_lines(return_risk: dict, ip_screening: dict, complianc
         f"- 市场退货率：{_format_percent_or_text(return_risk.get('market_return_rate', '待填')) if isinstance(return_risk, dict) else '待填'}",
         "",
     ]
-    lines.extend(_ip_compliance_markdown_lines(ip_screening, compliance, review))
+    risks = decision.get("risk_matrix", []) if isinstance(decision, dict) else []
+    if risks:
+        lines.append("### 待验证风险")
+        for item in risks[:8]:
+            if not isinstance(item, dict):
+                continue
+            lines.append(f"- {item.get('dimension', '风险项')}：{item.get('level', '待确认')}；{item.get('basis', '待补')}")
+        lines.append("")
     return lines
 
 
@@ -598,6 +665,7 @@ def _competitor_selection_markdown_lines(selection_logic: object, competitors: d
     total_count = 0
     if isinstance(competitors, dict):
         total_count = sum(len(competitors.get(key, []) or []) for key in ("top10", "recent_winners", "structure_supplement"))
+    boundary_audit = competitors.get("market_boundary_audit", {}) if isinstance(competitors, dict) and isinstance(competitors.get("market_boundary_audit"), dict) else {}
     selection_rows = selection_logic if isinstance(selection_logic, list) else []
     covered_types = sorted(
         {
@@ -613,6 +681,19 @@ def _competitor_selection_markdown_lines(selection_logic: object, competitors: d
         f"- VOC 推荐抓取覆盖角色：{_join_or_default(covered_types, '待补')}",
         "",
     ]
+    if boundary_audit:
+        lines.extend(
+            [
+                "### 市场边界审计",
+                f"- 状态：{boundary_audit.get('quality_status', '待复核')}",
+                f"- 目标锚点词：{_join_or_default(boundary_audit.get('anchor_terms') or boundary_audit.get('anchor_tokens'), '待补')}",
+                f"- 已剔除非同类竞品：{boundary_audit.get('excluded_competitor_count', 0)}；待复核：{boundary_audit.get('suspect_competitor_count', 0)}",
+            ]
+        )
+        for item in boundary_audit.get("excluded_samples", [])[:5]:
+            if isinstance(item, dict):
+                lines.append(f"- 剔除：{item.get('asin', '待填')} / {_compact_title(item.get('title'), 52)}；{item.get('reason', '未命中目标小类锚点')}")
+        lines.append("")
     if selection_rows:
         lines.append("### 竞品选择逻辑表")
         for item in selection_rows[:12]:
@@ -632,7 +713,7 @@ def _competitor_selection_markdown_lines(selection_logic: object, competitors: d
     return lines
 
 
-def _go_nogo_markdown_lines(decision: dict, status: dict, currency_code: str) -> list[str]:
+def _research_priority_markdown_lines(decision: dict, status: dict, currency_code: str) -> list[str]:
     scorecard = decision.get("go_nogo_scorecard", {}) if isinstance(decision, dict) else {}
     lines = [
         "### 状态卡",
@@ -642,16 +723,16 @@ def _go_nogo_markdown_lines(decision: dict, status: dict, currency_code: str) ->
         "",
     ]
     if scorecard:
-        lines.append("### Go/Wait/No-Go 评分卡")
+        lines.append("### 继续研究优先级")
         if scorecard.get("gating_reasons"):
-            lines.append(f"- 决策限制：{_join_or_default(scorecard.get('gating_reasons'), '无')}")
+            lines.append(f"- 证据缺口：{_join_or_default(scorecard.get('gating_reasons'), '无')}")
         for name, item in scorecard.get("dimensions", {}).items():
             score = item.get("score", "待填")
             weight = item.get("weight", "待填")
             weight_text = f"{weight * 100:.0f}%" if isinstance(weight, (int, float)) else str(weight)
             lines.append(f"- {name}：{score}/10，权重 {weight_text}；依据：{item.get('note', '待填')}")
         lines.append(f"- 加权总分：{scorecard.get('weighted_score', '待填')}")
-        lines.append(f"- 决策结论：{scorecard.get('decision', '待填')}")
+        lines.append(f"- 研究结论：{scorecard.get('decision', '待填')}")
         if scorecard.get("note"):
             lines.append(f"- 说明：{scorecard.get('note')}")
         lines.append("")
@@ -694,50 +775,6 @@ def _analysis_mode_self_check_lines() -> list[str]:
     for mode, section, _terms in ANALYSIS_MODE_SELF_CHECKS:
         lines.append(f"| {mode} | 已用 | {section} | - |")
     lines.append("")
-    return lines
-
-
-def _ip_compliance_markdown_lines(ip_screening: dict, compliance: dict, review: dict) -> list[str]:
-    if not ip_screening and not compliance and not review:
-        return []
-    lines = ["### 知产/合规初筛", ""]
-    if review:
-        missing = review.get("missing_fields", [])
-        pending = review.get("pending_fields", [])
-        lines.extend(
-            [
-                f"- 总状态：{review.get('status', '待补')}",
-                f"- 整体风险：{review.get('overall_level', '待复核')}",
-                f"- 下一步：{review.get('next_step', '待复核')}",
-            ]
-        )
-        if missing:
-            lines.append(f"- 待补字段：{'、'.join(str(item) for item in missing[:8])}")
-        if pending:
-            lines.append(f"- 待复核项：{'、'.join(str(item) for item in pending[:8])}")
-        lines.append("")
-    if ip_screening:
-        lines.extend(
-            [
-                "### 知产初筛",
-                f"- 状态：{ip_screening.get('status', '待补')}",
-                f"- 风险等级：{ip_screening.get('level', ip_screening.get('overall_level', '待复核'))}",
-                f"- 摘要：{ip_screening.get('summary', ip_screening.get('notes', '待复核'))}",
-                f"- 边界：{ip_screening.get('boundary', '仅为早期初筛，不替代专业结论。')}",
-                "",
-            ]
-        )
-    if compliance:
-        lines.extend(
-            [
-                "### 合规认证预判",
-                f"- 状态：{compliance.get('status', '待补')}",
-                f"- 风险等级：{compliance.get('level', compliance.get('overall_level', '待复核'))}",
-                f"- 摘要：{compliance.get('summary', compliance.get('notes', '待复核'))}",
-                f"- 边界：{compliance.get('boundary', '仅为可能材料和待复核项，不替代专业结论。')}",
-                "",
-            ]
-        )
     return lines
 
 
@@ -900,17 +937,26 @@ def _competitor_deep_dive_markdown_lines(cards: list, currency_code: str = "USD"
         rating = card.get("rating")
         rating_count = card.get("rating_count")
         listing_days = card.get("listing_days")
-        if sorftime_traffic and asin == traffic_asin:
+        traffic_words = card.get("traffic_keywords") if isinstance(card.get("traffic_keywords"), list) else []
+        mixed_warnings = card.get("traffic_mixed_warnings") if isinstance(card.get("traffic_mixed_warnings"), list) else []
+        if traffic_words:
+            word_parts = [
+                f"{w.get('keyword')}（{_format_number(w.get('monthly_search_volume') or w.get('monthly_search') or 0)}搜/月，{w.get('natural_position') or w.get('position') or '—'}）"
+                for w in traffic_words[:6]
+            ]
+            traffic_line = "；".join(word_parts) if word_parts else "暂无数据"
+            if mixed_warnings:
+                traffic_line += f"；混池词：{'、'.join(map(str, mixed_warnings[:3]))}"
+        elif sorftime_traffic and asin == traffic_asin:
             top_words = sorftime_traffic.get("top_traffic_words", [])
             mixed_warnings = sorftime_traffic.get("mixed_pool_warning", [])
             word_parts = [
-                f"{w.get('keyword')}（{_format_number(w.get('monthly_search', 0))}搜/月，{w.get('position', '—')}）"
+                f"{w.get('keyword')}（{_format_number(w.get('monthly_search') or w.get('monthly_search_volume') or 0)}搜/月，{w.get('position') or w.get('natural_position') or '—'}）"
                 for w in top_words[:6]
             ]
             traffic_line = "；".join(word_parts) if word_parts else "暂无数据"
             if mixed_warnings:
-                warn_kws = "、".join(w.get("keyword", "") for w in mixed_warnings[:3])
-                traffic_line += f"⚠️ 混池词：{warn_kws}"
+                traffic_line += f"；混池词：{'、'.join(str(w.get('keyword', w)) if isinstance(w, dict) else str(w) for w in mixed_warnings[:3])}"
         else:
             traffic_line = "待 Sorftime product_traffic_terms 补充"
         lines += [

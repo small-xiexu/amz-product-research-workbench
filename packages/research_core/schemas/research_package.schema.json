@@ -3,7 +3,7 @@
   "$id": "https://example.com/research_package.schema.json",
   "title": "ResearchPackage",
   "type": "object",
-  "required": ["metadata", "constraints", "operator_inputs", "market_analysis", "competitor_pool", "profit_reference", "return_risk", "status_card", "report_summary", "dashboard_views", "excel_sheets"],
+  "required": ["metadata", "constraints", "operator_inputs", "market_analysis", "competitor_pool", "price_band_context", "return_risk", "status_card", "report_summary", "dashboard_views", "excel_sheets"],
   "properties": {
     "metadata": {
       "type": "object",
@@ -81,13 +81,13 @@
       },
       "additionalProperties": true
     },
-    "profit_reference": {
+    "price_band_context": {
       "type": "object",
       "properties": {
-        "base_fba_gross_profit": { "type": ["number", "string"] },
-        "base_fba_margin": { "type": ["number", "string"] },
-        "post_ads_returns_gross_profit": { "type": ["number", "string"] },
-        "post_ads_returns_margin": { "type": ["number", "string"] }
+        "avg_price_usd": { "type": ["number", "string", "null"] },
+        "top_price_band_by_units": { "type": ["string", "null"] },
+        "top_price_band_units_share": { "type": ["number", "string", "null"] },
+        "note": { "type": ["string", "null"] }
       },
       "additionalProperties": true
     },

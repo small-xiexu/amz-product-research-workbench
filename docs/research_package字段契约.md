@@ -25,11 +25,7 @@
 | `competitor_selection_logic` | array | 脚本 + 主 Agent | 竞品选择逻辑 | 非空；每项必须有 ASIN 和选择理由 |
 | `competitor_pool` | object | 脚本 | Top10、新品、结构补充竞品 | 竞品角色要可回表 |
 | `voc_analysis` | object | VOC Agent | 评论范围、痛点、亮点、证据 | 接入评论包时必须含 `summary` |
-| `profit_reference` | object | 脚本 / 利润模板 | 利润数字、成本拆分、1688 粗估 | 未回填时必须形成 gating reason |
-| `return_risk` | object | 脚本 / 模板 | 退货率和退货风险 | 缺失时标待补 |
-| `ip_screening` | object | 人工模板 | 知产初筛 | 不替代专业结论 |
-| `compliance_screening` | object | 人工模板 | 合规认证预判 | 不替代专业结论 |
-| `ip_compliance_review` | object | 人工模板 | 知产/合规复核汇总 | 未回填时禁止强 Go |
+| `return_risk` | object | 脚本 | 退货率和退货风险 | 缺失时标待补 |
 | `decision_review` | object | Lead Operator Agent | 评分卡、事实/推断/待补/行动 | 必须含 `go_nogo_scorecard` |
 | `status_card` | object | Lead Operator Agent | 当前状态、理由、下一步 | 报告首章和摘要使用 |
 | `ai_analysis` | object | Lead Operator Agent | 资深运营综合分析 | `persona` 必须是资深亚马逊运营专家口径 |
@@ -44,16 +40,16 @@
   "candidate_id": "cand-001",
   "candidate_pool_id": "pool-001",
   "site": "US",
-  "seed_keyword_or_category": "hands free dog leash",
-  "product_shape": "免手持宠物牵引绳",
-  "data_sources": ["卖家精灵", "Sorftime MCP", "评论插件", "1688 插件"]
+  "seed_keyword_or_category": "<目标关键词或类目>",
+  "product_shape": "<目标产品形态>",
+  "data_sources": ["卖家精灵", "Sorftime MCP", "评论插件"]
 }
 ```
 
 约束：
 
 - `data_sources` 必须是非空数组。
-- 报告标题只使用清洗后的 `seed_keyword_or_category` / 产品方向，不把“测试、验证、MCP、1688、UI”等流程词放进标题。
+- 报告标题只使用清洗后的 `seed_keyword_or_category` / 产品方向，不把“测试、验证、MCP、UI”等流程词放进标题。
 - Web 页面可直接读取 `site`、`seed_keyword_or_category`、`product_shape` 作为首屏上下文。
 
 ### market_analysis
@@ -140,24 +136,6 @@
 - 每个痛点维度必须映射到产品规格或供应商验证动作；不能映射时标“待转化为产品规格”。
 - VOC Agent 不直接给 Go/No-Go。
 
-### profit_reference
-
-必须区分“1688 粗估”和“运营利润模板回填”：
-
-| 字段 | 含义 |
-|---|---|
-| `supply_chain_signal` | 1688 中国站 RMB/CNY 采购价信号，只作粗估 |
-| `cost_breakdown` | 运营回填后的成本拆分 |
-| `base_fba_gross_profit` | 基础 FBA 毛利 |
-| `post_ads_returns_gross_profit` | 扣广告/退货后毛利 |
-| `missing_fields` | 未回填字段 |
-| `status` | 已复核 / 待补 |
-
-约束：
-
-- 1688 信号只能来自 `1688.com` RMB/CNY 样本。
-- 未回填关键利润字段时，`decision_review.go_nogo_scorecard` 必须受 gating 限制。
-
 ### decision_review
 
 建议结构：
@@ -172,10 +150,10 @@
   "go_nogo_scorecard": {
     "decision": "WAIT",
     "weighted_score": 6.8,
-    "gating_reasons": ["利润未回填", "知产/合规未复核"],
+    "gating_reasons": ["VOC 样本不足", "小类边界待确认"],
     "dimensions": {
       "市场规模": {"score": 8, "weight": 0.15, "note": "Top100 月销量充足"},
-      "利润可行性": {"score": 0, "weight": 0.2, "note": "待回填"}
+      "需求清晰度": {"score": 6, "weight": 0.2, "note": "关键词混池，需要继续拆分"}
     }
   }
 }
@@ -191,7 +169,6 @@
 
 约束：
 
-- 利润或合规未回填时不能强 Go。
 - `facts` 和 `inferences` 必须分开。
 - 评分卡数字必须能追溯到数据包或 Evidence Packet。
 
@@ -203,9 +180,9 @@
 |---|---|
 | `persona` | 固定为资深亚马逊运营专家/负责人口径 |
 | `data_source_scope` | 本轮综合了哪些数据源 |
-| `decision_principle` | 决策原则，尤其是 gating 限制 |
+| `decision_principle` | 决策原则和证据缺口 |
 | `thesis` | 一句话综合判断 |
-| `insights` | 市场、VOC、供应链、运营卡点等洞察 |
+| `insights` | 市场、VOC、运营卡点等洞察 |
 | `product_route_matrix` | 产品路线矩阵摘要 |
 | `route_deep_dive_plan` | 路线级小深挖计划 |
 
@@ -213,7 +190,7 @@
 
 - 可以做商业判断，但不得新增未来源的数字。
 - 必须说明哪些证据是事实，哪些是推断或待验证。
-- 必须覆盖市场进入、VOC/产品规格、供应链承接和运营卡点。
+- 必须覆盖市场进入、VOC/产品规格和运营卡点。
 
 ## Evidence Packet 对应关系
 
@@ -222,8 +199,6 @@
 | `market_structure_evidence` | `market_analysis`、`market_structure` | Market Structure Agent |
 | `search_demand_evidence` | `keyword_analysis`、`normalized_tables.candidate.demand_evidence` | Search Demand Agent |
 | `voc_evidence` | `voc_analysis`、`normalized_tables.voc_evidence` | VOC Evidence Agent |
-| `supply_chain_evidence` | `profit_reference.supply_chain_signal`、`raw_sources.supply_chain` | Supply Chain Agent |
-| `profit_compliance_evidence` | `profit_reference`、`ip_compliance_review`、`return_risk` | Profit Compliance Agent |
 | `integrated_operator_judgment` | `decision_review`、`status_card`、`ai_analysis` | Lead Operator Agent |
 | `delivery_qa_result` | `workflow_summary`、校验输出 | Delivery QA Agent |
 
@@ -239,8 +214,7 @@
 | 产品属性分布与交叉分析 | `market_structure.attribute_distributions`、`cross_analysis` | `属性定义`、`Top商品打标`、`属性分布`、`属性交叉分析` |
 | 竞品池与竞品选择逻辑 | `competitor_selection_logic`、`competitor_pool` | `竞品选择逻辑`、`竞品池` |
 | 评论 VOC 与真实痛点 | `voc_analysis`、`normalized_tables.voc_evidence` | `评论VOC`、`VOC证据` |
-| 利润复核 | `profit_reference`、`operator_inputs` | `利润参考结果`、`利润成本拆分`、`供应链粗估` |
-| 知产/合规/退货风险 | `return_risk`、`ip_screening`、`compliance_screening` | `退货风险`、`知产合规复核` |
+| 风险与待验证项 | `return_risk`、`decision_review.risk_matrix` | `退货风险`、`风险矩阵` |
 | Go/Wait/No-Go 决策检查 | `decision_review`、`status_card` | `Go_No-Go评分卡`、`决策检查`、`风险矩阵` |
 | 下一步动作与证据附录 | `status_card`、`decision_review`、`workflow_trace` | `状态卡`、`交互决策记录` |
 
@@ -253,8 +227,7 @@
 - 路线页：`ai_analysis.product_route_matrix`、`ai_analysis.route_deep_dive_plan`
 - 竞品页：`competitor_selection_logic`、`competitor_pool`
 - VOC 页：`voc_analysis`
-- 供应链/利润页：`profit_reference.supply_chain_signal`、`profit_reference`
-- 风险页：`return_risk`、`ip_compliance_review`、`decision_review.risk_matrix`
+- 风险页：`return_risk`、`decision_review.risk_matrix`
 - 决策页：`decision_review.go_nogo_scorecard`、`status_card.next_step`
 
 Web 只负责交互和展示；不能在前端补造业务事实。

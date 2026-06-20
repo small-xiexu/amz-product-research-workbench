@@ -2,7 +2,7 @@
 
 亚马逊选品全流程工作台方案。
 
-当前方向：输入模糊选品意图，系统主动发现候选品，再逐层筛选、深挖、生成报告和看板。不是让运营先找好产品、填完成本，再让系统写报告。
+当前方向：输入模糊选品意图，系统主动发现候选品，再逐层筛选、深挖、生成报告和看板。不是让运营先找好产品，再让系统写报告。
 
 当前阶段先沉淀产品路线、业务流程和技术方案，不直接开发完整应用。后续按 `候选品发现 Skill + 本地报告生成器 -> 轻量网页工作台 -> 完整选品应用` 演进。
 
@@ -10,10 +10,9 @@
 
 - V1 采用三源融合：卖家精灵手动导出（广域候选池）+ Sorftime MCP（类目/关键词/竞品深度验证）+ 自有评论插件（VOC 证据链）。
 - 主产品体验是 AI 与运营交互式推进：AI 判断当前阶段、下一步动作、是否需要运营决策；最终报告沉淀整个交互过程。
-- 当前已跑通 `卖家精灵导出文件夹 -> 候选品池 -> 可选 Sorftime 深度验证 -> 可选评论 VOC -> 利润复核模板 -> 知产/合规初筛模板 -> 深挖报告`。
-- 生成选品报告四件套：主报告、摘要、HTML 看板、Excel 数据底表。
+- 当前已跑通 `卖家精灵导出文件夹 -> 候选品池 -> 可选 Sorftime 深度验证 -> 可选评论 VOC -> 深挖报告`。
+- 生成正式交付物：Markdown 主报告、HTML 正式报告、Excel 数据底表。
 - 保留 Excel 数据底表和可追溯证据链。
-- 利润、退货、知产、合规等关键判断保留人工复核。
 - 自有评论插件已通过 Excel/HTML 文件导入方式接入重点候选深挖。
 
 ## 当前架构
@@ -24,8 +23,8 @@
 | 批量回归入口 | `scripts/run_research_workflow.py` | 数据齐全后重跑完整报告，用于回归和开发验证 |
 | Workflow 应用层 | `packages/research_core/workflows/` | 交互式状态推进 + 批量报告编排 |
 | Contracts 契约层 | `packages/research_core/contracts/` | 在关键节点校验 `import_manifest`、`candidate_pool`、`research_package` 等数据包结构 |
-| Core 规则层 | `packages/research_core/` | Adapter、统一 Schema、字段合并、利润/市场结构等可复用规则 |
-| Renderer 输出层 | `packages/report_renderer/` | 生成 Markdown、HTML 看板、Excel 数据底表；已按 `markdown` / `dashboard` / `workbook` / `formatting` / `constants` 分模块，`render_report.py` 仅为薄门面 |
+| Core 规则层 | `packages/research_core/` | Adapter、统一 Schema、字段合并、市场结构等可复用规则 |
+| Renderer 输出层 | `packages/report_renderer/` | 生成 Markdown、HTML 正式报告、Excel 数据底表；已按 `markdown` / `html_report` / `workbook` / `formatting` / `constants` 分模块，`render_report.py` 仅为薄门面 |
 | Skills 分析层 | `skills/` | 约束 Claude 如何基于结构化数据做市场/VOC/深挖判断 |
 
 主体验优先调用 `packages.research_core.workflows.create_initial_state()` / `plan_next_action()` / `advance_stage()` 维护交互状态；`run_research_workflow()` 保留为批量重跑和回归工具。新增第三方数据源优先落在 `packages/research_core/adapters/` 和 `merge_strategy.py`。
@@ -42,8 +41,8 @@
 | `skills/review-voc-analysis/SKILL.md` | 评论 VOC 分析 |
 | `packages/research_core/workflows/` | 交互式状态推进和批量报告编排，可被 CLI/网页/API 复用 |
 | `packages/research_core/contracts/` | 核心数据包结构校验 |
-| `packages/research_core/` | 统一数据结构、Adapter、利润规则、状态规则 |
-| `packages/report_renderer/` | 主报告、摘要、HTML 看板渲染 |
+| `packages/research_core/` | 统一数据结构、Adapter、状态规则 |
+| `packages/report_renderer/` | Markdown、HTML 正式报告和 Excel 底表渲染 |
 | `scripts/` | 本地 CLI 入口和兼容工具脚本 |
 | `examples/` | 最小输入样例和 mock 数据包 |
 | `requirements.txt` | 本地脚本依赖，当前主要用于读取 Excel |
@@ -51,14 +50,34 @@
 | `docs/字段来源表.md` | 每个字段来自手动导出、MCP、手填、系统计算还是人工复核 |
 | `docs/卖家精灵导出指令完整性规范.md` | 卖家精灵真实菜单入口、导出对象和字段要求 |
 | `docs/评论VOC导出指令完整性规范.md` | 评价插件采集口径，用户侧只需要 ASIN 清单 |
-| `docs/1688供应链采集指令完整性规范.md` | 1688 手动采集字段、导出路径和兜底调整 |
 | `docs/自有评论插件对接方案.md` | 自有评论插件 Excel/HTML 导出如何接入选品系统 |
 | `docs/多数据源适配器架构设计.md` | 新数据源接入 Adapter 的设计边界 |
 | `docs/sorftime-mcp-工具调用策略.md` | Sorftime MCP 调用时机、参数和数据写入口径 |
 | `docs/架构原则.md` | 脚本、Workflow、Skill、报告层的职责边界 |
 | `docs/分析模式库.md` | Claude 做市场/VOC/深挖判断时使用的分析模式 |
 | `docs/亚马逊选品全流程产品路线图.md` | 产品目标、阶段规划、V0-V5 演进路线 |
-| `docs/知产与合规检索入口库.md` | 知产、商标、合规早期筛查入口 |
+
+## 开发校验
+
+开发完成后运行：
+
+```bash
+scripts/dev_verify.sh
+```
+
+如果本轮有真实 run 目录，传入 run 路径，让红线扫描从本轮数据中提取 ASIN、关键词、品类和品牌 token：
+
+```bash
+scripts/dev_verify.sh runs/<run_id>
+```
+
+本仓库提供 pre-commit 配置：
+
+```bash
+pre-commit install
+```
+
+提交前会自动执行 Python 编译检查、通用硬编码红线扫描和 `git diff --check`。
 
 ## 交互式流程状态
 
@@ -115,12 +134,8 @@ python3 scripts/run_research_workflow.py \
 - `/tmp/research_workbench_workflow/candidate_pool.json`
 - `/tmp/research_workbench_workflow/review_voc/review_voc_package.json`
 - `/tmp/research_workbench_workflow/research_package.json`
-- `/tmp/research_workbench_workflow/profit_review_template.xlsx`
-- `/tmp/research_workbench_workflow/ip_compliance_review_template.xlsx`
 - `/tmp/research_workbench_workflow/final_report/report.md`
 - `/tmp/research_workbench_workflow/final_report/report.html`
-- `/tmp/research_workbench_workflow/final_report/summary.md`
-- `/tmp/research_workbench_workflow/final_report/dashboard.html`
 - `/tmp/research_workbench_workflow/final_report/data.xlsx`
 - `/tmp/research_workbench_workflow/workflow_summary.md`
 
@@ -133,7 +148,7 @@ python3 scripts/render_deliverables.py \
   --mode validate
 ```
 
-校验器会检查正式报告五件套、`workflow_summary`、Excel 关键 Sheet、Top100 行数、12 章报告结构、网页版报告结构、属性/交叉分析、竞品选择逻辑、VOC 证据链和七维 Go/Wait/No-Go 评分卡。利润或知产/合规未回填时，评分卡只能输出 Wait/观察/待补，不能给强 Go。
+校验器会检查正式报告五件套、`workflow_summary`、Excel 关键 Sheet、Top100 行数、12 章报告结构、网页版报告结构、属性/交叉分析、竞品选择逻辑、VOC 证据链和 Go/Wait/No-Go 评分卡。
 
 如果已经有 `research_package.json`，可以用统一入口一次生成全部正式交付物并自动校验：
 
@@ -145,46 +160,6 @@ python3 scripts/render_deliverables.py \
 ```
 
 `--mode` 也支持 `report`、`html`、`dashboard`、`xlsx`、`validate`，用于只重渲染某一类交付物或只跑校验。
-
-利润模板填好并保存后，再回填生成带利润测算的报告。`--profit-template` 传入的是已填写保存后的模板路径，可以是原模板直接填写保存，也可以另存为一份：
-
-```bash
-python3 scripts/run_research_workflow.py \
-  卖家精灵导出样例_美国站_宠物牵引绳_20260607 \
-  /tmp/research_workbench_workflow_with_profit \
-  --site US \
-  --task-name 美国站宠物牵引绳样例 \
-  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07.xlsx \
-  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07-report.html \
-  --profit-template /tmp/research_workbench_workflow/filled_profit_review_template.xlsx
-```
-
-知产/合规模板填好并保存后，再回填生成带初筛结果的报告。`--ip-compliance-template` 传入的是已填写保存后的模板路径：
-
-```bash
-python3 scripts/run_research_workflow.py \
-  卖家精灵导出样例_美国站_宠物牵引绳_20260607 \
-  /tmp/research_workbench_workflow_with_ip_compliance \
-  --site US \
-  --task-name 美国站宠物牵引绳样例 \
-  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07.xlsx \
-  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07-report.html \
-  --ip-compliance-template /tmp/research_workbench_workflow/filled_ip_compliance_review_template.xlsx
-```
-
-利润和知产/合规可以同时回填：
-
-```bash
-python3 scripts/run_research_workflow.py \
-  卖家精灵导出样例_美国站_宠物牵引绳_20260607 \
-  /tmp/research_workbench_workflow_full \
-  --site US \
-  --task-name 美国站宠物牵引绳样例 \
-  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07.xlsx \
-  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07-report.html \
-  --profit-template /tmp/research_workbench_workflow/filled_profit_review_template.xlsx \
-  --ip-compliance-template /tmp/research_workbench_workflow/filled_ip_compliance_review_template.xlsx
-```
 
 ## P20 回归样例
 
@@ -218,28 +193,6 @@ python3 scripts/render_deliverables.py \
   --mode validate
 ```
 
-也可以分开执行：
-
-```bash
-python3 scripts/build_profit_template.py \
-  /tmp/research_workbench_workflow/research_package.json \
-  /tmp/profit_review_template.xlsx
-
-python3 scripts/apply_profit_review.py \
-  /tmp/research_workbench_workflow/research_package.json \
-  /tmp/filled_profit_review_template.xlsx \
-  /tmp/research_package_with_profit.json
-
-python3 scripts/build_ip_compliance_template.py \
-  /tmp/research_workbench_workflow/research_package.json \
-  /tmp/ip_compliance_review_template.xlsx
-
-python3 scripts/apply_ip_compliance_review.py \
-  /tmp/research_workbench_workflow/research_package.json \
-  /tmp/filled_ip_compliance_review_template.xlsx \
-  /tmp/research_package_with_ip_compliance.json
-```
-
 只验证报告渲染器时使用最小 mock：
 
 ```bash
@@ -251,8 +204,7 @@ python3 scripts/build_mock_report.py examples/minimal_research_package.json /tmp
 - `/tmp/research_workbench_mock/research_package.json`
 - `/tmp/research_workbench_mock/data.xlsx`
 - `/tmp/research_workbench_mock/report.md`
-- `/tmp/research_workbench_mock/summary.md`
-- `/tmp/research_workbench_mock/dashboard.html`
+- `/tmp/research_workbench_mock/report.html`
 
 ## 手动导出数据盘点
 
@@ -338,8 +290,6 @@ python3 scripts/build_research_package_from_candidate.py \
 8. 接入自有评论插件 Excel/HTML 导出。
 9. 将评论 VOC 合并进重点候选深挖报告。
 10. 补充决策检查、风险矩阵和一键完整流程脚本。
-11. 新增利润复核模板和回填计算。
-12. 新增知产/合规初筛模板和人工回填闭环。
 
 ## 暂不包含
 

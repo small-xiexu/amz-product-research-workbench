@@ -1,0 +1,20 @@
+repos:
+  - repo: local
+    hooks:
+      - id: python-compileall
+        name: python compileall
+        entry: python3 -m compileall -q packages scripts tests
+        language: system
+        pass_filenames: false
+
+      - id: generic-redline
+        name: generic hardcoding redline
+        entry: python3 scripts/check_generic_redlines.py --token-file tests/fixtures/generic_redline_tokens.json --no-auto-run-dir
+        language: system
+        pass_filenames: false
+
+      - id: git-diff-check
+        name: git diff whitespace check
+        entry: git diff --check
+        language: system
+        pass_filenames: false

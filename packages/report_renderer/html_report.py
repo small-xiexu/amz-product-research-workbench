@@ -30,8 +30,7 @@ def render_report_html(package: dict[str, Any]) -> str:
         _route_matrix_section(model),
         _market_section(model),
         _voc_section(model),
-        _supply_chain_section(model),
-        _profit_risk_section(model),
+        _market_score_section(model),
         _next_steps_section(model),
         _appendix_section(model),
     ]
@@ -52,7 +51,7 @@ def render_report_html(package: dict[str, Any]) -> str:
     <a href="#market">市场</a>
     <a href="#sorftime">Sorftime</a>
     <a href="#voc">评价</a>
-    <a href="#supply-chain">1688</a>
+    <a href="#score">评分</a>
     <a href="#next-steps">下一步</a>
     <a href="data.xlsx">Excel底表</a>
     <a href="report.md">完整Markdown</a>
@@ -71,8 +70,6 @@ def _decision_model(package: dict[str, Any]) -> dict[str, Any]:
     decision = package.get("decision_review", {}) if isinstance(package.get("decision_review"), dict) else {}
     market = package.get("market_analysis", {}) if isinstance(package.get("market_analysis"), dict) else {}
     market_structure = package.get("market_structure", {}) if isinstance(package.get("market_structure"), dict) else {}
-    profit = package.get("profit_reference", {}) if isinstance(package.get("profit_reference"), dict) else {}
-    supply_chain = profit.get("supply_chain_signal", {}) if isinstance(profit.get("supply_chain_signal"), dict) else {}
     voc = package.get("voc_analysis", {}) if isinstance(package.get("voc_analysis"), dict) else {}
     ai_analysis = package.get("ai_analysis", {}) if isinstance(package.get("ai_analysis"), dict) else {}
     candidate = package.get("normalized_tables", {}).get("candidate", {}) if isinstance(package.get("normalized_tables"), dict) else {}
@@ -88,13 +85,11 @@ def _decision_model(package: dict[str, Any]) -> dict[str, Any]:
         "currency": _site_currency_code(site),
         "status": str(status.get("status") or scorecard.get("decision") or "待判断"),
         "status_reason": _clean_sentence(status.get("reason") or decision.get("status_explanation") or ""),
-        "next_step": _clean_sentence(status.get("next_step") or _default_next_step(decision, supply_chain)),
+        "next_step": _clean_sentence(status.get("next_step") or _default_next_step(decision)),
         "decision": decision,
         "scorecard": scorecard,
         "market": market,
         "market_structure": market_structure,
-        "profit": profit,
-        "supply_chain": supply_chain,
         "voc": voc,
         "ai_analysis": ai_analysis,
         "route_matrix": package.get("product_route_matrix") if isinstance(package.get("product_route_matrix"), list) else ai_analysis.get("product_route_matrix", []),
@@ -107,13 +102,11 @@ def _decision_model(package: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _default_next_step(decision: dict[str, Any], supply_chain: dict[str, Any]) -> str:
+def _default_next_step(decision: dict[str, Any]) -> str:
     missing = decision.get("missing_inputs") if isinstance(decision.get("missing_inputs"), list) else []
     if missing:
         return f"先补齐：{'、'.join(map(str, missing[:4]))}"
-    if supply_chain.get("visual_confirmed_count"):
-        return "联系 1688 优先供应商，确认真实报价、包装重量、样品和定制能力。"
-    return "补齐利润、合规和供应链确认后再判断是否进入产品方案。"
+    return "补齐小类、关键词、竞品和 VOC 证据后再判断是否继续深挖。"
 
 
 def _hero_section(model: dict[str, Any]) -> str:
@@ -138,13 +131,12 @@ def _hero_section(model: dict[str, Any]) -> str:
     <div class="decision-value">{escape(status)}</div>
     <p>{escape(model["status_reason"] or "已有数据支持继续看，但还不能直接 Go。")}</p>
     <div class="block-title">卡点</div>
-    {_simple_list(gating[:5] or ["利润、合规和供应商真实确认未完成。"])}
+    {_simple_list(gating[:5] or ["大类、小类、关键词、竞品和 VOC 证据仍需交叉验证。"])}
   </aside>
 </section>"""
 
 
 def _quick_read_section(model: dict[str, Any]) -> str:
-    supply = model["supply_chain"]
     voc_summary = model["voc"].get("summary", {}) if isinstance(model["voc"].get("summary"), dict) else {}
     market = model["market"]
     top_sorftime = _top_sorftime_keyword(model)
@@ -152,7 +144,7 @@ def _quick_read_section(model: dict[str, Any]) -> str:
         ("市场", _market_short_label(market), market.get("market_size", "待补")),
         ("Sorftime", top_sorftime[0], top_sorftime[1]),
         ("评价", f"{voc_summary.get('review_count', 0)} 条评论", f"低分 {voc_summary.get('low_rating_count', 0)} 条；覆盖 {voc_summary.get('asin_count', 0)} 个 ASIN"),
-        ("1688", f"{supply.get('visual_confirmed_count', 0)} 个优先联系", f"Top50 复核：观察 {supply.get('visual_partial_count', 0)}，剔除 {supply.get('visual_rejected_count', 0)}"),
+        ("路线", f"{len(model.get('route_matrix', []))} 条路线", "主线、升级、场景和套装分开判断"),
     ]
     return f"""
 <section class="section quick-read">
@@ -171,13 +163,13 @@ def _data_sources_section(model: dict[str, Any]) -> str:
         ("卖家精灵", "市场 / Top 商品 / 关键词反查", _source_status(model, "seller_sprite")),
         ("Sorftime", "关键词 / 类目 / 竞品流量词", _source_status(model, "sorftime")),
         ("评价插件", "评论 VOC / 低分证据", _source_status(model, "review")),
-        ("1688 插件", "采购价 / MOQ / 图文复核", _source_status(model, "1688")),
+        ("路线矩阵", "大类 / 小类 / 代表 ASIN", f"{len(model.get('route_matrix', []))} 条路线"),
     ]
     return f"""
 <section class="section source-section" id="sources">
   <div class="section-head">
     <h2>四份数据怎么一起看</h2>
-    <p>卖家精灵看市场底盘，Sorftime 看实时变化，评价插件看真实吐槽，1688 插件看能不能找到货。</p>
+    <p>卖家精灵看市场底盘，Sorftime 看实时变化，评价插件看真实吐槽，路线矩阵看机会边界是否清楚。</p>
   </div>
   <div class="source-grid">
     {''.join(_source_card(*card) for card in cards)}
@@ -189,11 +181,11 @@ def _ai_analysis_section(model: dict[str, Any]) -> str:
     ai_analysis = model.get("ai_analysis", {}) if isinstance(model.get("ai_analysis"), dict) else {}
     persona = str(ai_analysis.get("persona") or "资深亚马逊运营专家")
     role_scope = str(ai_analysis.get("role_scope") or "先把话说明白，再看证据：这块只讲能不能继续、还差什么、卡在哪。")
-    decision_principle = str(ai_analysis.get("decision_principle") or "数据是拿来少踩坑的，不是拿来堆字的；利润、合规和供应商没闭环前，不直接开干。")
+    decision_principle = str(ai_analysis.get("decision_principle") or "本报告只判断市场机会和继续研究优先级，不输出采购或上架结论。")
     thesis = _ai_analysis_thesis(model, ai_analysis)
     insight_items = _analysis_items_from_package(ai_analysis) or _ai_insight_items(model)
     spec_actions = _list_from_package(ai_analysis.get("product_spec_actions")) or _product_spec_actions(model)
-    supplier_actions = _list_from_package(ai_analysis.get("supplier_validation_actions")) or _supplier_validation_actions(model)
+    market_actions = _list_from_package(ai_analysis.get("market_validation_actions")) or _market_validation_actions(model)
     source_scope = _list_from_package(ai_analysis.get("data_source_scope"))
     return f"""
 <section class="section ai-analysis" id="ai-analysis">
@@ -218,8 +210,8 @@ def _ai_analysis_section(model: dict[str, Any]) -> str:
       {_simple_list(spec_actions)}
     </div>
     <div>
-      <h3>供应商先聊清这几件事</h3>
-      {_simple_list(supplier_actions)}
+      <h3>下一轮市场验证</h3>
+      {_simple_list(market_actions)}
     </div>
   </div>
 </section>"""
@@ -235,7 +227,7 @@ def _route_matrix_section(model: dict[str, Any]) -> str:
     <p>先把可能的款式铺开，再逐路线补数据，最后只让证据最完整的 1-2 条进入完整深挖。</p>
   </div>
   <div class="route-grid">
-    {''.join(_route_card(route) for route in routes) or _empty_state("还没有形成产品路线矩阵，先补 1688 候选和产品形态标签。")}
+    {''.join(_route_card(route) for route in routes) or _empty_state("还没有形成产品路线矩阵，先补代表 ASIN、关键词和产品形态标签。")}
   </div>
   {_route_deep_dive_plan_block(deep_dive_plan)}
 </section>"""
@@ -252,7 +244,7 @@ def _route_card(route: dict[str, Any]) -> str:
 <article class="route-card">
   <div class="route-topline">
     <span>{escape(str(route.get("route_type") or "路线"))}</span>
-    <strong>{escape(str(route.get("price_text") or "待询价"))}</strong>
+    <strong>{escape(str(route.get("price_text") or "价格带待补"))}</strong>
   </div>
   <h3>{escape(str(route.get("route_name") or "未命名路线"))}</h3>
   <p class="route-count">{escape(count_line)}</p>
@@ -265,7 +257,7 @@ def _route_card(route: dict[str, Any]) -> str:
   {_route_representatives(representatives)}
   <div class="route-next">
     <strong>下一步验证</strong>
-    {_simple_list(actions[:3] or [route.get("decision_hint") or "补供应商报价和样品证据。"])}
+    {_simple_list(actions[:3] or [route.get("decision_hint") or "补代表竞品、评论证据和产品验证依据。"])}
   </div>
 </article>"""
 
@@ -279,7 +271,7 @@ def _route_representatives(items: list[Any]) -> str:
             continue
         title = _truncate(str(item.get("title") or "未命名商品"), 38)
         url = str(item.get("url") or "")
-        price = str(item.get("price_text") or "待询价")
+        price = str(item.get("price_text") or "价格带待补")
         status = str(item.get("status") or "待确认")
         title_html = (
             f'<a href="{escape(url)}" target="_blank" rel="noopener noreferrer">{escape(title)}</a>'
@@ -297,7 +289,7 @@ def _route_deep_dive_plan_block(plan: list[Any]) -> str:
   <div class="route-plan">
     <div class="subsection-head">
       <h3>路线级小深挖计划</h3>
-      <p>每条保留路线都要单独补卖家精灵、Sorftime、评价和 1688 证据，再决定是否进入主推。</p>
+      <p>每条保留路线都要单独补卖家精灵、Sorftime、评价和代表竞品证据，再决定是否进入主推。</p>
     </div>
     <div class="route-plan-grid">
       {''.join(_route_plan_card(item) for item in plan)}
@@ -310,7 +302,7 @@ def _route_plan_card(item: Any) -> str:
         return ""
     asins = item.get("review_voc_asin_plan") if isinstance(item.get("review_voc_asin_plan"), list) else []
     gaps = item.get("data_gaps") if isinstance(item.get("data_gaps"), list) else []
-    searches = item.get("supply_chain_search_terms") if isinstance(item.get("supply_chain_search_terms"), list) else []
+    searches = item.get("route_search_terms") if isinstance(item.get("route_search_terms"), list) else []
     sorftime = item.get("sorftime_checks") if isinstance(item.get("sorftime_checks"), list) else []
     coverage = item.get("review_coverage") if isinstance(item.get("review_coverage"), dict) else {}
     asins_html = _route_plan_asins(asins)
@@ -325,7 +317,7 @@ def _route_plan_card(item: Any) -> str:
   <p>{escape(str(item.get("why") or ""))}</p>
   <div class="route-plan-facts">
     <div><b>评价覆盖</b><span>{escape(str(coverage.get("matched_review_count", 0)))} 条 / {escape(str(len(coverage.get("matched_asins", []) if isinstance(coverage.get("matched_asins"), list) else [])))} 个 ASIN</span></div>
-    <div><b>1688 再搜</b><span>{escape("、".join(map(str, searches[:3])) or "待补中文词")}</span></div>
+    <div><b>路线搜索词</b><span>{escape("、".join(map(str, searches[:3])) or "待补关键词")}</span></div>
   </div>
   <div class="route-plan-sub">
     <strong>建议 VOC ASIN</strong>
@@ -383,7 +375,7 @@ def _market_section(model: dict[str, Any]) -> str:
 def _sorftime_section(model: dict[str, Any]) -> str:
     keywords = _sorftime_keywords(model)
     traffic_groups = _traffic_groups(model)
-    category = model.get("demand", {}).get("sorftime_category_report", {})
+    category = _sorftime_category_report(model)
     trend = model.get("demand", {}).get("sorftime_category_trend", {})
     category_rows = []
     if isinstance(category, dict) and category:
@@ -444,53 +436,22 @@ def _voc_section(model: dict[str, Any]) -> str:
 </section>"""
 
 
-def _supply_chain_section(model: dict[str, Any]) -> str:
-    supply = model["supply_chain"]
-    review = supply.get("visual_review_candidates") if isinstance(supply.get("visual_review_candidates"), dict) else {}
-    priority = review.get("priority_candidates") if isinstance(review.get("priority_candidates"), list) else []
-    watchlist = review.get("watchlist_candidates") if isinstance(review.get("watchlist_candidates"), list) else []
-    purchase_range = _supply_chain_price_range_text(supply)
-    rows = [
-        ("文本初筛", supply.get("text_screened_candidate_count", "待补")),
-        ("详情结构化通过", f"{supply.get('detail_structured_pass_count', 0)} / {supply.get('detail_structured_review_count', 0)}"),
-        ("图文复核", f"确认 {supply.get('visual_confirmed_count', 0)}；观察 {supply.get('visual_partial_count', 0)}；剔除 {supply.get('visual_rejected_count', 0)}"),
-        ("采购价区间", purchase_range),
-    ]
-    return f"""
-<section class="section" id="supply-chain">
-  <div class="section-head">
-    <h2>1688 供应链候选</h2>
-    <p>这些不是最终供应商，只是已经过图片和详情远程复核、值得优先询价的商品。</p>
-  </div>
-  <div class="fact-table compact">{''.join(_fact_row(label, value) for label, value in rows)}</div>
-  <div class="subsection-head">
-    <h3>优先联系清单</h3>
-    <p>先联系这些款，确认样品、小单、包装重量和可改款能力。</p>
-  </div>
-  <div class="supplier-grid">
-    {''.join(_supplier_card(item, index) for index, item in enumerate(priority[:14], start=1)) or _empty_state("还没有图文确认通过的 1688 候选。")}
-  </div>
-  {_watchlist_block(watchlist)}
-  {_callout("下一步要问供应商", "真实阶梯价、样品价、MOQ、包装尺寸/重量、是否支持贴标/改款/换材质、交期、质检标准。", "action")}
-</section>"""
-
-
-def _profit_risk_section(model: dict[str, Any]) -> str:
+def _market_score_section(model: dict[str, Any]) -> str:
     decision = model["decision"]
     risks = decision.get("risk_matrix") if isinstance(decision.get("risk_matrix"), list) else []
     missing = decision.get("missing_inputs") if isinstance(decision.get("missing_inputs"), list) else []
     scorecard = model["scorecard"]
     dims = scorecard.get("dimensions") if isinstance(scorecard.get("dimensions"), dict) else {}
     return f"""
-<section class="section" id="risk">
+<section class="section" id="score">
   <div class="section-head">
-    <h2>利润和风险卡点</h2>
-    <p>现在不能 Go，主要不是需求不清，而是利润、合规和供应商真实确认还没闭环。</p>
+    <h2>市场机会评分</h2>
+    <p>这里判断的是是否值得继续研究，不是采购、试单或上架结论。</p>
   </div>
   <div class="split">
     <div>
       <h3>必须补齐</h3>
-      {_simple_list(missing[:8] or ["FBA费用、头程、入库配置费、包装重量、建议售价、合规复核。"])}
+      {_simple_list(missing[:8] or ["小类 Top100、关键词反查、代表竞品和评论 VOC。"])}
     </div>
     <div>
       <div class="mini-section-head">
@@ -506,13 +467,10 @@ def _profit_risk_section(model: dict[str, Any]) -> str:
 
 
 def _next_steps_section(model: dict[str, Any]) -> str:
-    supply = model.get("supply_chain", {}) if isinstance(model.get("supply_chain"), dict) else {}
-    contact_count = supply.get("priority_contact_count") or supply.get("visual_confirmed_count") or supply.get("candidate_count")
-    contact_title = f"联系 1688 优先 {contact_count} 款" if contact_count else "联系 1688 优先候选"
     steps = [
-        ("1", contact_title, "问真实报价、MOQ、样品、包装重量、定制能力。"),
-        ("2", "补利润模型", "填 FBA、头程、入库配置费、建议售价、广告和退货假设。"),
-        ("3", "做知产/合规初筛", "查商标、外观/结构专利、材质安全和功能宣称风险。"),
+        ("1", "确认目标小类", "补小类 Top100 和类目报告，确认大类与小类不是混池。"),
+        ("2", "补关键词反查", "按主线、升级、场景和套装路线分别看成交词和混池词。"),
+        ("3", "补代表竞品", "每条保留路线至少保留 2-3 个代表 ASIN，作为后续 VOC 和流量词入口。"),
         ("4", "把 VOC 转产品规格", "把高频差评拆成尺寸、材质、结构、配件、包装和说明书检查项。"),
     ]
     return f"""
@@ -530,24 +488,20 @@ def _appendix_section(model: dict[str, Any]) -> str:
 <section class="section appendix">
   <div class="section-head">
     <h2>证据入口</h2>
-    <p>需要追溯时再看底表，日常决策先看上面的结论和候选清单。</p>
+    <p>需要追溯时下载底表或完整 Markdown 报告。</p>
   </div>
   <div class="link-grid">
-    <a href="data.xlsx">Excel 底表</a>
-    <a href="report.md">完整 Markdown 报告</a>
-    <a href="summary.md">摘要</a>
-    <a href="dashboard.html">旧版摘要看板</a>
+    <a href="data.xlsx" download>下载 Excel 报表</a>
+    <a href="report.md" download>下载 Markdown 报告</a>
   </div>
 </section>"""
 
 
 def _plain_decision_sentence(model: dict[str, Any]) -> str:
     status = model["status"]
-    supply = model["supply_chain"]
-    confirmed = supply.get("visual_confirmed_count", 0)
     if status in {"继续看", "WAIT", "Wait", "观察"}:
-        return f"当前建议继续看，但不要直接立项。1688 已筛出 {confirmed} 个优先联系款，利润和合规还没闭环。"
-    return model["status_reason"] or "当前结论需要结合利润、供应链和合规复核。"
+        return "当前建议继续看，但结论只停在市场机会层，需要继续补小类、关键词、竞品和 VOC 证据。"
+    return model["status_reason"] or "当前结论需要结合市场、关键词、竞品和 VOC 证据复核。"
 
 
 def _ai_analysis_thesis(model: dict[str, Any], ai_analysis: dict[str, Any] | None = None) -> tuple[str, str]:
@@ -559,18 +513,16 @@ def _ai_analysis_thesis(model: dict[str, Any], ai_analysis: dict[str, Any] | Non
             if title or body:
                 return title or "继续看，但不要直接立项。", body
     status = str(model.get("status") or "WAIT")
-    supply = model.get("supply_chain", {})
     voc_summary = model.get("voc", {}).get("summary", {}) if isinstance(model.get("voc"), dict) else {}
-    confirmed = supply.get("visual_confirmed_count") or 0
     review_count = voc_summary.get("review_count") or 0
     if status.upper() == "GO":
         return (
-            "可以进试单准备，但还是要留好费用和合规复核。",
-            f"现在已经有 {review_count} 条评价证据和 {confirmed} 个 1688 优先候选；利润和合规都对上了，再进小批量。",
+            "市场机会可以继续深挖，但不是采购或上架结论。",
+            f"现在已经有 {review_count} 条评价证据和路线矩阵支撑；下一步继续补小类和关键词证据。",
         )
     return (
-        "继续看，但别急着开干。",
-        f"现在能推着往前走的证据有：评价样本 {review_count} 条，1688 优先候选 {confirmed} 个；真正卡住的还是利润、合规、样品和供应商确认。",
+        "继续看，但结论只停在市场机会层。",
+        f"现在能推着往前走的证据有：评价样本 {review_count} 条和路线矩阵；真正卡住的是小类、关键词、竞品和 VOC 证据是否足够闭环。",
     )
 
 
@@ -609,13 +561,11 @@ def _analysis_sources(items: list[str]) -> str:
 
 def _ai_insight_items(model: dict[str, Any]) -> list[dict[str, str]]:
     market = model.get("market", {})
-    supply = model.get("supply_chain", {})
     voc = model.get("voc", {})
     scorecard = model.get("scorecard", {})
     voc_summary = voc.get("summary", {}) if isinstance(voc.get("summary"), dict) else {}
     keywords = _sorftime_keywords(model)
     target_keyword = keywords[0] if keywords else {}
-    supply_price = _supply_chain_price_range_text(supply)
     gating = scorecard.get("gating_reasons") if isinstance(scorecard.get("gating_reasons"), list) else []
     return [
         {
@@ -632,14 +582,14 @@ def _ai_insight_items(model: dict[str, Any]) -> list[dict[str, str]]:
             "body": f"已经看了 {voc_summary.get('review_count', 0)} 条评论，低分 {voc_summary.get('low_rating_count', 0)} 条；下一步要把差评里的尺寸、材质、结构和使用体验问题写进样品验证清单。",
         },
         {
-            "label": "供应链能不能接",
-            "title": "能找到货，但要筛真能改款的供应商",
-            "body": f"1688 远程复核优先 {supply.get('visual_confirmed_count', 0)} 款，采购价区间 {supply_price}；下一步压到 3-5 家拿样和要测试资料。",
+            "label": "小类和竞品是否对齐",
+            "title": "先确认边界，再谈产品方案",
+            "body": f"路线矩阵已拆出 {len(model.get('route_matrix', []))} 条路线；下一步按路线补代表 ASIN、关键词反查和 VOC。",
         },
         {
             "label": "现在卡哪",
-            "title": "利润和合规没闭环前先别冲",
-            "body": "；".join(map(str, gating[:3])) if gating else "FBA、头程、入库配置费、包装重量、知产/合规还要补。",
+            "title": "证据没闭环前先别冲",
+            "body": "；".join(map(str, gating[:3])) if gating else "小类、关键词、竞品和 VOC 还要补。",
         },
     ]
 
@@ -662,14 +612,12 @@ def _product_spec_actions(model: dict[str, Any]) -> list[str]:
     ]
 
 
-def _supplier_validation_actions(model: dict[str, Any]) -> list[str]:
-    supply = model.get("supply_chain", {})
-    confirmed = supply.get("visual_confirmed_count", 0)
+def _market_validation_actions(model: dict[str, Any]) -> list[str]:
     return [
-        f"先从 {confirmed} 个优先候选里挑 3-5 家聊，别一口气问太多。",
-        "基础款和升级款都要报，别只看最低价。",
-        "直接问样品价、阶梯价、包装尺寸/重量、箱规、交期和能改到什么程度。",
-        "样品到手后按 VOC 清单测尺寸、材质、结构、配件、包装和使用稳定性。",
+        "主线、升级、场景和套装路线分别补代表 ASIN。",
+        "每条保留路线单独看关键词反查，拆出主词、转化词、长尾词和混池词。",
+        "VOC 按路线分组，不把旁支竞品的痛点直接套到主线。",
+        "先判断市场机会是否值得继续研究，再决定是否进入更后置的落地验证。",
     ]
 
 
@@ -717,75 +665,11 @@ def _finding_card(item: dict[str, Any]) -> str:
 </article>"""
 
 
-def _supplier_card(item: dict[str, Any], index: int) -> str:
-    title = str(item.get("title") or "未命名商品")
-    url = str(item.get("url") or "#")
-    price = _price_text(item)
-    moq = item.get("moq_text") or "MOQ待确认"
-    rationale = item.get("rationale") or "图文复核通过，值得优先询价。"
-    risks = item.get("risk_notes") if isinstance(item.get("risk_notes"), list) else []
-    tags = item.get("supplier_tags") if isinstance(item.get("supplier_tags"), list) else []
-    confidence = item.get("confidence")
-    confidence_text = f"匹配度 {round(float(confidence) * 100)}%" if isinstance(confidence, (int, float)) else "匹配度待复核"
-    image_url = _first_image(item)
-    image_html = f'<img src="{escape(image_url)}" alt="{escape(title)}">' if image_url else ""
-    return f"""
-<article class="supplier-card">
-  <a class="supplier-image" href="{escape(url)}" target="_blank" rel="noopener noreferrer">
-    <span class="image-empty">图片待加载</span>
-    {image_html}
-  </a>
-  <div class="supplier-body">
-    <div class="supplier-topline">
-      <span class="rank-pill">#{index}</span>
-      <span class="status-pill">{escape(str(item.get("status_label") or "优先联系"))}</span>
-      <span>{escape(confidence_text)}</span>
-    </div>
-    <h4><a href="{escape(url)}" target="_blank" rel="noopener noreferrer">{escape(_truncate(title, 52))}</a></h4>
-    <div class="supplier-stats">
-      <div><span>采购价</span><strong>{escape(price)}</strong></div>
-      <div><span>起订量</span><strong>{escape(str(moq))}</strong></div>
-    </div>
-    {_tag_chips(tags[:3])}
-    <div class="supplier-reason">
-      <strong>推荐理由</strong>
-      <span>{escape(str(rationale))}</span>
-    </div>
-    {_risk_notes(risks)}
-    <div class="supplier-actions">
-      <a class="primary-action" href="{escape(url)}" target="_blank" rel="noopener noreferrer">打开 1688</a>
-      <span>优先联系</span>
-    </div>
-  </div>
-</article>"""
-
-
-def _watchlist_block(items: list[dict[str, Any]]) -> str:
-    if not items:
-        return ""
-    rows = []
-    for item in items[:6]:
-        title = _truncate(str(item.get("title") or "未命名商品"), 48)
-        url = str(item.get("url") or "#")
-        reason = _truncate(str(item.get("rationale") or "形态接近，但还需要确认。"), 80)
-        rows.append(
-            f'<li><a href="{escape(url)}" target="_blank" rel="noopener noreferrer">{escape(title)}</a><span>{escape(reason)}</span></li>'
-        )
-    return f"""
-<div class="watchlist-block">
-  <div class="subsection-head">
-    <h3>观察待核</h3>
-    <p>形态接近但证据不足，先放备选池，不进入优先询价。</p>
-  </div>
-  <ul class="watchlist">{''.join(rows)}</ul>
-</div>"""
-
-
 def _risk_notes(items: list[Any]) -> str:
     if not items:
         return ""
     return (
-        '<div class="supplier-check"><strong>还要确认</strong><ul class="mini-list">'
+        '<div class="note-check"><strong>还要确认</strong><ul class="mini-list">'
         + "".join(f"<li>{escape(str(item))}</li>" for item in items[:3])
         + "</ul></div>"
     )
@@ -855,21 +739,35 @@ def _source_status(model: dict[str, Any], source: str) -> str:
     if source == "sorftime":
         keywords = len(_sorftime_keywords(model))
         traffic = len(_traffic_groups(model))
-        category = model.get("demand", {}).get("sorftime_category_report", {})
+        category = _sorftime_category_report(model)
         return f"已接入 {keywords} 个关键词、{traffic} 个竞品流量词" + ("、类目报告" if category else "")
     if source == "review":
         summary = model.get("voc", {}).get("summary", {}) if isinstance(model.get("voc"), dict) else {}
         return f"已接入 {summary.get('review_count', 0)} 条评论"
-    if source == "1688":
-        supply = model.get("supply_chain", {})
-        return f"已图文复核 {supply.get('visual_reviewed_count', 0)} 款，优先 {supply.get('visual_confirmed_count', 0)} 款"
     return "待接入"
 
 
 def _sorftime_keywords(model: dict[str, Any]) -> list[dict[str, Any]]:
     demand = model.get("demand", {}) if isinstance(model.get("demand"), dict) else {}
     keywords = demand.get("sorftime_keyword_verification", [])
-    return keywords if isinstance(keywords, list) else []
+    if isinstance(keywords, list) and keywords:
+        return [item for item in keywords if isinstance(item, dict)]
+    sorftime = model.get("sorftime", {}) if isinstance(model.get("sorftime"), dict) else {}
+    entries = sorftime.get("keyword_entries", [])
+    return [item for item in entries if isinstance(item, dict)] if isinstance(entries, list) else []
+
+
+def _sorftime_category_report(model: dict[str, Any]) -> dict[str, Any]:
+    demand = model.get("demand", {}) if isinstance(model.get("demand"), dict) else {}
+    category = demand.get("sorftime_category_report", {})
+    if isinstance(category, dict) and category:
+        return category
+    sorftime = model.get("sorftime", {}) if isinstance(model.get("sorftime"), dict) else {}
+    candidates = sorftime.get("category_candidates", [])
+    if isinstance(candidates, list) and candidates:
+        first = candidates[0]
+        return first if isinstance(first, dict) else {}
+    return {}
 
 
 def _top_sorftime_keyword(model: dict[str, Any]) -> tuple[str, str]:
@@ -886,12 +784,15 @@ def _top_sorftime_keyword(model: dict[str, Any]) -> tuple[str, str]:
 def _traffic_groups(model: dict[str, Any]) -> list[dict[str, Any]]:
     demand = model.get("demand", {}) if isinstance(model.get("demand"), dict) else {}
     traffic = demand.get("sorftime_traffic_terms", {})
-    if not isinstance(traffic, dict):
-        return []
-    if isinstance(traffic.get("asins"), list):
-        return [item for item in traffic.get("asins", []) if isinstance(item, dict)]
-    if traffic.get("asin"):
-        return [traffic]
+    if isinstance(traffic, dict):
+        if isinstance(traffic.get("asins"), list):
+            return [item for item in traffic.get("asins", []) if isinstance(item, dict)]
+        if traffic.get("asin"):
+            return [traffic]
+    sorftime = model.get("sorftime", {}) if isinstance(model.get("sorftime"), dict) else {}
+    entries = sorftime.get("product_traffic_entries", [])
+    if isinstance(entries, list):
+        return [item for item in entries if isinstance(item, dict)]
     return []
 
 
@@ -952,33 +853,6 @@ def _empty_state(text: str) -> str:
     return f'<div class="empty">{escape(text)}</div>'
 
 
-def _price_text(item: dict[str, Any]) -> str:
-    detail_low = item.get("detail_price_cny_min")
-    detail_high = item.get("detail_price_cny_max")
-    low = detail_low if detail_low not in (None, "") else item.get("price_cny_min")
-    high = detail_high if detail_high not in (None, "") else item.get("price_cny_max")
-    if low not in (None, "") and high not in (None, "") and low != high:
-        return f"¥{_format_number(low)}-{_format_number(high)}"
-    if low not in (None, ""):
-        return f"¥{_format_number(low)}"
-    if item.get("detail_price_text") not in (None, ""):
-        return f"¥{item.get('detail_price_text')}"
-    if item.get("price_text") not in (None, ""):
-        return f"¥{item.get('price_text')}"
-    return "价格待确认"
-
-
-def _supply_chain_price_range_text(supply: dict[str, Any]) -> str:
-    low = supply.get("purchase_price_cny_min")
-    high = supply.get("purchase_price_cny_max")
-    if low not in (None, "") and high not in (None, "") and low != high:
-        return f"RMB {_format_number(low)}-{_format_number(high)}"
-    value = low if low not in (None, "") else high
-    if value not in (None, ""):
-        return f"RMB {_format_number(value)}"
-    return "待补"
-
-
 def _first_image(item: dict[str, Any]) -> str:
     images = item.get("local_image_urls") or item.get("image_urls") or item.get("visual_evidence_image_urls") or []
     if not isinstance(images, list):
@@ -1001,7 +875,7 @@ def _fallback_voc_pain_points() -> list[dict[str, Any]]:
 
 def _fallback_voc_highlights() -> list[dict[str, Any]]:
     return [
-        {"name": "正向卖点待接入", "description": "评论导入后再判断哪些卖点是用户真实认可的，不用供应商标题替代用户反馈。"},
+        {"name": "正向卖点待接入", "description": "评论导入后再判断哪些卖点是用户真实认可的，不用商品标题替代用户反馈。"},
         {"name": "路线差异待验证", "description": "主线、升级款、场景款和组合款要分开看评论，避免把旁支需求当成主线卖点。"},
     ]
 
@@ -1089,7 +963,6 @@ a { color: inherit; }
 }
 .topbar a:hover { border-color: #9ed7e4; background: #e9f8fb; }
 .topbar a:focus-visible,
-.supplier-card a:focus-visible,
 .link-grid a:focus-visible {
   outline: 3px solid rgba(22, 138, 163, .24);
   outline-offset: 2px;
@@ -1110,7 +983,6 @@ a { color: inherit; }
 .section,
 .metric-card,
 .finding-card,
-.supplier-card,
 .risk-card,
 .step-card {
   border: 1px solid var(--line);
@@ -1615,64 +1487,6 @@ h1 {
 .finding-card p { margin-bottom: 8px; color: #384844; }
 .tiny, .note-line { color: var(--muted); font-size: 13px; }
 .note-line { margin-top: 16px; }
-.supplier-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-  align-items: start;
-}
-.supplier-card {
-  display: grid;
-  grid-template-columns: minmax(250px, 30%) minmax(0, 1fr);
-  overflow: hidden;
-  box-shadow: var(--shadow-soft);
-  background: #fbfdfc;
-  min-height: 270px;
-}
-.supplier-image {
-  position: relative;
-  width: 100%;
-  min-height: 100%;
-  display: grid;
-  place-items: center;
-  border-right: 1px solid var(--line);
-  background: #f2f8fa;
-  text-decoration: none;
-  overflow: hidden;
-}
-.supplier-image img {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  padding: 12px;
-  background: #f2f8fa;
-}
-.image-empty {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-  font-size: 14px;
-}
-.supplier-body {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  padding: 16px;
-}
-.supplier-body > * { max-width: 760px; }
-.supplier-topline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-}
 .status-pill {
   min-height: 26px;
   display: inline-flex;
@@ -1693,40 +1507,9 @@ h1 {
   color: #fff;
   font-weight: 900;
 }
-.supplier-body h4 { margin: 8px 0 10px; line-height: 1.35; font-size: 16px; }
-.supplier-body h4 a { text-decoration: none; }
-.supplier-body h4 a:hover { color: var(--primary); text-decoration: underline; }
-.supplier-body p { margin-bottom: 10px; color: #344440; }
-.supplier-body h4,
-.supplier-body h4 a,
 .metric-note,
 .fact-value {
   overflow-wrap: anywhere;
-}
-.supplier-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(150px, 220px));
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.supplier-stats div {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  padding: 8px 10px;
-}
-.supplier-stats span {
-  display: block;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-}
-.supplier-stats strong {
-  display: block;
-  margin-top: 2px;
-  color: var(--accent-strong);
-  font-size: 18px;
-  line-height: 1.2;
 }
 .tag-row {
   display: flex;
@@ -1743,47 +1526,16 @@ h1 {
   font-size: 12px;
   font-weight: 700;
 }
-.supplier-reason,
-.supplier-check {
+.note-check {
   display: grid;
   gap: 4px;
   margin: 8px 0;
   color: #344440;
   font-size: 14px;
 }
-.supplier-reason strong,
-.supplier-check strong {
+.note-check strong {
   color: var(--primary-strong);
   font-size: 13px;
-}
-.supplier-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  margin-top: auto;
-  padding-top: 10px;
-}
-.supplier-actions a,
-.supplier-actions span {
-  min-height: 38px;
-  display: inline-flex;
-  align-items: center;
-  border-radius: 8px;
-  padding: 7px 11px;
-  font-weight: 900;
-  text-decoration: none;
-}
-.supplier-actions a {
-  border: 1px solid var(--primary);
-  background: var(--primary);
-  color: #fff;
-}
-.supplier-actions a:hover { background: var(--primary-strong); }
-.supplier-actions span {
-  border: 1px solid #e5c3aa;
-  background: var(--accent-soft);
-  color: var(--accent-strong);
 }
 .link-grid a {
   min-height: 42px;
@@ -1865,7 +1617,7 @@ h1 {
 }
 .step-card h3 { margin: 12px 0 6px; font-size: 18px; }
 .step-card p { margin-bottom: 0; color: var(--muted); }
-.link-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.link-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .link-grid a { justify-content: center; min-height: 46px; }
 .empty {
   border: 1px dashed var(--line);
@@ -1875,7 +1627,7 @@ h1 {
 }
 @media (max-width: 980px) {
 	  .page { padding: 18px 14px 42px; }
-	  .hero, .split, .metric-grid, .source-grid, .analysis-sources, .analysis-grid, .spec-bridge, .supplier-grid, .risk-grid, .step-grid, .link-grid, .sorftime-layout {
+	  .hero, .split, .metric-grid, .source-grid, .analysis-sources, .analysis-grid, .spec-bridge, .risk-grid, .step-grid, .link-grid, .sorftime-layout {
 	    grid-template-columns: 1fr;
 	  }
   .section-head { display: block; }
@@ -1885,19 +1637,11 @@ h1 {
   .mini-section-head { display: block; }
   .mini-section-head p { margin-top: 4px; }
   .fact-row { grid-template-columns: 1fr; gap: 4px; }
-  .supplier-card { grid-template-columns: minmax(220px, 36%) minmax(0, 1fr); }
   .keyword-row { grid-template-columns: minmax(160px, 1.4fr) repeat(2, minmax(80px, .8fr)); }
   .keyword-row em { grid-column: 1 / -1; }
   .score-row { grid-template-columns: 1fr; gap: 2px; }
 }
 @media (max-width: 520px) {
-  .supplier-card { grid-template-columns: 1fr; }
-  .supplier-image {
-    aspect-ratio: 4 / 3;
-    min-height: 0;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
   .keyword-row { grid-template-columns: 1fr; gap: 2px; }
 }
 @media (prefers-reduced-motion: reduce) {

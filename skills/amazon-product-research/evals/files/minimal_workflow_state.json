@@ -10,8 +10,7 @@
   "missing_inputs": [
     "seller_sprite_export",
     "review_voc_export",
-    "profit_review",
-    "ip_compliance_review"
+    "market_opportunity_review"
   ],
   "decision_log": []
 }

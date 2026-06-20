@@ -2,7 +2,7 @@
 
 Codex 版亚马逊交互式选品主入口。
 
-这个 Skill 不是网页工作台，也不是一次性报告生成器。它的目标是让 Codex 按运营节奏推进选品：先理解意图，再决定调 MCP、让运营导出卖家精灵、导入评论、补利润/合规，最后生成可追溯报告。
+这个 Skill 不是网页工作台，也不是一次性报告生成器。它的目标是让 Codex 按运营节奏推进选品：先理解意图，再决定调 MCP、让运营导出卖家精灵、导入评论，最后生成可追溯的市场机会报告。
 
 ## 当前主线
 
@@ -15,9 +15,8 @@ Codex 版亚马逊交互式选品主入口。
 -> 候选池
 -> 评论 ASIN 批次
 -> 评论 VOC
--> 1688 采集
--> 综合预审 HTML/Excel/JSON 报告
--> 利润/合规回填
+-> 市场机会 HTML/Excel/JSON 报告
+-> 继续研究优先级
 -> 最终判断和校验
 ```
 
@@ -27,7 +26,6 @@ Codex 版亚马逊交互式选品主入口。
 卖家精灵市场结构 Agent
 Sorftime 搜索需求 Agent
 评论 VOC Agent
-1688 供应链 Agent
         ↓
 资深亚马逊运营主 Agent
         ↓
@@ -35,12 +33,10 @@ Sorftime 搜索需求 Agent
         ↓
 交付 QA Agent
         ↓
-运营 review + 利润字段回填
-        ↓
-利润/合规 Agent（Stage 8 回填后）
+运营 review + 下一轮补数
 ```
 
-这不是全阶段自动开 Agent，而是受控调度：Stage 0-5 默认由主 Agent 串行推进；Stage 6 以后在运行环境支持时，按 `references/multi_agent_dispatch.md` 启动 VOC、Sorftime 深扫、市场结构、供应链、报告生成和 QA 等专家 Agent。专家 Agent 只产 Evidence Packet，主 Agent 才做综合预审结论、路线优先级和 Go/Wait/No-Go。
+这不是全阶段自动开 Agent，而是受控调度：Stage 0-5 默认由主 Agent 串行推进；Stage 6 以后在运行环境支持时，按 `references/multi_agent_dispatch.md` 启动 VOC、Sorftime 深扫、市场结构、报告生成和 QA 等专家 Agent。专家 Agent 只产 Evidence Packet，主 Agent 才做综合市场机会结论、路线优先级和下一步动作。
 
 Web 页面暂不作为主线。等 Codex 版闭环稳定后，再把 Web 作为外壳接入同一套脚本和产物。
 
@@ -49,11 +45,11 @@ Web 页面暂不作为主线。等 Codex 版闭环稳定后，再把 Web 作为�
 | 原则 | 要求 |
 |---|---|
 | AI 带运营走 | Codex 主动判断下一步，不让运营猜流程 |
-| 关键点暂停 | 方向、边界、ASIN、利润/合规、最终决策必须让运营确认 |
+| 关键点暂停 | 方向、边界、ASIN、评论批次和最终判断必须让运营确认 |
 | 数据不编造 | 不足就标注待补，不用推断填空 |
 | 证据可追溯 | 结论必须能指向 MCP、卖家精灵、评论、人工输入或脚本产物 |
 | 多 Agent 不越权 | 数据源专家只输出证据包，最终判断由资深亚马逊运营主 Agent 统一整合 |
-| 预审报告先行 | 1688 导入后先输出 `analysis_report.html` + Excel + JSON，运营 review 后再回填利润 |
+| 市场机会先行 | 报告只判断是否值得继续研究，不输出后置落地结论 |
 | Web 后置 | 当前只跑 Codex + MCP + 本地脚本 |
 
 ## 常用入口
@@ -79,7 +75,6 @@ runs/<yyyymmdd>_<direction>/
 ├── import_manifest.json
 ├── candidate_pool.json
 ├── review_voc/
-├── supply_chain/
 ├── analysis/
 │   ├── analysis_report.html
 │   ├── analysis_report.xlsx
@@ -96,8 +91,7 @@ runs/<yyyymmdd>_<direction>/
 - Agent 分工：`agents/`
 - Evidence Packet 契约：`references/evidence_packet_contract.md`
 - 多 Agent 调度：`references/multi_agent_dispatch.md`
-- 综合预审报告契约：`references/integrated_precheck_report.md`
+- 市场机会报告契约：`references/integrated_precheck_report.md`
 - Codex 跑通手册：`references/codex_runbook.md`
 - 产物契约：`references/artifact_contract.md`
 - 全局链路文档：`skills/amazon-product-research/SKILL.md`
-- 多 Agent 调度：`skills/amazon-product-research/references/multi_agent_dispatch.md`

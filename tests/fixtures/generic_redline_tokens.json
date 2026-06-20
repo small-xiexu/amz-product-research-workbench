@@ -1,0 +1,26 @@
+{
+  "groups": {
+    "sample_asins": [
+      "B0BZZDPPRX",
+      "B08LY86B2K"
+    ],
+    "sample_keywords_categories": [
+      "window squeegee",
+      "window cleaning kit",
+      "dog leash",
+      "pet leash",
+      "宠物牵引绳",
+      "刮窗器"
+    ],
+    "sample_route_or_product_terms": [
+      "hands free waist leash",
+      "dual leash waist bag",
+      "基础款：腰包/腰带 + 单牵引绳",
+      "升级款：双牵引绳 + 腰包/腰带"
+    ],
+    "sample_brands_sellers": [
+      "Docrok",
+      "BrandA"
+    ]
+  }
+}

@@ -10,7 +10,6 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
 
 
 from packages.research_core.rules.market_structure_rules import build_market_structure_analysis
@@ -435,381 +434,6 @@ def _category_report_summary(sorftime_verification: dict[str, Any]) -> dict[str,
     return {key: value for key, value in summary.items() if value not in (None, "", [])}
 
 
-def _supply_chain_data(sorftime_verification: dict[str, Any]) -> Any:
-    return (
-        sorftime_verification.get("ali1688_similar_product")
-        or sorftime_verification.get("ali1688_snapshot")
-        or sorftime_verification.get("supply_chain_signal")
-        or {}
-    )
-
-
-def _supply_chain_url(item: dict[str, Any]) -> str:
-    return str(_first_value(item, ("url", "Url", "link", "Link", "detail_url", "product_url", "source_url", "链接")) or "").strip()
-
-
-def _is_1688_url(value: Any) -> bool:
-    text = str(value or "").strip()
-    if not text:
-        return False
-    parts = urlsplit(text if "://" in text else f"https://{text.lstrip('/')}")
-    host = (parts.netloc or "").split("@")[-1].split(":")[0].lower()
-    return host == "1688.com" or host.endswith(".1688.com")
-
-
-def _currency_text(item: dict[str, Any]) -> str:
-    value = _first_value(
-        item,
-        (
-            "quote_currency",
-            "currency",
-            "currency_code",
-            "price_currency",
-            "Currency",
-            "币种",
-            "货币",
-        ),
-    )
-    return str(value or "").strip()
-
-
-def _price_text_values(item: dict[str, Any]) -> list[str]:
-    values: list[str] = []
-    for key in ("price_cny", "Price", "price", "price_range", "min_price", "max_price", "价格", "报价"):
-        value = item.get(key)
-        if value not in (None, ""):
-            values.append(str(value))
-    wholesale_ranges = _first_value(item, ("WholesalePriceRange", "wholesale_price_range", "price_tiers", "阶梯价"))
-    if isinstance(wholesale_ranges, list):
-        for tier in wholesale_ranges:
-            if isinstance(tier, dict):
-                value = _first_value(tier, ("Price", "price", "price_cny", "价格"))
-                if value not in (None, ""):
-                    values.append(str(value))
-            elif tier not in (None, ""):
-                values.append(str(tier))
-    return values
-
-
-def _is_rmb_currency_text(value: str) -> bool:
-    text = value.strip().lower()
-    if not text:
-        return False
-    return text in {"rmb", "cny", "人民币", "¥", "￥", "元"} or "人民币" in text
-
-
-def _has_non_rmb_price_marker(values: list[str]) -> bool:
-    text = " ".join(values).lower()
-    return any(marker in text for marker in ("usd", "us$", "$", "美元", "美金", "eur", "€"))
-
-
-def _validate_supply_chain_record(item: dict[str, Any], parent_source_url: str = "") -> tuple[bool, list[str], str]:
-    reasons: list[str] = []
-    item_url = _supply_chain_url(item)
-    source_url = item_url or parent_source_url
-    if not _is_1688_url(source_url):
-        reasons.append("非1688中国站链接")
-
-    currency = _currency_text(item)
-    price_text_values = _price_text_values(item)
-    if currency and not _is_rmb_currency_text(currency):
-        reasons.append("币种不是RMB/CNY")
-    elif _has_non_rmb_price_marker(price_text_values):
-        reasons.append("价格字段疑似非人民币")
-
-    low, high = _price_range_cny(item)
-    if low is None and high is None:
-        reasons.append("缺少有效人民币价格")
-
-    quote_currency = "RMB" if not reasons else (currency or "")
-    return not reasons, reasons, quote_currency
-
-
-def _filter_supply_chain_records(records: list[dict[str, Any]], parent_source_url: str = "") -> tuple[list[dict[str, Any]], list[str]]:
-    valid_records: list[dict[str, Any]] = []
-    rejection_reasons: list[str] = []
-    for item in records:
-        ok, reasons, quote_currency = _validate_supply_chain_record(item, parent_source_url)
-        if ok:
-            if not _currency_text(item):
-                item = {**item, "quote_currency": quote_currency}
-            valid_records.append(item)
-        else:
-            rejection_reasons.extend(reasons)
-    return valid_records, sorted(set(rejection_reasons))
-
-
-def _price_range_cny(item: dict[str, Any]) -> tuple[float | None, float | None]:
-    low = _number_from_any(_first_value(item, ("min_price_cny", "price_cny_min", "min_price", "price_min", "最低价")))
-    high = _number_from_any(_first_value(item, ("max_price_cny", "price_cny_max", "max_price", "price_max", "最高价")))
-    if low is not None or high is not None:
-        return low, high
-
-    wholesale_ranges = _first_value(item, ("WholesalePriceRange", "wholesale_price_range", "price_tiers", "阶梯价"))
-    if isinstance(wholesale_ranges, list):
-        tier_prices = [
-            _number_from_any(
-                _first_value(tier, ("Price", "price", "price_cny", "价格"))
-                if isinstance(tier, dict)
-                else tier
-            )
-            for tier in wholesale_ranges
-        ]
-        tier_prices = [price for price in tier_prices if price is not None]
-        if tier_prices:
-            return min(tier_prices), max(tier_prices)
-
-    text = _first_value(item, ("price_cny", "Price", "price", "price_range", "价格", "报价"))
-    if text is None:
-        return None, None
-    numbers = [float(match) for match in re.findall(r"\d+(?:\.\d+)?", str(text).replace(",", ""))]
-    if not numbers:
-        return None, None
-    if len(numbers) == 1:
-        return numbers[0], numbers[0]
-    return min(numbers), max(numbers)
-
-
-def _normalize_supply_chain_sample_product(item: dict[str, Any]) -> dict[str, Any]:
-    low, high = _price_range_cny(item)
-    return {
-        "title": _first_value(item, ("title", "Title", "name", "product_name", "商品标题", "名称")),
-        "price_cny_min": low,
-        "price_cny_max": high,
-        "conservative_price_cny": _price_high_from_range(low, high),
-        "quote_currency": _currency_text(item) or "RMB",
-        "supplier": _first_value(item, ("supplier", "supplier_name", "StoreName", "store_name", "shop_name", "供应商", "店铺")),
-        "url": _supply_chain_url(item),
-    }
-
-
-def _supply_chain_signal_summary(sorftime_verification: dict[str, Any]) -> dict[str, Any]:
-    existing_summary = sorftime_verification.get("supply_chain_signal")
-    data = _supply_chain_data(sorftime_verification)
-    parent_source_url = (
-        str(_first_value(data, ("source_url", "sourceUrl", "url")) or "").strip()
-        if isinstance(data, dict)
-        else str(_first_value(existing_summary, ("source_url", "sourceUrl", "url")) or "").strip()
-        if isinstance(existing_summary, dict)
-        else ""
-    )
-    records = _extract_records(data, ("products", "product_list", "items", "records", "data", "suppliers"))
-    valid_records, rejection_reasons = _filter_supply_chain_records(records, parent_source_url)
-    ranges = [_price_range_cny(item) for item in valid_records]
-    lows = [low for low, _ in ranges if low is not None]
-    highs = [high for _, high in ranges if high is not None]
-    conservative_prices = [
-        _price_high_from_range(low, high)
-        for low, high in ranges
-        if _price_high_from_range(low, high) is not None
-    ]
-    if not records and not lows and not highs and isinstance(existing_summary, dict):
-        existing_source_url = str(_first_value(existing_summary, ("source_url", "sourceUrl", "url")) or "https://www.1688.com/").strip()
-        existing_currency = str(_first_value(existing_summary, ("quote_currency", "currency", "currency_code")) or "RMB").strip()
-        sample_products = [
-            _normalize_supply_chain_sample_product(item)
-            for item in _filter_supply_chain_records(
-                [
-                    {
-                        **item,
-                        "quote_currency": item.get("quote_currency") or existing_currency,
-                        "url": item.get("url") or existing_source_url,
-                    }
-                    for item in (existing_summary.get("sample_products") or existing_summary.get("top_samples") or [])
-                    if isinstance(item, dict)
-                ],
-                existing_source_url,
-            )[0]
-        ]
-        summary_rejection_reasons = _filter_supply_chain_records(
-            [
-                {
-                    **item,
-                    "quote_currency": item.get("quote_currency") or existing_currency,
-                    "url": item.get("url") or existing_source_url,
-                }
-                for item in (existing_summary.get("sample_products") or existing_summary.get("top_samples") or [])
-                if isinstance(item, dict)
-            ],
-            existing_source_url,
-        )[1]
-        raw_sample_count = len(
-            [
-                item
-                for item in (existing_summary.get("sample_products") or existing_summary.get("top_samples") or [])
-                if isinstance(item, dict)
-            ]
-        )
-        rejected_sample_count = int(_number_from_any(existing_summary.get("rejected_sample_count")) or 0)
-        if raw_sample_count:
-            rejected_sample_count = max(rejected_sample_count, raw_sample_count - len(sample_products))
-        existing_exchange_rate = _number_from_any(_first_value(existing_summary, ("exchange_rate", "usd_cny_rate", "cny_per_usd")))
-        existing_conservative_cny = _number_from_any(
-            _first_value(existing_summary, ("conservative_purchase_price_cny", "conservative_price_cny"))
-        ) or max(
-            [
-                item["conservative_price_cny"]
-                for item in sample_products
-                if item.get("conservative_price_cny") is not None
-            ],
-            default=None,
-        )
-        existing_conservative_usd = _number_from_any(
-            _first_value(existing_summary, ("conservative_purchase_price_usd", "conservative_price_usd"))
-        )
-        if existing_conservative_usd is None and existing_conservative_cny is not None and existing_exchange_rate:
-            existing_conservative_usd = round(existing_conservative_cny / existing_exchange_rate, 2)
-        summary = {
-            "source_tool": existing_summary.get("source_tool") or "ali1688_similar_product",
-            "source_site": existing_summary.get("source_site") or "1688中国站",
-            "source_url": existing_source_url,
-            "quote_currency": "RMB" if _is_rmb_currency_text(existing_currency) else existing_currency,
-            "search_name": _first_value(existing_summary, ("search_name", "searchName", "keyword", "query")),
-            "raw_supplier_count": _number_from_any(_first_value(existing_summary, ("raw_supplier_count", "rawSupplierCount"))),
-            "supplier_count": _number_from_any(_first_value(existing_summary, ("supplier_count", "supplierCount"))),
-            "relevant_supplier_count": _number_from_any(
-                _first_value(existing_summary, ("relevant_supplier_count", "relevantSupplierCount"))
-            ),
-            "rejected_sample_count": rejected_sample_count,
-            "rejection_reasons": sorted(set(existing_summary.get("rejection_reasons", []) + summary_rejection_reasons))
-            if isinstance(existing_summary.get("rejection_reasons", []), list)
-            else summary_rejection_reasons,
-            "purchase_price_cny_min": _number_from_any(
-                _first_value(existing_summary, ("purchase_price_cny_min", "price_cny_min"))
-            ),
-            "purchase_price_cny_max": _number_from_any(
-                _first_value(existing_summary, ("purchase_price_cny_max", "price_cny_max"))
-            ),
-            "purchase_price_cny_avg": _number_from_any(
-                _first_value(existing_summary, ("purchase_price_cny_avg", "price_cny_avg"))
-            ),
-            "purchase_price_cny_median": _number_from_any(
-                _first_value(existing_summary, ("purchase_price_cny_median", "price_cny_median"))
-            ),
-            "conservative_purchase_price_cny": existing_conservative_cny,
-            "conservative_purchase_price_usd": existing_conservative_usd,
-            "conservative_purchase_price_basis": existing_summary.get("conservative_purchase_price_basis")
-            or "1688区间报价按上限做保守估算；利润复核默认使用该字段，不使用最低SKU价。",
-            "purchase_price_usd_avg": _number_from_any(
-                _first_value(existing_summary, ("purchase_price_usd_avg", "price_usd_avg"))
-            ),
-            "exchange_rate": existing_exchange_rate,
-            "confidence": existing_summary.get("confidence") or "粗估，仅供早期筛选",
-            "note": existing_summary.get("note") or "1688中国站人民币报价不含头程、关税、质检、包装和损耗，不替代利润模板。",
-            "sample_products": [item for item in sample_products if any(value not in (None, "") for value in item.values())],
-        }
-        return {key: value for key, value in summary.items() if value not in (None, "", [])}
-    if records and not lows and not highs:
-        summary = {
-            "source_tool": "ali1688_similar_product",
-            "source_site": "1688中国站",
-            "source_url": parent_source_url or "https://www.1688.com/",
-            "quote_currency": "RMB",
-            "search_name": (
-                _first_value(data, ("search_name", "searchName", "keyword", "query"))
-                if isinstance(data, dict)
-                else _first_value(existing_summary, ("search_name", "searchName", "keyword", "query"))
-                if isinstance(existing_summary, dict)
-                else None
-            ),
-            "raw_supplier_count": len(records),
-            "supplier_count": 0,
-            "rejected_sample_count": len(records),
-            "rejection_reasons": rejection_reasons,
-            "confidence": "无有效1688中国站人民币样本",
-            "note": "未找到可纳入采购价区间的1688中国站人民币报价样本；禁止用Alibaba国际站USD报价替代。",
-        }
-        return {key: value for key, value in summary.items() if value not in (None, "", [])}
-    if not valid_records and not lows and not highs:
-        return {}
-    exchange_rate = None
-    if isinstance(data, dict):
-        exchange_rate = _number_from_any(_first_value(data, ("exchange_rate", "usd_cny_rate", "cny_per_usd")))
-    if exchange_rate is None and isinstance(existing_summary, dict):
-        exchange_rate = _number_from_any(_first_value(existing_summary, ("exchange_rate", "usd_cny_rate", "cny_per_usd")))
-    avg_low = sum(lows) / len(lows) if lows else None
-    avg_high = sum(highs) / len(highs) if highs else None
-    avg_cny = None
-    if avg_low is not None and avg_high is not None:
-        avg_cny = (avg_low + avg_high) / 2
-    elif avg_low is not None:
-        avg_cny = avg_low
-    elif avg_high is not None:
-        avg_cny = avg_high
-    existing_samples = []
-    if isinstance(existing_summary, dict):
-        existing_samples = [
-            item
-            for item in (existing_summary.get("sample_products") or existing_summary.get("top_samples") or [])
-            if isinstance(item, dict)
-        ]
-    sample_source = existing_samples or valid_records[:5]
-    if existing_samples:
-        fallback_url = _supply_chain_url(valid_records[0]) if valid_records else parent_source_url
-        sample_source = _filter_supply_chain_records(
-            [
-                {
-                    **item,
-                    "quote_currency": item.get("quote_currency") or "RMB",
-                    "url": item.get("url") or fallback_url,
-                }
-                for item in existing_samples
-            ],
-            parent_source_url,
-        )[0]
-    sample_products = [_normalize_supply_chain_sample_product(item) for item in sample_source]
-    relevant_supplier_count = (
-        _number_from_any(_first_value(existing_summary, ("relevant_supplier_count", "relevantSupplierCount")))
-        if isinstance(existing_summary, dict)
-        else None
-    )
-    if relevant_supplier_count is not None:
-        relevant_supplier_count = min(relevant_supplier_count, float(len(valid_records)))
-    conservative_cny = round(max(conservative_prices), 2) if conservative_prices else None
-    conservative_usd = round(conservative_cny / exchange_rate, 2) if conservative_cny is not None and exchange_rate else None
-    summary = {
-        "source_tool": "ali1688_similar_product",
-        "source_site": "1688中国站",
-        "source_url": parent_source_url or "https://www.1688.com/",
-        "quote_currency": "RMB",
-        "search_name": (
-            _first_value(data, ("search_name", "searchName", "keyword", "query"))
-            if isinstance(data, dict)
-            else _first_value(existing_summary, ("search_name", "searchName", "keyword", "query"))
-            if isinstance(existing_summary, dict)
-            else None
-        ),
-        "raw_supplier_count": len(records),
-        "supplier_count": len(valid_records),
-        "relevant_supplier_count": relevant_supplier_count,
-        "rejected_sample_count": len(records) - len(valid_records),
-        "rejection_reasons": rejection_reasons,
-        "purchase_price_cny_min": round(min(lows), 2) if lows else None,
-        "purchase_price_cny_max": round(max(highs), 2) if highs else None,
-        "purchase_price_cny_avg": round(avg_cny, 2) if avg_cny is not None else None,
-        "purchase_price_cny_median": _number_from_any(
-            _first_value(existing_summary, ("purchase_price_cny_median", "price_cny_median"))
-        )
-        if isinstance(existing_summary, dict)
-        else None,
-        "conservative_purchase_price_cny": conservative_cny,
-        "conservative_purchase_price_usd": conservative_usd,
-        "conservative_purchase_price_basis": "1688区间报价按上限做保守估算；利润复核默认使用该字段，不使用最低SKU价。",
-        "purchase_price_usd_avg": (
-            round(avg_cny / exchange_rate, 2)
-            if avg_cny is not None and exchange_rate
-            else _number_from_any(_first_value(existing_summary, ("purchase_price_usd_avg", "price_usd_avg")))
-            if isinstance(existing_summary, dict)
-            else None
-        ),
-        "exchange_rate": exchange_rate,
-        "confidence": "粗估，仅供早期筛选",
-        "note": "1688中国站人民币报价不含头程、关税、质检、包装和损耗，不替代利润模板。",
-        "sample_products": [item for item in sample_products if any(value not in (None, "") for value in item.values())],
-    }
-    return {key: value for key, value in summary.items() if value not in (None, "", [])}
-
-
 def product_identity(item: dict[str, Any]) -> str:
     return str(item.get("asin") or item.get("ASIN") or "").strip()
 
@@ -1018,7 +642,7 @@ def build_direction_cards(
                 "risks": risks,
                 "ai_recommendation": meta.get("recommendation", ""),
                 "operator_options": ["选择此方向深挖", "保留为旁支参考", "排除该方向", "让 AI 按证据默认选择"],
-                "next_action": "若选择该方向，下一步按代表 ASIN 抓评论 VOC，并补利润/合规复核。"
+                "next_action": "若选择该方向，下一步按代表 ASIN 抓评论 VOC，并补关键词、竞品和小类证据。"
                 if meta["status"] in {"优先深挖", "继续看", "保留参考", "谨慎参考"}
                 else "本轮先不深挖，仅作为混池/排除依据记录。",
             }
@@ -1086,7 +710,6 @@ def _apply_sorftime_enrichment(
 def _apply_sorftime_verification_signals(candidate: dict[str, Any], sorftime_verification: dict[str, Any]) -> None:
     demand = candidate.get("demand_evidence") or {}
     competition = candidate.get("competition_structure") or {}
-    profit_space = candidate.get("preliminary_profit_space") or {}
     data_quality = candidate.get("data_quality") or {}
 
     category_report = _category_report_summary(sorftime_verification)
@@ -1112,30 +735,8 @@ def _apply_sorftime_verification_signals(candidate: dict[str, Any], sorftime_ver
             "source_tool": "category_report",
         }
 
-    supply_chain_signal = _supply_chain_signal_summary(sorftime_verification)
-    if supply_chain_signal:
-        profit_space["supply_chain_signal"] = supply_chain_signal
-        conservative_cny = supply_chain_signal.get("conservative_purchase_price_cny") or supply_chain_signal.get("purchase_price_cny_max")
-        conservative_text = f"；保守估算按 RMB {conservative_cny}" if conservative_cny is not None else ""
-        profit_space["cogs_signal"] = (
-            f"1688中国站人民币采购价区间 RMB {supply_chain_signal.get('purchase_price_cny_min', '待补')}"
-            f"-{supply_chain_signal.get('purchase_price_cny_max', '待补')}；"
-            f"{conservative_text.lstrip('；') if conservative_text else '保守估算价待补'}；"
-            f"有效样本 {supply_chain_signal.get('supplier_count', 0)} 个供应商"
-        )
-        if supply_chain_signal.get("conservative_purchase_price_usd") is not None:
-            profit_space["estimated_purchase_cost_usd"] = supply_chain_signal.get("conservative_purchase_price_usd")
-        elif supply_chain_signal.get("purchase_price_usd_avg") is not None:
-            profit_space["estimated_purchase_cost_usd"] = supply_chain_signal.get("purchase_price_usd_avg")
-        data_quality["supply_chain_signal"] = {
-            "enabled": True,
-            "source_tool": "ali1688_similar_product",
-            "supplier_count": supply_chain_signal.get("supplier_count"),
-        }
-
     candidate["demand_evidence"] = demand
     candidate["competition_structure"] = competition
-    candidate["preliminary_profit_space"] = profit_space
     candidate["data_quality"] = data_quality
 
 
@@ -1305,25 +906,21 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
                 bool(recent_winners(search_records, limit=1)),
             ),
         },
-        "preliminary_profit_space": {
+        "price_band_context": {
             "avg_price_usd": to_float(all_products.get("平均价格($)")),
             "top_price_band_by_units": top_price_band.get("价格区间($)"),
             "top_price_band_units_share": to_float(top_price_band.get("销量占比")),
-            "note": "仅为价格空间参考，采购价、FBA、头程和入库配置费仍需后续利润复核。",
+            "note": "仅用于判断市场价格带和新品切入口，不做后置落地测算。",
         },
         "risk_flags": [
             "市场退货率高于同类目平均" if return_level == "中" else "退货率暂未高于同类目平均",
-            "当前品类仍需后续结合评论、结构/外观专利、材质安全和使用场景责任风险复核。",
+            "当前品类仍需结合评论、竞品结构和使用场景责任风险复核。",
         ],
         "return_risk": {
             "level": return_level,
             "market_return_rate": market_return_rate,
             "category_return_rate": category_return_rate,
             "source": "卖家精灵市场分析-商品需求趋势",
-        },
-        "ip_compliance_risk": {
-            "level": "待确认",
-            "notes": "需后续检查商标、外观/结构专利、材质安全、目标站点合规要求和功能宣称风险。",
         },
         "data_quality": {
             "source": "manual_export" if not _sorftime_snapshot else "mixed",
@@ -1337,12 +934,10 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
             "source_file_conflicts": source_file_conflicts,
         },
         "missing_data": [
-            "采购价",
-            "FBA费用",
-            "头程费用",
-            "入库配置费",
             "评论/VOC证据",
-            "商标/专利复核",
+            "关键词反查",
+            "小类市场明细",
+            "代表竞品证据",
         ],
         "next_step": "先看报表后多方向候选卡，确认主线/旁支/排除项，再按选定方向抓评论 VOC。",
         "source_refs": source_refs,
@@ -1476,14 +1071,30 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build candidate_pool from manual export import manifest.")
     parser.add_argument("manifest", help="Path to import_manifest.json generated by inspect_manual_exports.py.")
     parser.add_argument("output", help="Path to write candidate_pool.json.")
+    parser.add_argument(
+        "--sorftime-verification",
+        default="",
+        help="Optional Sorftime verification JSON path to merge into candidate_pool.",
+    )
     return parser.parse_args()
+
+
+def _load_optional_json(path_text: str) -> dict[str, Any] | None:
+    path_text = path_text.strip()
+    if not path_text:
+        return None
+    path = Path(path_text).expanduser().resolve()
+    if not path.exists():
+        raise SystemExit(f"Sorftime verification not found: {path}")
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def main() -> None:
     args = parse_args()
     manifest_path = Path(args.manifest).expanduser().resolve()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    candidate_pool = build_candidate_pool(manifest)
+    sorftime_verification = _load_optional_json(args.sorftime_verification)
+    candidate_pool = build_candidate_pool(manifest, sorftime_verification)
     output = Path(args.output).expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(candidate_pool, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

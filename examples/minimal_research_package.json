@@ -9,15 +9,6 @@
   "constraints": {
     "exclusion_rules": ["儿童", "医疗", "强认证", "侵权"]
   },
-  "operator_inputs": {
-    "purchase_cost": 7.8,
-    "exchange_rate": 7.2,
-    "fba_fee": 4.1,
-    "storage_fee": 0.45,
-    "inbound_placement_fee": 0.3,
-    "ad_rate_assumption": 0.2,
-    "return_rate_assumption": 0.05
-  },
   "market_analysis": {
     "market_size": "待填",
     "price_band": "10 美金以上",
@@ -30,11 +21,13 @@
     "recent_winners": [],
     "structure_supplement": []
   },
-  "profit_reference": {
-    "base_fba_gross_profit": 3.12,
-    "base_fba_margin": 0.18,
-    "post_ads_returns_gross_profit": 1.42,
-    "post_ads_returns_margin": 0.08
+  "price_band_context": {
+    "price_band": "10 美金以上",
+    "top_price_band_by_units": "10-20 USD 待验证",
+    "top_price_band_by_revenue": "20-30 USD 待验证",
+    "target_entry_band": "先看 15-25 USD 是否存在低评有量样本",
+    "confidence": "低",
+    "note": "仅用于判断市场价格带和新品切入口，不做后置落地测算。"
   },
   "return_risk": {
     "source": "卖家精灵类目退货率",
@@ -48,8 +41,8 @@
   "report_summary": {
     "bullets": [
       "市场有需求",
-      "利润参考可接受",
-      "风险需要复核"
+      "价格带仍需真实 Top100 验证",
+      "风险需要继续补证据"
     ]
   },
   "dashboard_views": {

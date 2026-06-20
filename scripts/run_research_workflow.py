@@ -30,16 +30,6 @@ def parse_args() -> argparse.Namespace:
         help="Optional review plugin .xlsx export or .html AI report. Repeat for multiple files.",
     )
     parser.add_argument(
-        "--profit-template",
-        default="",
-        help="Optional filled profit review template. If provided, profit results are merged before rendering final report.",
-    )
-    parser.add_argument(
-        "--ip-compliance-template",
-        default="",
-        help="Optional filled IP/compliance review template. If provided, screening results are merged before rendering final report.",
-    )
-    parser.add_argument(
         "--sorftime-verification",
         default="",
         help="Optional Sorftime verification JSON file. If provided, merged into candidate_pool without re-calling MCP.",
@@ -62,8 +52,6 @@ def main() -> int:
         candidate_id=args.candidate_id,
         candidate_name=args.candidate_name,
         review_inputs=tuple(Path(item) for item in args.review_input),
-        profit_template=Path(args.profit_template) if args.profit_template else None,
-        ip_compliance_template=Path(args.ip_compliance_template) if args.ip_compliance_template else None,
         sorftime_verification=Path(args.sorftime_verification) if args.sorftime_verification else None,
         workflow_state=Path(args.workflow_state) if args.workflow_state else None,
     )
@@ -76,7 +64,6 @@ def main() -> int:
     print(f"Selected candidate: {result.selected_candidate_id} / {result.selected_candidate_name}")
     print(f"Final report: {result.report_path}")
     print(f"Web report: {result.report_path.with_name('report.html')}")
-    print(f"Dashboard: {result.report_path.with_name('dashboard.html')}")
     print(f"Data workbook: {result.report_path.with_name('data.xlsx')}")
     return 0
 

@@ -9,7 +9,7 @@ from typing import Any
 from openpyxl import load_workbook
 
 
-REQUIRED_FINAL_FILES = ("report.md", "report.html", "summary.md", "dashboard.html", "data.xlsx")
+REQUIRED_FINAL_FILES = ("report.md", "report.html", "data.xlsx")
 REQUIRED_WORKFLOW_FILES = ("workflow_summary.md", "workflow_summary.json")
 BASE_REQUIRED_SHEETS = (
     "数据来源说明",
@@ -29,17 +29,15 @@ BASE_REQUIRED_SHEETS = (
     "状态卡",
 )
 VOC_REQUIRED_SHEETS = ("评论VOC", "VOC证据")
-PROFIT_REQUIRED_SHEETS = ("利润参考结果", "利润成本拆分")
-IP_COMPLIANCE_REQUIRED_SHEETS = ("知产合规复核", "知产初筛", "合规认证预判")
 REPORT_SECTION_TO_SHEETS = {
     "数据来源与口径": ("数据来源说明", "调研边界"),
     "市场结构与数据质量": ("市场结构", "Top100原始明细", "数据质量检查"),
     "产品属性分布与交叉分析": ("属性定义", "Top商品打标", "属性分布", "属性交叉分析", "机会判断"),
     "竞品池与竞品选择逻辑": ("竞品选择逻辑", "竞品池"),
     "评论 VOC 与真实痛点": ("评论VOC", "VOC证据"),
-    "利润复核": ("利润参考结果", "利润成本拆分"),
-    "知产/合规/退货风险": ("知产合规复核", "知产初筛", "合规认证预判", "退货风险"),
-    "Go/Wait/No-Go 决策检查": ("Go_No-Go评分卡", "决策检查", "风险矩阵", "状态卡"),
+    "市场机会评分": ("市场机会评分卡", "决策检查", "风险矩阵", "状态卡"),
+    "风险与待验证项": ("风险矩阵", "退货风险", "数据质量检查"),
+    "继续研究优先级": ("市场机会评分卡", "路线深挖计划", "状态卡"),
     "下一步动作与证据附录": ("状态卡",),
 }
 REPORT_REQUIRED_TERMS = {
@@ -67,7 +65,7 @@ ANALYSIS_MODE_SECTION_HINTS = {
     "数据 -> 空白 -> 机会": "市场结构与数据质量 / 产品属性分布与交叉分析",
     "痛点 -> 产品方案": "评论 VOC 与真实痛点",
     "交叉维度 -> 结构性空白": "产品属性分布与交叉分析",
-    "多维评分 -> 优先级矩阵": "Go/Wait/No-Go 决策检查",
+    "多维评分 -> 优先级矩阵": "市场机会评分 / 继续研究优先级",
     "待补项 -> 验证动作": "下一步动作与证据附录",
     "竞品角色 -> VOC 证据链": "竞品池与竞品选择逻辑 / 评论 VOC 与真实痛点",
     "数据点 -> 含义 -> 行动建议": "Executive Summary / 当前结论",
@@ -75,15 +73,16 @@ ANALYSIS_MODE_SECTION_HINTS = {
 FORMAL_REPORT_SECTION_TITLES = (
     "Executive Summary / 当前结论",
     "数据来源与口径",
+    "品类选择推导链路",
     "候选方向与边界",
     "市场结构与数据质量",
     "关键词与需求信号",
     "产品属性分布与交叉分析",
     "竞品池与竞品选择逻辑",
     "评论 VOC 与真实痛点",
-    "利润复核",
-    "知产/合规/退货风险",
-    "Go/Wait/No-Go 决策检查",
+    "市场机会评分",
+    "风险与待验证项",
+    "继续研究优先级",
     "下一步动作与证据附录",
 )
 INTERACTIVE_REPORT_REQUIRED_TERMS = (
@@ -106,18 +105,11 @@ REQUIRED_SCORECARD_DIMENSIONS = (
     "竞争格局",
     "需求清晰度",
     "新品友好度",
-    "利润可行性",
-    "知产/合规/退货风险",
+    "小类边界清晰度",
+    "VOC证据质量",
+    "退货/体验风险",
     "数据完整度",
 )
-LEGACY_ROUTE_IDS = (
-    "core_hands_free_waist",
-    "dual_leash_waist_bag",
-    "multi_dog_without_waist",
-    "safety_upgrade",
-)
-
-
 @dataclass
 class ValidationResult:
     workflow_dir: Path
@@ -149,7 +141,6 @@ def validate_workflow_output(input_dir: Path | str) -> ValidationResult:
     _check_required_files(result, workflow_dir, REQUIRED_WORKFLOW_FILES, "workflow")
 
     workflow_summary = _load_json(workflow_dir / "workflow_summary.json", result)
-    workflow_summary_text = _read_text(workflow_dir / "workflow_summary.md")
     report_text = _read_text(final_report_dir / "report.md")
     report_html = _read_text(final_report_dir / "report.html")
 
@@ -172,18 +163,6 @@ def validate_workflow_output(input_dir: Path | str) -> ValidationResult:
     if _interactive_workflow_enabled(workflow_summary):
         _check_required_sheets(result, sheet_names, ("交互决策记录",), "交互式流程")
 
-    profit_review = _section(workflow_summary, "profit_review")
-    if bool(profit_review.get("applied")):
-        _check_required_sheets(result, sheet_names, PROFIT_REQUIRED_SHEETS, "利润复核")
-    else:
-        _check_waiting_template_status(result, profit_review, workflow_summary_text, "利润复核")
-
-    ip_compliance = _section(workflow_summary, "ip_compliance_review")
-    if bool(ip_compliance.get("applied")):
-        _check_required_sheets(result, sheet_names, IP_COMPLIANCE_REQUIRED_SHEETS, "知产/合规初筛")
-    else:
-        _check_waiting_template_status(result, ip_compliance, workflow_summary_text, "知产/合规初筛")
-
     _check_report_terms(result, report_text)
     _check_report_html(result, report_html)
     if _interactive_workflow_enabled(workflow_summary):
@@ -192,7 +171,6 @@ def validate_workflow_output(input_dir: Path | str) -> ValidationResult:
     _check_report_quality_terms(result, report_text)
     _check_analysis_mode_coverage(result, report_text)
     _check_quantitative_report_quality(result, report_text)
-    _check_legacy_route_ids(result, workflow_dir, final_report_dir, workflow_summary_text, report_text)
     return result
 
 
@@ -422,17 +400,17 @@ def _check_go_nogo_scorecard(path: Path, workflow_summary: dict[str, Any], resul
     except Exception:
         return
     try:
-        if "Go_No-Go评分卡" not in workbook.sheetnames:
+        if "市场机会评分卡" not in workbook.sheetnames:
             return
-        rows = list(workbook["Go_No-Go评分卡"].iter_rows(values_only=True))
+        rows = list(workbook["市场机会评分卡"].iter_rows(values_only=True))
     finally:
         workbook.close()
     dimension_names = {str(row[0] or "") for row in rows[1:] if row and str(row[0] or "") in REQUIRED_SCORECARD_DIMENSIONS}
     missing = [name for name in REQUIRED_SCORECARD_DIMENSIONS if name not in dimension_names]
     if missing:
-        result.errors.append(f"Go/Wait/No-Go 评分卡缺少固定维度：{', '.join(missing)}")
+        result.errors.append(f"市场机会评分卡缺少固定维度：{', '.join(missing)}")
     else:
-        result.notes.append("Go/Wait/No-Go 评分卡 7 个固定维度完整")
+        result.notes.append("市场机会评分卡固定维度完整")
     decision = ""
     gating_text = ""
     for row in rows:
@@ -440,12 +418,8 @@ def _check_go_nogo_scorecard(path: Path, workflow_summary: dict[str, Any], resul
             decision = str(row[1] or "")
         if row and row[0] == "决策限制":
             gating_text = str(row[1] or "")
-    profit_applied = bool(_section(workflow_summary, "profit_review").get("applied"))
-    ip_applied = bool(_section(workflow_summary, "ip_compliance_review").get("applied"))
-    if (not profit_applied or not ip_applied) and decision.upper() == "GO":
-        result.errors.append("利润或知产/合规未回填时，Go/Wait/No-Go 评分卡禁止输出 GO")
-    if (not profit_applied or not ip_applied) and not gating_text:
-        result.errors.append("利润或知产/合规未回填时，Go/Wait/No-Go 评分卡必须写明决策限制")
+    if gating_text and decision.upper() == "GO":
+        result.errors.append("市场机会评分仍有证据缺口时禁止输出 GO")
 
 
 def _count_data_rows(sheet: Any) -> int:
@@ -648,7 +622,7 @@ def _check_report_html(result: ValidationResult, report_html: str) -> None:
         '<html lang="zh-CN">',
         "选品决策报告",
         "一眼看懂",
-        "1688 供应链候选",
+        "市场机会评分",
     )
     missing = [term for term in required_terms if term not in report_html]
     if missing:
@@ -684,30 +658,6 @@ def _check_report_sections(result: ValidationResult, report_text: str) -> None:
         result.errors.append("report.md 正式章节顺序不符合 P20.2 标准")
         return
     result.notes.append("report.md 正式 12 章结构完整且顺序正确")
-
-
-def _check_legacy_route_ids(
-    result: ValidationResult,
-    workflow_dir: Path,
-    final_report_dir: Path,
-    workflow_summary_text: str,
-    report_text: str,
-) -> None:
-    texts = [workflow_summary_text, report_text]
-    for relative in ("research_package.json", "workflow_state.json"):
-        for base in (workflow_dir, final_report_dir):
-            path = base / relative
-            if path.exists():
-                texts.append(_read_text(path))
-    haystack = "\n".join(texts)
-    matched = [route_id for route_id in LEGACY_ROUTE_IDS if route_id in haystack]
-    if matched:
-        result.warnings.append(
-            "发现旧路线 ID，建议重建 product_route_matrix / route_deep_dive_plan："
-            + ", ".join(matched)
-        )
-    else:
-        result.notes.append("未发现旧路线 ID")
 
 
 if __name__ == "__main__":

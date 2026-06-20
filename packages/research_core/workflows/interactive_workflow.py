@@ -23,7 +23,6 @@ WorkflowStage = Literal[
     "voc_batch_planning",
     "voc_analysis",
     "deep_dive",
-    "profit_compliance_review",
     "final_decision",
 ]
 ActionType = Literal[
@@ -48,7 +47,6 @@ STAGE_ORDER: list[WorkflowStage] = [
     "voc_batch_planning",
     "voc_analysis",
     "deep_dive",
-    "profit_compliance_review",
     "final_decision",
 ]
 
@@ -232,8 +230,6 @@ def build_next_action_card(state: WorkflowState) -> NextActionCard:
         return _voc_analysis_card(state)
     if state.stage == "deep_dive":
         return _deep_dive_card(state)
-    if state.stage == "profit_compliance_review":
-        return _profit_compliance_review_card(state)
     return _final_decision_card(state)
 
 
@@ -301,7 +297,7 @@ def _intent_intake_card(state: WorkflowState) -> NextActionCard:
             ),
             options=[
                 NextActionOption("confirm_boundary", "确认场景边界", "进入方向拆解和类目探索。"),
-                NextActionOption("add_constraints", "补充限制", "先补禁区、价格带和供应链偏好。"),
+                NextActionOption("add_constraints", "补充限制", "先补禁区、价格带和数据偏好。"),
             ],
         )
     return NextActionCard(
@@ -385,12 +381,6 @@ def _exploration_planning_card(state: WorkflowState) -> NextActionCard:
                     "credits": 1,
                     "repeat": "每个关键词各调一次",
                 },
-                {
-                    "tool": "ali1688_similar_product",
-                    "purpose": "获取 1688 粗采购价区间，提前判断是否存在利润空间",
-                    "params_hint": "searchName: 中文品类名",
-                    "credits": 1,
-                },
             ],
         ),
         options=[
@@ -464,7 +454,7 @@ def _boundary_confirmation_card(state: WorkflowState) -> NextActionCard:
         recommended_action=RecommendedAction(
             "operator_decision",
             "确认路线边界",
-            "边界确认后先做路线级小深挖：每条保留路线都要有关键词、竞品 ASIN、VOC 批次和 1688 搜索词。",
+            "边界确认后先做路线级小深挖：每条保留路线都要有关键词、竞品 ASIN、类目 Top100 和 VOC 批次。",
         ),
         options=[
             NextActionOption("confirm_route_roles", "确认路线角色", "为每条保留路线生成补数计划。"),
@@ -484,7 +474,7 @@ def _voc_batch_planning_card(state: WorkflowState) -> NextActionCard:
         recommended_action=RecommendedAction(
             "mcp_call",
             "路线补数 + 确认 VOC ASIN 批次",
-            "路线矩阵确认后，每条保留路线都要补代表 ASIN、主词、Sorftime 流量词和 1688 搜索词，再决定哪 1-2 条进完整深挖。",
+            "路线矩阵确认后，每条保留路线都要补代表 ASIN、主词、Sorftime 流量词和小类 Top100，再决定哪 1-2 条进完整深挖。",
             mcp_tools=[
                 {
                     "tool": "potential_product",
@@ -498,7 +488,6 @@ def _voc_batch_planning_card(state: WorkflowState) -> NextActionCard:
         options=[
             NextActionOption("call_route_extend", "先补路线 ASIN", "用 potential_product 和竞品池把每条路线补齐。"),
             NextActionOption("crawl_route_asins", "按路线抓评论", "每条保留路线单独进入评论导入和 VOC 分析。"),
-            NextActionOption("search_1688_by_route", "按路线搜 1688", "每条路线分别给中文搜索词，避免供应商只覆盖一种款式。"),
             NextActionOption("adjust_route_asins", "调整路线批次", "运营可按路线增删竞品后再抓评论。"),
         ],
         evidence_refs=_refs_from_known_inputs(state),
@@ -571,36 +560,18 @@ def _deep_dive_card(state: WorkflowState) -> NextActionCard:
     )
 
 
-def _profit_compliance_review_card(state: WorkflowState) -> NextActionCard:
-    return NextActionCard(
-        stage=state.stage,
-        decision_required=True,
-        question="是否补利润和知产/合规模板？未补齐时最终只能输出 Wait。",
-        recommended_action=RecommendedAction(
-            "operator_upload",
-            "补利润/合规复核",
-            "利润、知产和合规是 Go/No-Go 的硬门槛。",
-        ),
-        options=[
-            NextActionOption("fill_profit_compliance", "填写并上传模板", "生成更完整的最终报告。"),
-            NextActionOption("skip_and_wait", "暂不填写", "最终结论限制为 Wait/待补。"),
-        ],
-        evidence_refs=_refs_from_known_inputs(state),
-    )
-
-
 def _final_decision_card(state: WorkflowState) -> NextActionCard:
     return NextActionCard(
         stage="final_decision",
         decision_required=False,
-        question="下一步生成最终报告，沉淀交互过程、证据链和 Go/Wait/No-Go 结论。",
+        question="下一步生成市场分析报告，沉淀交互过程、证据链和继续看/谨慎继续/暂缓结论。",
         recommended_action=RecommendedAction(
             "render_report",
-            "生成最终报告",
-            "报告是交互过程的沉淀，不是孤立自动生成的结论。",
+            "生成市场分析报告",
+            "报告是市场证据链的沉淀，不是孤立自动生成的结论。",
         ),
         options=[
-            NextActionOption("render_final_report", "生成报告", "输出 report/summary/dashboard/data。"),
+            NextActionOption("render_final_report", "生成报告", "输出 report/data。"),
             NextActionOption("continue_validation", "继续验证", "保留 Wait 并补下一步动作。"),
         ],
         evidence_refs=_refs_from_known_inputs(state),
@@ -633,7 +604,6 @@ def _missing_inputs_for_stage(
         "voc_batch_planning": ["VOC ASIN 批次确认"],
         "voc_analysis": ["评论插件导出数据"],
         "deep_dive": ["research_package"],
-        "profit_compliance_review": ["利润模板", "知产/合规模板"],
         "final_decision": ["最终报告输出确认"],
     }
     missing = []
@@ -653,8 +623,6 @@ def _known_input_key(label: str) -> str:
         "VOC ASIN 批次确认": "review_asin_batch",
         "评论插件导出数据": "review_voc_package",
         "research_package": "research_package",
-        "利润模板": "profit_template",
-        "知产/合规模板": "ip_compliance_template",
         "最终报告输出确认": "final_report",
     }
     return mapping.get(label, label)

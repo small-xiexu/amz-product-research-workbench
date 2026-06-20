@@ -56,10 +56,10 @@
       },
       "additionalProperties": true
     },
-    "supply_chain_advantages": {
+    "market_structure_advantages": {
       "type": "array",
       "items": { "type": "string" },
-      "description": "Known supply-chain strengths, if any."
+      "description": "Known market or operating strengths that should influence candidate ranking, if any."
     },
     "operator_hypotheses": {
       "type": "array",
@@ -74,8 +74,8 @@
     "risk_tolerance": {
       "type": "object",
       "properties": {
-        "compliance": { "type": "string" },
-        "ip": { "type": "string" },
+        "restricted_category": { "type": "string" },
+        "ip_sensitive": { "type": "string" },
         "return_rate": { "type": "string" },
         "seasonality": { "type": "string" }
       },
@@ -84,7 +84,7 @@
     "deferred_inputs": {
       "type": "array",
       "items": { "type": "string" },
-      "description": "Fields intentionally deferred until candidate profit review."
+      "description": "Fields intentionally deferred until a later product-plan or launch-feasibility review."
     },
     "notes": {
       "type": "string"

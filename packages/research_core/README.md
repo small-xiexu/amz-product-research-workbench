@@ -9,7 +9,7 @@
 - `adapters/`：多数据源适配器，把卖家精灵、Sorftime 等来源转成统一结构
 - `schema/`：Python dataclass 形式的规范化产品、关键词、类目结构
 - `schemas/`：统一数据包结构
-- `rules/`：利润、状态、风险等通用规则
+- `rules/`：市场机会、状态、风险等通用规则
 
 ## 作用
 

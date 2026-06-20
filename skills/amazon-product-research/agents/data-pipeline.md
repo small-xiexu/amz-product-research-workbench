@@ -16,7 +16,6 @@
 - Sorftime MCP 返回结果
 - 卖家精灵导出文件夹
 - 自有评论插件 Excel/HTML
-- 人工补充的利润/合规模板
 
 ## 输出
 
@@ -26,7 +25,7 @@
 | `import_manifest.json` | 卖家精灵导出盘点结果 |
 | `candidate_pool.json` | 候选池和候选方向 |
 | `review_voc/review_voc_package.json` | 评论 VOC 证据包 |
-| `analysis/analysis_evidence_packet.json` | Stage 7 综合预审统一判断 |
+| `analysis/analysis_evidence_packet.json` | Stage 7 市场机会统一判断 |
 | `analysis/analysis_report.xlsx` | Stage 7 Excel 回表 |
 | `research_package.json` | 深挖报告统一输入 |
 | `*_evidence` | 可选 Evidence Packet，按 `references/evidence_packet_contract.md` 组织 |
@@ -51,8 +50,6 @@
 ## 质量要求
 
 - 所有聚合字段必须能追溯回原始文件或 MCP 工具。
-- 1688 采购价只接收 1688 中国站 RMB/CNY 样本；非 `1688.com` 链接、Alibaba 国际站 USD 报价和币种不明样本不得参与价格区间。
-- Stage 7 综合预审数据必须落到 `analysis/`，且不修改 `runs/inputs/` 原始导出。
+- Stage 7 市场机会数据必须落到 `analysis/`，且不修改 `runs/inputs/` 原始导出。
 - Top100 不完整时暂停，不进入正式深挖。
 - 评论样本不足时输出补抓建议，不强行归纳痛点。
-- 利润/合规未回填时只标记 Wait/待补。

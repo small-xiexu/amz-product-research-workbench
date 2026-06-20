@@ -89,20 +89,21 @@ def _base_candidate(candidate_id: str, name: str, status: str, reason: str) -> d
             "recent_asins": [],
             "threshold_note": "真实数据阶段看近半年上架且 BSR 前100或月销量达到 Top100 中位数20%的 ASIN。",
         },
-        "preliminary_profit_space": {
+        "price_band_context": {
             "price_band": "待验证",
-            "size_weight_assumption": "待验证",
-            "fee_pressure": "待验证",
+            "target_entry_band": "待验证",
+            "price_pressure": "待验证",
             "confidence": "低",
+            "note": "仅用于判断市场价格带和新品切入口，不做后置落地测算。",
         },
         "risk_flags": [],
         "return_risk": {"level": "待确认", "source": "待卖家精灵类目退货率"},
-        "ip_compliance_risk": {"level": "待确认"},
+        "market_validation_risk": {"level": "待确认"},
         "data_quality": {
             "completeness": "mock only",
             "variant_policy": "真实数据阶段需标记多 SKU/变体口径",
         },
-        "missing_data": ["Top100", "关键词搜索量", "类目退货率", "竞品池", "知产/合规初筛"],
+        "missing_data": ["Top100", "关键词搜索量", "类目退货率", "竞品池", "评论 VOC"],
         "next_step": "导入卖家精灵手动导出数据后验证；MCP 后续增强。",
         "source_refs": ["mock:candidate_pool"],
     }
@@ -115,12 +116,12 @@ def _home_storage_candidate() -> dict[str, Any]:
         "继续看",
         "符合轻小、非强认证、家居收纳场景，适合进入真实数据验证。",
     )
-    candidate["appearance_reason"] = ["匹配家居收纳方向", "初步不触发强认证", "有组合规格和场景化溢价空间"]
-    candidate["preliminary_profit_space"].update(
+    candidate["appearance_reason"] = ["匹配家居收纳方向", "初步不触发强认证", "有规格组合和场景化溢价空间"]
+    candidate["price_band_context"].update(
         {
             "price_band": "10-30 USD 假设",
-            "size_weight_assumption": "轻小假设",
-            "fee_pressure": "低到中，待 FBA 和头程复核",
+            "target_entry_band": "先验证 15-25 USD 是否有低评有量样本",
+            "price_pressure": "待看低价段是否内卷",
         }
     )
     candidate["risk_flags"] = ["同质化待验证", "低价内卷待验证"]
@@ -129,7 +130,7 @@ def _home_storage_candidate() -> dict[str, Any]:
 
 def _camping_accessory_candidate(risk_text: str) -> dict[str, Any]:
     status = "观察"
-    risk_flags = ["季节性待验证", "合规待确认"]
+    risk_flags = ["季节性待验证", "市场边界待确认"]
     if _contains_any(risk_text.lower(), ["带电", "电池", "battery"]):
         risk_flags.insert(0, "带电/电池风险")
 
@@ -141,16 +142,16 @@ def _camping_accessory_candidate(risk_text: str) -> dict[str, Any]:
     )
     candidate["candidate_type"] = "scenario_direction"
     candidate["appearance_reason"] = ["匹配户外露营场景", "可能有应急备用需求"]
-    candidate["preliminary_profit_space"].update(
+    candidate["price_band_context"].update(
         {
             "price_band": "10 USD 以上假设",
-            "size_weight_assumption": "轻小到中等，待确认",
-            "fee_pressure": "中，待合规和物流复杂度验证",
+            "target_entry_band": "先验证非带电配件是否有稳定需求",
+            "price_pressure": "带电或主灯方向可能提高进入复杂度",
         }
     )
     candidate["risk_flags"] = risk_flags
-    candidate["ip_compliance_risk"] = {"level": "中", "notes": "带电或含电池时需前置合规复核。"}
-    candidate["missing_data"] = ["是否带电/电池", "Top100", "关键词趋势", "CPC", "合规材料"]
+    candidate["market_validation_risk"] = {"level": "中", "notes": "带电或含电池路线不作为当前优先主线，先找非带电配件切入口。"}
+    candidate["missing_data"] = ["是否带电/电池", "Top100", "关键词趋势", "CPC", "评论 VOC"]
     candidate["next_step"] = "先用卖家精灵手动导出数据判断是否有非带电、轻小配件切入点；MCP 后续增强。"
     return candidate
 
@@ -164,7 +165,7 @@ def _generic_lightweight_candidate() -> dict[str, Any]:
     )
     candidate["appearance_reason"] = ["初始意图未给明确大类", "按轻小和非强认证偏好保留观察"]
     candidate["risk_flags"] = ["方向过宽", "需要广域扫描"]
-    candidate["missing_data"] = ["候选市场", "关键词池", "Top100", "竞品池", "风险初筛"]
+    candidate["missing_data"] = ["候选市场", "关键词池", "Top100", "竞品池", "评论 VOC"]
     return candidate
 
 
@@ -178,7 +179,7 @@ def _summary(candidates: list[dict[str, Any]]) -> dict[str, Any]:
         "trial_count": counts["试做"],
         "watch_count": counts["观察"],
         "drop_count": counts["先放弃"],
-        "key_gaps": ["缺真实 Top100 数据", "缺类目退货率", "缺知产/合规初筛"],
+        "key_gaps": ["缺真实 Top100 数据", "缺类目退货率", "缺 VOC 证据"],
     }
 
 

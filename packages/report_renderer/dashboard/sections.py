@@ -46,7 +46,7 @@ def render_dashboard(package: dict) -> str:
         _dashboard_market_section(model),
         _dashboard_keyword_section(model),
         _dashboard_competitor_voc_section(model),
-        _dashboard_profit_risk_section(model),
+        _dashboard_market_score_section(model),
         _dashboard_footer(model),
     ]
     return f"""<!doctype html>
@@ -74,7 +74,7 @@ def _dashboard_model(package: dict[str, Any]) -> dict[str, Any]:
     return_risk = package.get("return_risk", {})
     market = package.get("market_analysis", {})
     market_structure = package.get("market_structure", {})
-    profit = package.get("profit_reference", {})
+    price_band_context = package.get("price_band_context", {})
     voc = package.get("voc_analysis", {})
     status = package.get("status_card", {})
     decision = package.get("decision_review", {})
@@ -91,7 +91,8 @@ def _dashboard_model(package: dict[str, Any]) -> dict[str, Any]:
         "return_risk": return_risk,
         "market": market,
         "market_structure": market_structure,
-        "profit": profit,
+        "price_band_context": price_band_context,
+        "scorecard": (decision.get("go_nogo_scorecard", {}) if isinstance(decision, dict) else {}),
         "voc": voc,
         "status": status,
         "decision": decision,
@@ -142,7 +143,7 @@ def _dashboard_hero(model: dict[str, Any]) -> str:
     next_step = str(status.get("next_step", "待补"))
     status_value = str(status.get("status", "待填"))
     missing_line = "、".join(str(item) for item in (model.get("missing_inputs", []) or [])[:4]) or "暂无"
-    first_fact = _normalize_money_text((decision.get("facts") or ["当前先看市场和结构，再补利润和合规。"])[0], currency_code)
+    first_fact = _normalize_money_text((decision.get("facts") or ["当前先看市场、小类、关键词、竞品和 VOC 证据。"])[0], currency_code)
     title_cn_html = (
         f'<span class="title-cn">{escape(str(model.get("title_cn", "")))}</span>'
         if model.get("title_cn")
@@ -198,16 +199,10 @@ def _dashboard_hero(model: dict[str, Any]) -> str:
 def _dashboard_metric_grid(model: dict[str, Any]) -> str:
     market = model.get("market", {})
     competition = model.get("competition", {})
-    profit = model.get("profit", {})
+    scorecard = model.get("scorecard", {}) if isinstance(model.get("scorecard"), dict) else {}
+    price_band_context = model.get("price_band_context", {}) if isinstance(model.get("price_band_context"), dict) else {}
     data_quality = model.get("data_quality", {})
     currency_code = model.get("currency_code", "USD")
-    base_profit = profit.get("base_fba_gross_profit")
-    post_profit = profit.get("post_ads_returns_gross_profit")
-    profit_note = (
-        f"基础毛利 { _format_money(base_profit, currency_code) }，扣广告和退货后 { _format_money(post_profit, currency_code) }"
-        if isinstance(base_profit, (int, float)) or isinstance(post_profit, (int, float))
-        else f"基础毛利 {base_profit}，扣广告和退货后 {post_profit}"
-    )
     metrics = [
         (
             "市场规模",
@@ -220,9 +215,9 @@ def _dashboard_metric_grid(model: dict[str, Any]) -> str:
             market.get("brand_concentration", "待填"),
         ),
         (
-            "利润参考",
-            profit.get("post_ads_returns_margin", profit.get("base_fba_gross_profit", "待填")),
-            profit_note,
+            "市场机会评分",
+            scorecard.get("weighted_score", "待填"),
+            f"研究结论 {scorecard.get('decision', '待填')}；价格带 {price_band_context.get('top_price_band_by_units', '待补')}",
         ),
         (
             "数据质量",
@@ -235,14 +230,14 @@ def _dashboard_metric_grid(model: dict[str, Any]) -> str:
         if isinstance(value, (int, float)):
             if "share" in label.lower() or "集中度" in label:
                 value_text = _format_percent_or_text(value)
-            elif "利润参考" in label and isinstance(value, (int, float)) and 0 <= value <= 1:
-                value_text = _format_percent_or_text(value)
+            elif label == "市场机会评分":
+                value_text = f"{value:.2f}" if isinstance(value, float) else str(value)
             else:
-                value_text = _format_money(value, currency_code) if label == "利润参考" else _format_number(value)
+                value_text = _format_number(value)
         elif label == "市场规模":
             value_text = _market_size_value_text(value, currency_code)
         else:
-            value_text = _normalize_money_text(value, currency_code) if label in {"市场规模", "利润参考"} else str(value)
+            value_text = _normalize_money_text(value, currency_code) if label == "市场规模" else str(value)
         note_text = _normalize_money_text(note, currency_code) if isinstance(note, str) else str(note)
         cards.append(
             f"""
@@ -586,41 +581,35 @@ def _render_competitor_segments(items: list[dict[str, Any]], currency_code: str 
     """
 
 
-def _dashboard_profit_risk_section(model: dict[str, Any]) -> str:
-    profit = model.get("profit", {})
+def _dashboard_market_score_section(model: dict[str, Any]) -> str:
+    scorecard = model.get("scorecard", {}) if isinstance(model.get("scorecard"), dict) else {}
     decision = model.get("decision", {})
     risks = model.get("risks", []) or []
     missing_inputs = model.get("missing_inputs", []) or []
     currency_code = model.get("currency_code", "USD")
-    cost_breakdown = profit.get("cost_breakdown", {}) if isinstance(profit, dict) else {}
-    profit_cards = [
-        ("基础 FBA 毛利", _format_money(profit.get("base_fba_gross_profit", "待补"), currency_code), "扣除采购、头程、FBA、佣金和仓储后的基础结果"),
-        ("基础毛利率", _format_percent_or_text(profit.get("base_fba_margin")) if profit.get("base_fba_margin") is not None else "待补", "不含广告和退款"),
-        ("扣广告/退货毛利", _format_money(profit.get("post_ads_returns_gross_profit", "待补"), currency_code), "更贴近真实投放后的结果"),
-        ("扣广告/退货毛利率", _format_percent_or_text(profit.get("post_ads_returns_margin")) if profit.get("post_ads_returns_margin") is not None else "待补", "最终是否值得推进的核心参考"),
-    ]
-    cost_rows = []
-    labels = [
-        ("sale_price", "建议售价"),
-        ("purchase_cost", "采购价"),
-        ("first_leg_shipping", "头程费用"),
-        ("fba_fee", "FBA费用"),
-        ("commission", "佣金"),
-        ("storage_fee", "仓储费"),
-        ("inbound_placement_fee", "入库配置费"),
-        ("ad_cost", "广告费"),
-        ("return_loss", "退款损失"),
-    ]
-    for key, label in labels:
-        if key in cost_breakdown:
-            cost_rows.append((label, cost_breakdown.get(key)))
+    dimensions = scorecard.get("dimensions", {}) if isinstance(scorecard.get("dimensions"), dict) else {}
+    score_cards = []
+    for name, payload in list(dimensions.items())[:8]:
+        if not isinstance(payload, dict):
+            continue
+        score = payload.get("score", "待补")
+        weight = payload.get("weight", "")
+        note = payload.get("note", "")
+        score_text = f"{score}/10" if isinstance(score, (int, float)) else str(score)
+        weight_text = _format_percent_or_text(weight) if isinstance(weight, (int, float)) else str(weight)
+        score_cards.append((str(name), score_text, f"权重 {weight_text}；{note}"))
+    if not score_cards:
+        score_cards = [
+            ("市场机会评分", scorecard.get("weighted_score", "待补"), scorecard.get("note", "评分卡待补")),
+            ("研究结论", scorecard.get("decision", "待补"), "只表示是否值得继续研究，不代表进入后置落地。"),
+        ]
     risk_cards = []
     for risk in risks[:6]:
         if isinstance(risk, dict):
             risk_cards.append(risk)
     if not risk_cards:
         risk_cards = [
-            {"dimension": "风险矩阵", "level": "待填", "basis": "还没有回填到这一步。", "next_check": "等利润和合规填完后再看。"}
+            {"dimension": "风险矩阵", "level": "待填", "basis": "小类、关键词、竞品和 VOC 证据仍待补。", "next_check": "先补能改变市场机会结论的证据。"}
         ]
     missing_line = "、".join(str(item) for item in missing_inputs[:8]) or "暂无"
     return f"""
@@ -635,19 +624,21 @@ def _dashboard_profit_risk_section(model: dict[str, Any]) -> str:
   <div class="two-col">
     <div class="subpanel">
       <div class="grid-2">
-        {''.join(_render_info_card(label, value, note) for label, value, note in profit_cards)}
+        {''.join(_render_info_card(label, value, note) for label, value, note in score_cards)}
       </div>
       <div class="section-header" style="margin-top:18px; margin-bottom:10px;">
         <div>
-          <div class="eyebrow">Cost Breakdown</div>
-          <h3 class="section-title" style="font-size:22px;">利润拆分</h3>
+          <div class="eyebrow">Opportunity Gate</div>
+          <h3 class="section-title" style="font-size:22px;">继续研究门槛</h3>
         </div>
       </div>
-      <div class="note-item" style="margin-bottom:12px;">本页金额按上方统一口径展示；模板里的成本项会自动换算后汇总。</div>
+      <div class="note-item" style="margin-bottom:12px;">当前看板只判断市场机会和继续研究优先级；后置落地判断不在本阶段输出。</div>
       <table class="table">
         <thead><tr><th>项目</th><th>值</th></tr></thead>
         <tbody>
-          {''.join(f'<tr><td>{escape(str(label))}</td><td>{escape(_format_money(value, currency_code) if isinstance(value, (int, float)) else str(value))}</td></tr>' for label, value in cost_rows) if cost_rows else '<tr><td class="muted">利润明细待补</td><td class="muted">-</td></tr>'}
+          <tr><td>加权总分</td><td>{escape(str(scorecard.get('weighted_score', '待补')))}</td></tr>
+          <tr><td>研究结论</td><td>{escape(str(scorecard.get('decision', '待补')))}</td></tr>
+          <tr><td>限制原因</td><td>{escape('、'.join(map(str, scorecard.get('gating_reasons', []) or [])) or '暂无')}</td></tr>
         </tbody>
       </table>
     </div>

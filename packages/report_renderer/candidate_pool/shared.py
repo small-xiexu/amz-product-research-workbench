@@ -38,7 +38,7 @@ def _sorted_candidates(candidate_pool: dict[str, Any]) -> list[dict[str, Any]]:
 def _decision_text(candidate: dict[str, Any]) -> str:
     status = candidate.get("status")
     if status in ("继续看", "试做"):
-        return "可进入深挖候选，但正式结论需补评论、竞品池、利润和风险复核"
+        return "可进入深挖候选，但正式结论需补评论、竞品池、关键词和市场风险证据"
     if status == "观察":
         return "先补关键缺口或换一批数据复核，再决定是否深挖"
     if status == "先放弃":
@@ -197,7 +197,7 @@ def _review_asin_lines(candidate: dict[str, Any]) -> list[str]:
 def _risk_lines(candidate: dict[str, Any]) -> list[str]:
     lines = [str(item) for item in candidate.get("risk_flags", []) if item]
     return_risk = candidate.get("return_risk", {})
-    ip_risk = candidate.get("ip_compliance_risk", {})
+    validation_risk = candidate.get("market_validation_risk", {})
     if return_risk.get("level"):
         text = f"退货风险：{return_risk.get('level')}"
         if return_risk.get("market_return_rate") is not None:
@@ -205,10 +205,10 @@ def _risk_lines(candidate: dict[str, Any]) -> list[str]:
         if return_risk.get("category_return_rate") is not None:
             text += f"，类目退货率 {_percent(return_risk.get('category_return_rate'))}"
         lines.append(text)
-    if ip_risk.get("level"):
-        text = f"知产/合规：{ip_risk.get('level')}"
-        if ip_risk.get("notes"):
-            text += f"，{ip_risk.get('notes')}"
+    if validation_risk.get("level"):
+        text = f"市场验证风险：{validation_risk.get('level')}"
+        if validation_risk.get("notes"):
+            text += f"，{validation_risk.get('notes')}"
         lines.append(text)
     return lines
 

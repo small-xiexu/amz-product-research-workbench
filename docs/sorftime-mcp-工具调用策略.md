@@ -1,23 +1,24 @@
 # Sorftime MCP 工具调用策略
 
-更新日期：2026-06-19
+更新日期：2026-06-20
 
-Sorftime MCP 用来补齐 Amazon 实时类目、参考 ASIN、关键词需求、自然位和 1688 粗供给信号。调用目标是提高判断质量，不以节省积分或减少调用为主要约束。
+Sorftime MCP 用来补齐 Amazon 实时类目、参考 ASIN、关键词需求、自然位、类目趋势和热销特征。调用目标是提高判断质量，不以节省积分或减少调用为主要约束。
 
 核心顺序：
 
 ```text
-初始方向/种子词 -> 候选类目 -> 参考 ASIN -> ASIN 反查词 -> 运营式关键词池 -> 类目/词/供应链交叉验证
+Stage 1 快探 -> Stage 5.1 评论前轻量路线校准 -> Stage 7 正式深扫
+
+初始方向/种子词 -> 候选类目 -> 参考 ASIN -> ASIN 反查词 -> 运营式关键词池 -> 类目/词/VOC 交叉验证
 ```
 
 ## 数据分工
 
 | 数据源 | 主要用途 | 不能替代 |
 |---|---|---|
-| Sorftime MCP | 类目搜索、类目 Top100、类目趋势、关键词详情、关键词扩展、关键词搜索结果、ASIN 流量词、竞品关键词、1688 粗信号 | 卖家精灵 ABA、卖家精灵完整 Top100、评论 VOC、运营利润回填 |
+| Sorftime MCP | 类目搜索、类目 Top100、类目趋势、关键词详情、关键词扩展、关键词搜索结果、ASIN 流量词、竞品关键词、热销特征 | 卖家精灵 ABA、卖家精灵完整 Top100、评论 VOC |
 | 卖家精灵 | 市场容量、Top100 历史明细、关键词反查、ABA、价格带、集中度、新品榜/新品样本 | Sorftime 实时类目、ASIN 流量词、MCP 工具快探 |
-| 评论插件 | 差评痛点、好评驱动、规格/测试项 | 搜索量、类目容量、供应链报价 |
-| 1688 插件 / Sorftime 1688 | 中国站 RMB 粗供给和候选款 | 最终采购价、利润、合规判断 |
+| 评论插件 | 差评痛点、好评驱动、规格/测试项 | 搜索量、类目容量、价格带分布 |
 
 ## Stage 1 快探
 
@@ -29,7 +30,6 @@ Stage 1 的目标是建立候选 ASIN 和候选类目，不用关键词直接定
 | `category_report` | 每个候选类目 nodeId | 看 Top100 体量、价格、集中度、新品、代表 ASIN |
 | `keyword_search_results` | 种子词、路线词、候选词 | 看搜索结果是否为相似产品，识别混池 |
 | `keyword_detail` | 种子词、路线词、候选词 | 记录月搜、CPC、竞争量，只作需求信号 |
-| `ali1688_similar_product` | 每条候选路线中文供应链词 | 看 1688 中国站 RMB 粗供给 |
 
 建议补充：
 
@@ -45,12 +45,37 @@ Stage 1 输出到快探结论时，必须包含：
 - 候选类目池：类目名、nodeId、角色、来源、风险标签。
 - 关键词入口：只说明用于找竞品或验证流量。
 - 主要混池：场景、产品形态、品牌、材质、耗材、配件等。
-- 1688 粗信号：中文词、RMB 报价范围、有效/无效样本说明。
+- 价格带上下文：候选市场价格分布、销量集中带、目标切入口。
 - 卖家精灵下一步导出清单：大类、小类、参考 ASIN、反查词、ABA、新品数据。
+
+## Stage 5.1 评论前轻量路线校准
+
+Stage 5.1 的目标是在评论插件采集前校正路线边界和 VOC ASIN 批次。它不追求完整深扫，不输出最终机会判断，也不能替代 Stage 7 的 `search_demand_evidence`。
+
+默认输出：
+
+```text
+runs/<run_id>/mcp/route_sorftime_calibration.json
+```
+
+| 模块 | 必调或复用工具 | 最低覆盖 | 判断用途 |
+|---|---|---|---|
+| 候选类目 | `category_report`、`category_trend` 或 `category_report_from_history` | 入围小类或混池高风险类目 | 判断路线是否落在同一市场、是否有淡旺季或集中度风险 |
+| 代表 ASIN | `product_traffic_terms` | 2-3 个 ASIN：主线标杆、高客单/升级、新品或低评有量样本 | 判断 VOC ASIN 是否代表真实流量入口 |
+| 核心词扩展 | `keyword_extends` | 1-2 个核心词 | 发现场景词、长尾词、混池词和排除词 |
+| 关键词详情 | `keyword_detail` | 主线词、场景词或精准长尾词 | 快速判断词量、CPC、竞争量和产品意图 |
+| 混池复核 | `keyword_search_results` 或 `competitor_product_keywords` | 混池词、升级款词或场景词按需补查 | 决定是否降级、对照或排除 |
+
+输出必须包含：
+
+- 路线边界：保留、观察、合并、排除。
+- VOC ASIN 批次调整：保留、补抓、替换、对照或排除。
+- Stage 7 深扫待办：类目、ASIN、关键词。
+- `data_gaps`：工具不可用、样本不足、返回异常或需要运营补导的点。
 
 ## Stage 7 深扫
 
-Stage 7 的目标是支撑综合预审报告。即使 Stage 1 已经调用过，也要围绕确认路线、参考 ASIN Top5/Top10、候选大小类目、运营式关键词池和 1688 中文词补齐证据。
+Stage 7 的目标是支撑市场机会报告。即使 Stage 1 已经调用过、Stage 5.1 已经完成轻量校准，也要围绕确认路线、参考 ASIN Top5/Top10、候选大小类目和运营式关键词池补齐证据。
 
 | 模块 | 必调或复用工具 | 最低覆盖 |
 |---|---|---|
@@ -62,7 +87,6 @@ Stage 7 的目标是支撑综合预审报告。即使 Stage 1 已经调用过，
 | ASIN 流量词 | `product_traffic_terms` | 每条保留路线 Top5/Top10 参考 ASIN，至少主推代表、高销量对照、新品样本、高客单对照 |
 | 竞品自然位词 | `competitor_product_keywords` | 主推/升级路线参考 ASIN |
 | 热销特征 | `similar_product_feature` | 最终入围路线 |
-| 供应链粗信号 | `ali1688_similar_product` | 每条保留路线中文供应链词 |
 
 Stage 7 输出必须落到 `search_demand_evidence`，至少包含：
 
@@ -73,7 +97,6 @@ Stage 7 输出必须落到 `search_demand_evidence`，至少包含：
 - `keyword_validation`
 - `category_seasonality`
 - `hot_product_features`
-- `sorftime_1688_signal`
 - `seller_sprite_conflicts`
 - `data_gaps`
 
@@ -291,7 +314,7 @@ Stage 7 输出必须落到 `search_demand_evidence`，至少包含：
 
 #### `similar_product_feature`
 
-查同类热销品共有特征，用于提炼规格、卖点和供应链验证项。
+查同类热销品共有特征，用于提炼规格、卖点和体验验证项。
 
 ```text
 必填：
@@ -299,23 +322,6 @@ Stage 7 输出必须落到 `search_demand_evidence`，至少包含：
 常用可选：
   amzSite: "<站点>"
 ```
-
-#### `ali1688_similar_product`
-
-在 1688 中国站搜索同类采购货源，返回人民币采购价区间和供应商信息。用于早期粗估供应链承接，不替代运营手填的精确利润复核。
-
-```text
-必填：
-  searchName: "<中文品类词或供应链搜索词>"
-```
-
-采购价口径：
-
-- 原始来源必须是 1688 中国站：`https://www.1688.com/` 或 `*.1688.com` 详情页。
-- 默认只看 RMB/CNY 报价；折 USD 只作展示，不作为原始采购价来源。
-- `searchName` 必须使用中文品类词、中文场景词或供应链行话。
-- 非 1688 来源或币种不是 RMB/CNY 的样本，只能记录为待复核/无效样本。
-- 返回价不等于最终到手成本，还要补 SKU 实际价、运费、包装、头程、关税、质检、损耗。
 
 ## 已知陷阱
 
@@ -348,7 +354,6 @@ Sorftime 输出优先写入 `search_demand_evidence`，必要时同步给候选�
     "keyword_validation": [],
     "category_seasonality": [],
     "hot_product_features": [],
-    "sorftime_1688_signal": [],
     "seller_sprite_conflicts": [],
     "data_gaps": []
   }

@@ -39,7 +39,7 @@
 | `price_band_opportunity` | 价格段销量、销售额、商品数、评论门槛、集中度、新品表现和目标价格带机会 |
 | `brand_concentration` | Top3/Top10 品牌集中度、头部品牌角色，按小类目和价格段拆分 |
 | `product_concentration` | Top3/Top10 商品集中度，标记是否被少数 ASIN 拉高 |
-| `seller_structure` | 中国卖家占比、FBA/FBM 或可得卖家结构 |
+| `seller_structure` | 卖家所在地、卖家类型或可得卖家结构 |
 | `new_release_opportunity` | 近半年新品占比、新品放量样本、低评论样本、新品榜/榜单机会 |
 | `keyword_competitor_validation` | ABA、关键词反查和搜索结果对产品路线的验证，不替代 Search Demand Agent 的词表分层 |
 | `route_market_fit` | 各路线在卖家精灵数据中的价格、销量、评论门槛和新品机会 |
@@ -126,6 +126,6 @@ Market Structure Agent 要给综合预审报告提供可读结论，而不是只
 ## 交给主 Agent 的关键问题
 
 - 这个市场是否有足够体量支撑新品进入？
-- 价格带是否能容纳目标成本和利润？
+- 目标价格带是否存在低评有量或新品放量样本？
 - 头部品牌集中度是否构成进入壁垒？
 - 新品有没有真实放量样本？

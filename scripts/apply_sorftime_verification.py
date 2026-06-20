@@ -35,8 +35,8 @@ The sorftime_verification.json must follow this schema:
     "gap_opportunities": ["<route-specific long-tail keyword>"]
   },
   "category_report_snapshot": {
-    "category_name": "Squeegees",
-    "nodeId": "2245500011",
+    "category_name": "<target subcategory>",
+    "nodeId": "<target category node id>",
     "products": [
       {
         "asin": "B0XXXXX",
@@ -50,17 +50,12 @@ The sorftime_verification.json must follow this schema:
       }
     ]
   },
-  "supply_chain_signal": {
-    "searchName": "<目标中文品类词>",
-    "exchange_rate": 7.2,
-    "products": [
-      {
-        "title": "1688 sample",
-        "price": "12-18",
-        "supplier": "示例供应商"
-      }
-    ]
-  }
+  "hot_product_features": [
+    {
+      "feature": "example recurring feature",
+      "evidence": "observed in similar top products"
+    }
+  ]
 }
 
 Claude should write this JSON to a file and then call this script.

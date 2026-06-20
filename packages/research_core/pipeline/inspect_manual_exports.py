@@ -25,7 +25,7 @@ REQUIRED_SOURCE_TYPES = [
 SHEET_RULES: dict[str, dict[str, list[str]]] = {
     "product_candidates": {
         "required": ["ASIN", "商品标题", "品牌", "类目路径", "月销量", "月销售额($)", "价格($)", "评分数", "评分", "上架时间"],
-        "optional": ["父ASIN", "小类BSR", "FBA($)", "毛利率", "卖家所属地", "商品重量", "商品尺寸", "包装重量", "包装尺寸"],
+        "optional": ["父ASIN", "小类BSR", "卖家所属地", "商品重量", "商品尺寸", "包装重量", "包装尺寸"],
     },
     "brand_summary": {
         "required": ["品牌", "月销量", "月销售额($)", "平均价格($)", "市场份额"],

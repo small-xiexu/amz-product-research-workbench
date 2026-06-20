@@ -17,18 +17,18 @@
     "new_listing_opportunity": "近半年新品有一定销量优先",
     "return_rate": "优先接近类目平均，倾向低于 10%"
   },
-  "supply_chain_advantages": ["塑料件", "五金小件", "户外配件"],
+  "market_structure_advantages": ["轻小件运营经验", "家居/户外小类目观察经验", "可做规格组合"],
   "operator_hypotheses": [
     "希望找到能通过搭配、新卖点或规格组合做出溢价的方向",
     "不希望一开始就进入高退货率或强认证品类"
   ],
   "product_flags": ["带电/电池谨慎", "食品接触谨慎"],
   "risk_tolerance": {
-    "compliance": "强认证优先排除",
-    "ip": "外观/功能侵权高风险优先排除",
+    "restricted_category": "强认证优先排除",
+    "ip_sensitive": "外观/功能侵权高风险优先排除",
     "return_rate": "高于类目平均时标高风险",
     "seasonality": "不接受纯强季节品"
   },
-  "deferred_inputs": ["purchase_cost", "fba_fee", "actual_weight_g", "volume_weight_g", "inbound_placement_fee"],
+  "deferred_inputs": ["样品测试", "供应商验证", "产品方案评估"],
   "notes": "这是选品入口样例，不代表已经选定具体产品。"
 }

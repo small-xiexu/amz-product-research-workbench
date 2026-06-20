@@ -115,8 +115,8 @@ def render_markdown(candidate_pool: dict[str, Any]) -> str:
             "",
             "## 使用边界",
             "- 本报告用于候选方向预审，只判断是否值得进入正式深挖。",
-            "- 利润、退货、知产和合规仍为早期提示，不能替代运营复核。",
-            "- 进入深挖后才接入评论/VOC、Top10 标杆组、近半年新品组和利润复核。",
+            "- 价格带、退货和体验风险仅用于市场机会判断，不输出后置落地结论。",
+            "- 进入深挖后才接入评论/VOC、Top10 标杆组、近半年新品组和市场机会评分。",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -156,7 +156,7 @@ def _first_next_step(candidates: list[dict[str, Any]]) -> str:
 def _competition_lines(candidate: dict[str, Any]) -> list[str]:
     competition = candidate.get("competition_structure", {})
     new_listing = candidate.get("new_listing_opportunity", {})
-    profit = candidate.get("preliminary_profit_space", {})
+    price_context = candidate.get("price_band_context", {})
     lines: list[str] = []
     if competition.get("sample_product_count") is not None:
         lines.append(f"样本商品数：{_number(competition.get('sample_product_count'))}")
@@ -175,8 +175,10 @@ def _competition_lines(candidate: dict[str, Any]) -> list[str]:
         lines.append(f"近半年新品数：{_number(new_listing.get('new_listing_count_6m'))}")
     if new_listing.get("new_listing_avg_monthly_units") is not None:
         lines.append(f"近半年新品月均销量：{_number(new_listing.get('new_listing_avg_monthly_units'))}")
-    if profit.get("top_price_band_by_units"):
-        lines.append(f"销量集中价格带：{profit.get('top_price_band_by_units')}")
+    if price_context.get("top_price_band_by_units"):
+        lines.append(f"销量集中价格带：{price_context.get('top_price_band_by_units')}")
+    elif price_context.get("price_band"):
+        lines.append(f"价格带上下文：{price_context.get('price_band')}")
     if competition.get("notes"):
         lines.append(str(competition.get("notes")))
     return [line for line in lines if line]

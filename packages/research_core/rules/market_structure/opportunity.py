@@ -37,7 +37,7 @@ def opportunity_clues(cross_analysis: list[dict[str, Any]]) -> list[str]:
                 clues.append(f"{analysis.get('label')}：{cell.get('row')} x {cell.get('column')} 样本少但有销量，需确认是否真机会。")
             if len(clues) >= 5:
                 return clues
-    return clues or ["当前先输出结构线索，机会判断需结合完整 Top100、评论和利润复核。"]
+    return clues or ["当前先输出结构线索，机会判断需结合完整 Top100、评论和关键词复核。"]
 
 
 def opportunity_type(row_value: str, column_value: str, items: list[dict[str, Any]]) -> str:
@@ -98,9 +98,9 @@ def opportunity_judgment_summary(opportunity_judgments: list[dict[str, Any]]) ->
 
 def next_check_for_opportunity(opportunity: str) -> str:
     if opportunity == "真机会":
-        return "优先结合 VOC、竞品深拆和利润模板确认是否可进入产品方案。"
+        return "优先结合 VOC、竞品深拆和关键词/小类目证据确认是否可进入产品方案。"
     if opportunity == "伪机会":
-        return "不作为主线机会，除非评论或供应链证据能解释销量偏弱原因。"
+        return "不作为主线机会，除非评论或关键词证据能解释销量偏弱原因。"
     return "需要补评论、样品结构、关键词或运营标签复核后再判断。"
 
 

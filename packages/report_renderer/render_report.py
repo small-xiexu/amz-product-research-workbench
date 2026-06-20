@@ -23,7 +23,6 @@ from pathlib import Path
 from packages.report_renderer.constants import FORMAL_REPORT_SECTION_TITLES
 from packages.report_renderer.markdown import render_markdown, render_summary
 from packages.report_renderer.html_report import render_report_html
-from packages.report_renderer.dashboard import render_dashboard
 from packages.report_renderer.workbook import _write_xlsx, render_data_workbook
 
 __all__ = [
@@ -31,7 +30,6 @@ __all__ = [
     "render_markdown",
     "render_report_html",
     "render_summary",
-    "render_dashboard",
     "render_data_workbook",
     "FORMAL_REPORT_SECTION_TITLES",
     "_write_xlsx",
@@ -48,8 +46,8 @@ def build_outputs(input_path: str, output_dir: str) -> None:
     )
     (out / "report.md").write_text(render_markdown(package), encoding="utf-8")
     (out / "report.html").write_text(render_report_html(package), encoding="utf-8")
-    (out / "summary.md").write_text(render_summary(package), encoding="utf-8")
-    (out / "dashboard.html").write_text(render_dashboard(package), encoding="utf-8")
+    for legacy_name in ("summary.md", "dashboard.html"):
+        (out / legacy_name).unlink(missing_ok=True)
     render_data_workbook(package, out / "data.xlsx")
 
 

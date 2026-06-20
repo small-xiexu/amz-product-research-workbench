@@ -15,11 +15,7 @@ from packages.research_core.contracts import (
     validate_review_voc_package,
     validate_workflow_state,
 )
-from packages.research_core.pipeline.apply_ip_compliance_review import apply_ip_compliance_review, read_ip_compliance_review
-from packages.research_core.pipeline.apply_profit_review import apply_profit_review, read_profit_inputs
 from packages.research_core.pipeline.build_candidate_pool_from_import_manifest import build_candidate_pool
-from packages.research_core.pipeline.build_ip_compliance_template import render_ip_compliance_template
-from packages.research_core.pipeline.build_profit_template import render_profit_template
 from packages.research_core.pipeline.build_research_package_from_candidate import build_research_package
 from packages.research_core.pipeline.build_review_voc_from_plugin_export import (
     build_voc_package,
@@ -43,8 +39,6 @@ class WorkflowConfig:
     candidate_id: str = ""
     candidate_name: str = ""
     review_inputs: tuple[Path, ...] = ()
-    profit_template: Path | None = None
-    ip_compliance_template: Path | None = None
     sorftime_verification: Path | None = None
     workflow_state: Path | None = None
 
@@ -100,24 +94,6 @@ def run_research_workflow(config: WorkflowConfig) -> WorkflowResult:
     research_package = build_research_package(candidate_pool, candidate_id, voc_package)
     validate_research_package(research_package)
 
-    profit_template_path = output_dir / "profit_review_template.xlsx"
-    render_profit_template(research_package, profit_template_path)
-    profit_inputs = read_profit_inputs(config.profit_template.expanduser().resolve()) if config.profit_template else None
-    if profit_inputs is not None:
-        research_package = apply_profit_review(research_package, profit_inputs)
-        validate_research_package(research_package)
-
-    ip_compliance_template_path = output_dir / "ip_compliance_review_template.xlsx"
-    render_ip_compliance_template(research_package, ip_compliance_template_path)
-    ip_compliance_review = (
-        read_ip_compliance_review(config.ip_compliance_template.expanduser().resolve())
-        if config.ip_compliance_template
-        else None
-    )
-    if ip_compliance_review is not None:
-        research_package = apply_ip_compliance_review(research_package, ip_compliance_review)
-        validate_research_package(research_package)
-
     workflow_state = _load_optional_json(config.workflow_state, "Workflow state")
     if workflow_state is not None:
         validate_workflow_state(workflow_state)
@@ -137,10 +113,6 @@ def run_research_workflow(config: WorkflowConfig) -> WorkflowResult:
         voc_package=voc_package,
         final_report_dir=final_report_dir,
         research_package=research_package,
-        profit_template_path=profit_template_path,
-        profit_applied=profit_inputs is not None,
-        ip_compliance_template_path=ip_compliance_template_path,
-        ip_compliance_applied=ip_compliance_review is not None,
         workflow_trace=research_package.get("workflow_trace", {}),
     )
     workflow_summary_json_path = output_dir / "workflow_summary.json"
@@ -216,16 +188,10 @@ def build_workflow_summary(
     voc_package: dict[str, Any] | None,
     final_report_dir: Path,
     research_package: dict[str, Any],
-    profit_template_path: Path,
-    profit_applied: bool,
-    ip_compliance_template_path: Path,
-    ip_compliance_applied: bool,
     workflow_trace: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     data_quality = manifest.get("data_quality", {})
     voc_summary = voc_package.get("summary", {}) if voc_package else {}
-    profit_review = research_package.get("profit_review", {}) if profit_applied else {}
-    ip_compliance_review = research_package.get("ip_compliance_review", {}) if ip_compliance_applied else {}
     workflow_state = workflow_trace.get("workflow_state", {}) if isinstance(workflow_trace, dict) else {}
     decision_log = workflow_trace.get("decision_log", []) if isinstance(workflow_trace, dict) else []
     return {
@@ -247,20 +213,6 @@ def build_workflow_summary(
             "asin_count": voc_summary.get("asin_count", 0),
             "low_rating_count": voc_summary.get("low_rating_count", 0),
         },
-        "profit_review": {
-            "template": str(profit_template_path),
-            "applied": profit_applied,
-            "status": profit_review.get("status") if profit_applied else "待填写模板",
-            "missing_fields": profit_review.get("missing_fields", []) if profit_applied else [],
-        },
-        "ip_compliance_review": {
-            "template": str(ip_compliance_template_path),
-            "applied": ip_compliance_applied,
-            "status": ip_compliance_review.get("status") if ip_compliance_applied else "待填写模板",
-            "overall_level": ip_compliance_review.get("overall_level") if ip_compliance_applied else "待复核",
-            "missing_fields": ip_compliance_review.get("missing_fields", []) if ip_compliance_applied else [],
-            "pending_fields": ip_compliance_review.get("pending_fields", []) if ip_compliance_applied else [],
-        },
         "interactive_workflow": {
             "enabled": bool(workflow_state),
             "workflow_id": workflow_state.get("workflow_id"),
@@ -273,12 +225,8 @@ def build_workflow_summary(
             "import_manifest": str(output_dir / "import_manifest.json"),
             "candidate_pool": str(output_dir / "candidate_pool.json"),
             "research_package": str(output_dir / "research_package.json"),
-            "profit_template": str(profit_template_path),
-            "ip_compliance_template": str(ip_compliance_template_path),
             "final_report": str(final_report_dir / "report.md"),
             "web_report": str(final_report_dir / "report.html"),
-            "summary": str(final_report_dir / "summary.md"),
-            "dashboard": str(final_report_dir / "dashboard.html"),
             "data_workbook": str(final_report_dir / "data.xlsx"),
         },
     }
@@ -288,8 +236,6 @@ def render_workflow_summary(summary: dict[str, Any]) -> str:
     candidate = summary["selected_candidate"]
     sources = summary["seller_sprite_sources"]
     voc = summary["review_voc"]
-    profit = summary["profit_review"]
-    ip_compliance = summary["ip_compliance_review"]
     interactive = summary.get("interactive_workflow", {})
     outputs = summary["outputs"]
     lines = [
@@ -299,20 +245,12 @@ def render_workflow_summary(summary: dict[str, Any]) -> str:
         f"- 卖家精灵来源：{', '.join(sources.get('available', [])) or '无'}",
         f"- 缺失来源：{', '.join(sources.get('missing', [])) or '无'}",
         f"- 评论 VOC：{'已接入' if voc.get('enabled') else '未接入'}",
-        f"- 利润复核：{profit.get('status') if profit.get('applied') else '待填写模板'}",
-        f"- 知产/合规初筛：{ip_compliance.get('status') if ip_compliance.get('applied') else '待填写模板'}"
-        + (f" / 整体风险 {ip_compliance.get('overall_level')}" if ip_compliance.get("applied") else ""),
     ]
     if interactive.get("enabled"):
         lines.append(
             f"- 交互式流程：{interactive.get('workflow_id')} / {interactive.get('mode')} / "
             f"{interactive.get('stage')}，决策记录 {interactive.get('decision_count', 0)} 条"
         )
-    if profit.get("missing_fields"):
-        lines.append(f"- 利润待补：{', '.join(profit.get('missing_fields', []))}")
-    unresolved_ip = [*ip_compliance.get("missing_fields", []), *ip_compliance.get("pending_fields", [])]
-    if unresolved_ip:
-        lines.append(f"- 知产/合规待补或待复核：{', '.join(str(item) for item in unresolved_ip)}")
     if voc.get("enabled"):
         lines.extend(
             [

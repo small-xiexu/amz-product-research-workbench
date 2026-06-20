@@ -15,6 +15,7 @@ from packages.research_core.pipeline.build_research_package_from_candidate impor
     _build_competitor_deep_dive,
     _build_review_sources,
     _build_voc_analysis,
+    _apply_market_boundary_quality,
     _brand_concentration_text,
     _collect_voc_evidence,
     _competitor_items,
@@ -24,7 +25,6 @@ from packages.research_core.pipeline.build_research_package_from_candidate impor
     _return_rate_text,
     _select_candidate,
     _seller_concentration_text,
-    _supply_chain_purchase_cost_text,
 )
 
 
@@ -56,11 +56,11 @@ def build_research_data_packet(
 
     metadata = candidate_pool.get("metadata", {}) if isinstance(candidate_pool.get("metadata"), dict) else {}
     source_brief = candidate_pool.get("source_brief", {}) if isinstance(candidate_pool.get("source_brief"), dict) else {}
-    profit_space = candidate.get("preliminary_profit_space", {}) if isinstance(candidate.get("preliminary_profit_space"), dict) else {}
-    supply_chain_signal = profit_space.get("supply_chain_signal", {}) if isinstance(profit_space.get("supply_chain_signal"), dict) else {}
-    competitor_candidates = candidate.get("competitor_candidates", {}) if isinstance(candidate.get("competitor_candidates"), dict) else {}
+    price_band_context = candidate.get("price_band_context", {}) if isinstance(candidate.get("price_band_context"), dict) else {}
     market_structure = _build_packet_market_structure(candidate_pool, candidate)
     candidate["market_structure"] = market_structure
+    candidate = _apply_market_boundary_quality(candidate)
+    competitor_candidates = candidate.get("competitor_candidates", {}) if isinstance(candidate.get("competitor_candidates"), dict) else {}
 
     voc_review_sources = _build_review_sources(voc_package)
     return {
@@ -79,14 +79,10 @@ def build_research_data_packet(
             "preference_rules": source_brief.get("preference_rules", {}),
         },
         "operator_inputs": {
-            "target_price_range": profit_space.get("price_band", "待补"),
-            "purchase_cost": _supply_chain_purchase_cost_text(supply_chain_signal),
-            "exchange_rate": "待补",
-            "fba_fee": "待补",
-            "storage_fee": "按建议售价 3% 待算",
-            "inbound_placement_fee": "待补",
-            "ad_rate_assumption": 0.2,
-            "return_rate_assumption": "待补",
+            "target_price_range": price_band_context.get("top_price_band_by_units", "待补"),
+            "avg_price_usd": price_band_context.get("avg_price_usd"),
+            "price_band_units_share": price_band_context.get("top_price_band_units_share"),
+            "note": price_band_context.get("note", "仅用于市场价格带判断，不做后置落地测算。"),
         },
         "product_flags": candidate.get("risk_flags", []),
         "raw_sources": {
@@ -121,21 +117,16 @@ def build_research_data_packet(
             "top10": _competitor_items(competitor_candidates.get("top10", [])),
             "recent_winners": _competitor_items(competitor_candidates.get("recent_winners", [])),
             "structure_supplement": _competitor_items(competitor_candidates.get("structure_supplement", [])),
+            "market_boundary_audit": candidate.get("market_boundary_audit", {}),
         },
-        "profit_reference": {
-            "base_fba_gross_profit": "待补",
-            "base_fba_margin": "待补",
-            "post_ads_returns_gross_profit": "待补",
-            "post_ads_returns_margin": "待补",
-            "preliminary_profit_space": profit_space,
-            "supply_chain_signal": profit_space.get("supply_chain_signal", {}),
-        },
+        "price_band_context": price_band_context,
         "return_risk": candidate.get("return_risk", {}),
-        "ip_screening": candidate.get("ip_compliance_risk", {}),
-        "compliance_screening": candidate.get("ip_compliance_risk", {}),
         "review_sources": voc_review_sources,
         "voc_analysis": _build_voc_analysis(voc_package),
-        "competitor_deep_dive": _build_competitor_deep_dive(competitor_candidates),
+        "competitor_deep_dive": _build_competitor_deep_dive(
+            competitor_candidates,
+            candidate.get("demand_evidence", {}).get("sorftime_traffic_terms", {}) if isinstance(candidate.get("demand_evidence"), dict) else {},
+        ),
         "workspace_views": {
             "candidate_card": candidate,
         },

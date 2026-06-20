@@ -1,13 +1,13 @@
 # Evidence Packet 契约
 
-Evidence Packet 是多 Agent 协作的交接单位。每个数据源专家 Agent 只输出证据包，不直接给最终 Go/No-Go。资深亚马逊运营主 Agent 只能基于这些证据包和 `research_package.json` 做综合判断。
+Evidence Packet 是多 Agent 协作的交接单位。每个数据源专家 Agent 只输出证据包，不直接给最终进入结论。资深亚马逊运营主 Agent 只能基于这些证据包和 `research_package.json` 做综合市场机会判断。
 
 ## 通用结构
 
 ```json
 {
   "packet_id": "market_structure_evidence",
-  "packet_version": "P30.1",
+  "packet_version": "P32",
   "agent_role": "Market Structure Agent",
   "source_scope": ["SellerSprite"],
   "created_at": "YYYY-MM-DD",
@@ -41,7 +41,7 @@ Evidence Packet 是多 Agent 协作的交接单位。每个数据源专家 Agent
 | `agent_role` | 是 | 产出该包的 Agent 角色 |
 | `source_scope` | 是 | 该包允许使用的数据源范围 |
 | `input_refs` | 是 | 原始文件、MCP 工具返回或中间 JSON |
-| `execution_provenance` | 是 | 说明该包由真实子 Agent、主 Agent 串行降级、脚本生成或历史导入；用于 QA 检查证据来源，不要求所有包都是真实子 Agent |
+| `execution_provenance` | 是 | 说明该包由真实子 Agent、主 Agent 串行降级、脚本生成或历史导入；用于 QA 检查证据来源 |
 | `facts` | 是 | 可直接追溯的数据事实，禁止写主观结论 |
 | `derived_metrics` | 否 | 由 facts 计算出的聚合指标 |
 | `insights_for_handoff` | 否 | 给主 Agent 的解释性观察，必须标事实/推断 |
@@ -56,9 +56,7 @@ Evidence Packet 是多 Agent 协作的交接单位。每个数据源专家 Agent
 | `market_structure_evidence` | Market Structure Agent | 卖家精灵市场、Top100、ABA、关键词反查 |
 | `search_demand_evidence` | Search Demand Agent | Sorftime 类目、关键词、趋势、竞品流量词 |
 | `voc_evidence` | VOC Evidence Agent | 评论插件、评论证据、痛点到规格映射 |
-| `supply_chain_evidence` | Supply Chain Agent | 1688 中国站、供应商、采购价、现货形态 |
-| `analysis_evidence_packet` | Lead Operator Agent | Stage 7 综合预审判断，读取市场/搜索/VOC/供应链证据 |
-| `profit_compliance_evidence` | Profit Compliance Agent | 利润、知产、合规、退货风险 |
+| `analysis_evidence_packet` | Lead Operator Agent | Stage 7 市场机会判断，读取市场/搜索/VOC 证据 |
 | `integrated_operator_judgment` | Lead Operator Agent | 只读以上证据包和 `research_package.json` |
 | `delivery_qa_result` | Delivery QA Agent | 最终交付物、校验结果和证据边界 |
 
@@ -133,24 +131,7 @@ Evidence Packet 是多 Agent 协作的交接单位。每个数据源专家 Agent
 | `precise_long_tail` | 精准长尾词 | 验证小类目、规格、场景或 Listing 方向 |
 | `mixed_or_excluded` | 混池/排除词 | 记录不进入主判断的词和排除原因 |
 
-每个关键词对象至少包含：
-
-| 字段 | 必填 | 说明 |
-|---|---|---|
-| `keyword` | 是 | 原始关键词 |
-| `keyword_role` | 是 | 上表角色之一 |
-| `source_type` | 是 | `product_traffic_terms` / `competitor_product_keywords` / `keyword_extends` / `keyword_detail` / `keyword_search_results` / `seller_sprite_reverse_asin` / `aba` |
-| `source_refs` | 是 | ASIN、关键词、文件、Sheet、工具调用 ID |
-| `route_refs` | 否 | 覆盖的产品路线 |
-| `matched_asin_count` | 否 | 命中的参考 ASIN 数 |
-| `monthly_search_volume` | 否 | 月搜索量 |
-| `cpc` | 否 | CPC |
-| `competition_count` | 否 | 竞争商品数或首页竞品数 |
-| `click_or_conversion_signal` | 否 | ABA 或卖家精灵交叉验证摘要 |
-| `mix_pool_tags` | 否 | 产品形态、场景、品牌、耗材、配件等混池标签 |
-| `recommended_action` | 是 | `main_check` / `supplement_check` / `watch` / `exclude` |
-| `reason` | 是 | 分层原因 |
-| `lineage` | 是 | 可回表证据 |
+每个关键词对象至少包含 `keyword`、`keyword_role`、`source_type`、`source_refs`、`route_refs`、`matched_asin_count`、`monthly_search_volume`、`cpc`、`competition_count`、`click_or_conversion_signal`、`mix_pool_tags`、`recommended_action`、`reason` 和 `lineage`。
 
 ### `price_band_opportunity`
 
@@ -190,26 +171,18 @@ Evidence Packet 是多 Agent 协作的交接单位。每个数据源专家 Agent
 
 ## 执行来源要求
 
-所有 Agent / 脚本产出的 Evidence Packet 必须写入 `execution_provenance`。`executed_by_agent=false` 并不代表证据不可用，但必须说明来源模式和影响：
+所有 Agent / 脚本产出的 Evidence Packet 必须写入 `execution_provenance`。`executed_by_agent=false` 并不代表证据不可用，但必须说明来源模式和影响。
 
-| 字段 | 允许值 / 说明 |
-|---|---|
-| `executed_by_agent` | `true` 表示真实子 Agent 执行；`false` 表示主 Agent 串行降级或脚本补包 |
-| `agent_role` | 必须与该包的 `agent_role` 一致 |
-| `execution_mode` | `real_subagent_spawn` / `serial_fallback` / `script_generated` / `legacy_import` |
-| `subagent_id` | 真实子 Agent ID；不可用时留空并说明 |
-| `note` | 写清是否补跑、复核、降级原因和对报告的影响；历史包如写为 `subagent_note`，报告脚本应兼容读取，但新包统一写 `note` |
-
-当运行环境支持子 Agent 且用户要求多 Agent 时，Stage 7 的 `search_demand_evidence` 必须由 Search Demand Agent 真实子 Agent 产出。主 Agent 可以在 Stage 1 快探中直接调用 Sorftime，但 Stage 7 Sorftime 深扫不能静默由主 Agent 代跑；如因工具不可用降级，必须在 `execution_provenance.execution_mode = "serial_fallback"` 和 `data_gaps` 中说明，并由 QA 标记为待补。
+当运行环境支持子 Agent 且用户要求多 Agent 时，Stage 7 的 `search_demand_evidence` 应由 Search Demand Agent 真实子 Agent 产出。主 Agent 可以在 Stage 1 快探中直接调用 Sorftime，但 Stage 7 Sorftime 深扫不能静默由主 Agent 代跑；如因工具不可用降级，必须在 `execution_provenance.execution_mode = "serial_fallback"` 和 `data_gaps` 中说明，并由 QA 标记为待补。
 
 Route Matrix、workflow_state 等非 Evidence Packet 文件不强制 `executed_by_agent=true`；若被 `analysis_evidence_packet.source_packets` 引用，应在来源审计里标明为 `workflow_state`、`route_matrix`、`legacy_import` 或 `script_generated`。
 
 ## 越权规则
 
-- 专家 Agent 不输出 `go_nogo_verdict`、`final_decision`、`route_priority`。
+- 专家 Agent 不输出 `final_decision`、`route_priority`。
 - 专家 Agent 可以写 `evidence_strength`，不能写“建议立项”。
 - 主 Agent 不新增原始数字；需要数字时必须引用 Evidence Packet、MCP 快照、结构化中间文件或 `research_package.json`。
-- Stage 7 的 `analysis_evidence_packet` 可以输出 `继续看 / 谨慎继续 / 暂缓`，但在利润/FBA/合规未回填前不得输出强 Go。
+- Stage 7 的 `analysis_evidence_packet` 可以输出 `继续看 / 谨慎继续 / 暂缓`，但必须说明数据缺口和结论边界。
 - QA Agent 不改商业判断，只判断是否有证据、是否违反边界、是否可交付。
 - 任一证据包 `confidence=low` 时，主 Agent 必须在最终判断里说明影响。
 
@@ -221,11 +194,11 @@ Route Matrix、workflow_state 等非 Evidence Packet 文件不强制 `executed_b
 |---|---|
 | Top100 不完整 | 标记为阻塞，不进入正式深挖 |
 | 评论样本不足 | 输出需要补抓的 ASIN 和目标评论数 |
-| 1688 样本无效 | 说明剔除原因，不参与采购价区间 |
-| 利润/合规未回填 | 主 Agent 只能给 Wait/观察/待补 |
 | 数据源冲突 | 同时列出冲突事实，交由主 Agent 解释或标待验证 |
+| 小类边界不清 | 标记候选类目、混池词和需要补查的代表 ASIN |
+| 关键词证据不足 | 标记缺少主查词、长尾词、反查词或 ABA 交叉验证 |
 
-## Stage 7 综合预审特殊要求
+## Stage 7 市场机会特殊要求
 
 Stage 7 生成 `analysis_report.html` 前，至少要有以下证据结构；如果某项缺失，必须在 `data_gaps` 和 HTML 报告中说明影响：
 
@@ -234,8 +207,7 @@ Stage 7 生成 `analysis_report.html` 前，至少要有以下证据结构；如
 | `search_demand_evidence` | 候选类目、参考 ASIN 流量词、竞品关键词、运营式关键词池、自然位、热销特征、类目淡旺季、混池风险 |
 | `market_structure_evidence` | 参考 ASIN 池、候选大/小类、ASIN 类目反推、Top100、ABA、关键词反查、价格带机会、评论门槛、新品机会 |
 | `voc_evidence` | 高频痛点、正向驱动、痛点到规格/测试映射 |
-| `supply_chain_evidence` | 1688 候选款/供应商、采购价、MOQ、可供应形态、剔除原因、可承接规格 |
-| `analysis_evidence_packet` | 主 Agent 详细综合分析、参考 ASIN 和类目选择、小类目机会、关键词分层解释、预审结论、人工 review 指南、利润回填字段、进入 Stage 8 条件 |
+| `analysis_evidence_packet` | 主 Agent 详细综合分析、参考 ASIN 和类目选择、小类目机会、关键词分层解释、市场机会结论、人工 review 指南、下一步补数条件 |
 
 Stage 7 真实多 Agent 执行时还必须满足：
 
@@ -246,11 +218,11 @@ Stage 7 真实多 Agent 执行时还必须满足：
 `analysis_evidence_packet` 必须声明：
 
 - `persona = "资深亚马逊运营专家"`
-- `stage = "integrated_precheck"`
+- `stage = "market_opportunity_review"`
 - `verdict` 只能是 `继续看`、`谨慎继续` 或 `暂缓`
 - `source_packets` 列出全部读取的 Evidence Packet 和关键输入文件
-- `lead_operator_analysis` 明确回答市场需求、竞争切入、产品形态、VOC 到规格、供应链匹配和为什么还不能强 Go
-- `profit_backfill_fields` 明确 Stage 8 需要运营回填哪些字段
+- `lead_operator_analysis` 明确回答市场需求、竞争切入、产品形态、VOC 到规格和为什么还不能强结论
+- `market_scorecard` 包含市场机会评分卡 8 个维度
 
 ## 与运行时和现有产物关系
 
