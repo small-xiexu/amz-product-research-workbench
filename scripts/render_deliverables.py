@@ -93,7 +93,7 @@ def _remove_legacy_outputs(output_dir: Path) -> None:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Render formal report deliverables from research_package.json.")
     parser.add_argument("research_package_json", help="Path to research_package.json.")
-    parser.add_argument("output_dir", help="Output directory. Usually the workflow final_report directory.")
+    parser.add_argument("output_dir", help="Output directory. Current pipeline uses analysis/; legacy workflow used final_report/.")
     parser.add_argument("--mode", choices=MODES, default="all", help="Render mode. Default: all.")
     return parser.parse_args(argv)
 

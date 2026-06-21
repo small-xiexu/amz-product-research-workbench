@@ -10,6 +10,8 @@ from openpyxl import load_workbook
 
 
 REQUIRED_FINAL_FILES = ("report.md", "report.html", "data.xlsx")
+# 当前主链路 analysis/ 目录的预期文件（与 legacy final_report/ 五件套不同）
+REQUIRED_ANALYSIS_FILES = ("analysis_report.html", "analysis_report.xlsx")
 REQUIRED_WORKFLOW_FILES = ("workflow_summary.md", "workflow_summary.json")
 BASE_REQUIRED_SHEETS = (
     "数据来源说明",
@@ -122,16 +124,20 @@ class ValidationResult:
 def validate_workflow_output(input_dir: Path | str) -> ValidationResult:
     workflow_dir, final_report_dir = resolve_output_dirs(Path(input_dir).expanduser().resolve())
     result = ValidationResult(workflow_dir=workflow_dir, final_report_dir=final_report_dir)
+    is_analysis_format = final_report_dir.name == "analysis"
 
-    _check_required_files(result, final_report_dir, REQUIRED_FINAL_FILES, "final_report")
+    if is_analysis_format:
+        _check_required_files(result, final_report_dir, REQUIRED_ANALYSIS_FILES, "analysis")
+    else:
+        _check_required_files(result, final_report_dir, REQUIRED_FINAL_FILES, "final_report")
     _check_required_files(result, workflow_dir, REQUIRED_WORKFLOW_FILES, "workflow")
 
     workflow_summary = _load_json(workflow_dir / "workflow_summary.json", result)
-    report_text = _read_text(final_report_dir / "report.md")
-    report_html = _read_text(final_report_dir / "report.html")
+    report_text = _read_text(final_report_dir / ("analysis_report.html" if is_analysis_format else "report.md"))
+    report_html = _read_text(final_report_dir / ("analysis_report.html" if is_analysis_format else "report.html"))
 
     sheet_names: set[str] = set()
-    data_workbook = final_report_dir / "data.xlsx"
+    data_workbook = final_report_dir / ("analysis_report.xlsx" if is_analysis_format else "data.xlsx")
     if data_workbook.exists():
         sheet_names = _load_sheet_names(data_workbook, result)
         _check_required_sheets(result, sheet_names, BASE_REQUIRED_SHEETS, "基础交付")
@@ -161,11 +167,16 @@ def validate_workflow_output(input_dir: Path | str) -> ValidationResult:
 
 
 def resolve_output_dirs(path: Path) -> tuple[Path, Path]:
+    # 当前主链路：analysis/ 目录
+    if (path / "analysis").is_dir():
+        return path, path / "analysis"
+    # Legacy: final_report/ 目录
     if (path / "final_report").is_dir():
         return path, path / "final_report"
     if (path / "report.md").exists() or (path / "data.xlsx").exists():
         return path.parent, path
-    return path, path / "final_report"
+    # 默认优先 analysis/
+    return path, path / "analysis"
 
 
 def render_result(result: ValidationResult) -> str:

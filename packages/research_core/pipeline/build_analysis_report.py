@@ -1120,6 +1120,7 @@ def run_delivery_qa(analysis: dict[str, Any], analysis_json: Path, html_path: Pa
         "has_market_validation": bool(analysis.get("seller_sprite_validation")),
         "has_keyword_pool": bool((analysis.get("keyword_pool") or {}).get("roles")),
         "has_no_removed_legacy_sections": _has_no_removed_legacy_sections(html_path),
+        "has_linked_css": _has_linked_css(html_path),
     }
     failures = [name for name, passed in checks.items() if not passed]
     return {"status": "pass" if not failures else "fail", "checks": checks, "failures": failures}
@@ -1135,6 +1136,16 @@ def _has_no_removed_legacy_sections(html_path: Path) -> bool:
         "legacy_cost_review_section",
     )
     return not any(marker in html for marker in removed_section_markers)
+
+
+def _has_linked_css(html_path: Path) -> bool:
+    """HTML 必须 <link> 引用 report_template.css，不能内联 <style>。"""
+    if not html_path.exists():
+        return False
+    html = html_path.read_text(encoding="utf-8")
+    has_link = 'report_template.css' in html
+    has_inline_style = '<style>' in html
+    return has_link and not has_inline_style
 
 
 def first_text(*values: Any) -> str:
