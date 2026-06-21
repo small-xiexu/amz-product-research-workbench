@@ -148,6 +148,8 @@ TOKEN_SKIP_VALUES = {
     "bundle_or_set",
     "feature_material_upgrade",
     "adjacent_or_watch",
+    "primary_market",
+    "primary_market_distribution_grouped",
     "broad_market",
     "subcategory_market",
     "mixed_pool",

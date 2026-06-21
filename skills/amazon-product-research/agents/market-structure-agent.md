@@ -22,7 +22,8 @@
 - `candidate_pool.json` 中与候选方向相关的市场字段
 - `research_package.normalized_tables.top100`
 - `reference_asin_pool.json` 或候选池中的参考 ASIN 字段
-- `category_candidates.json` 或候选池中的候选类目字段
+- `category_candidates.json` 或候选池中的候选类目字段（注意：必须包含 Stage 1 发现的所有相关类目，不能只分析一个类目）
+- `category_landscape.json` 或类目分布图记录 — 列出目标品类涉及的所有亚马逊类目及各细分类目的竞品分布
 - 卖家精灵关键词反查、ABA、新品榜/新品筛选、榜单或搜索结果导出
 
 ## 输出
@@ -33,7 +34,7 @@
 |---|---|
 | `execution_provenance` | 必填；记录 `executed_by_agent`、`execution_mode`、`agent_role`、`subagent_id`、`note`，允许 `real_subagent_spawn`、`serial_fallback`、`script_generated`、`legacy_import` |
 | `reference_asin_pool` | 参考 ASIN、所属路线、相似理由、角色、价格、销量、评论、上架时间、类目路径 |
-| `category_candidates` | 候选大类/小类/混池/对照/排除类目，来源文件、输入对象、nodeId/路径、证据强度 |
+| `category_landscape` | **多类目全景（必填）**：目标品类涉及的所有亚马逊类目，每个类目含：类目名、nodeId、Top100月销量/月销额、该品类竞品数（注意不是类目总品数）、代表ASIN及月销、均价、品类契合度（主战场/次要战场/错误挂载/混杂排除）。一个品类分布在多个类目时必须全部列出 |
 | `asin_category_mapping` | 参考 ASIN 反推到的类目路径、BSR/nodeId、类目角色和冲突说明 |
 | `market_size_by_category_role` | 按大类、小类、对照、混池分开的月销量、月销额、Top100 商品数 |
 | `price_band_opportunity` | 价格段销量、销售额、商品数、评论门槛、集中度、新品表现和目标价格带机会 |
@@ -121,7 +122,7 @@ Market Structure Agent 要给综合预审报告提供可读结论，而不是只
 - 不用均价替代价格带机会。
 - 不把大类容量当成小类进入机会。
 - 不因为导出文件多就混合不同路线或类目。
-- 不绕过 Lead Operator 直接决定主推路线。
+- 不绕过运营直接决定主推路线。
 
 ## 交给主 Agent 的关键问题
 

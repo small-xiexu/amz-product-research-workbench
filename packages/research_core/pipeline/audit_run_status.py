@@ -43,7 +43,7 @@ def audit_run_status(run_dir: Path | str, analysis_packet: dict[str, Any] | None
     blockers = build_blockers(workflow_state, source_quality, stage_checks)
     mixed_pool_checks = build_mixed_pool_checks(workflow_state, candidate_pool, research_package, analysis_packet)
     citation_checks = build_citation_checks(candidate_pool, research_package, analysis_packet)
-    stage7_auto_dispatch = build_stage7_auto_dispatch_status(artifacts, workflow_state, analysis_packet)
+    auto_dispatch = build_auto_dispatch_status(artifacts, workflow_state, analysis_packet)
     next_actions = build_next_actions(workflow_state, blockers, stage_checks)
 
     return {
@@ -58,7 +58,7 @@ def audit_run_status(run_dir: Path | str, analysis_packet: dict[str, Any] | None
         "source_quality": source_quality,
         "mixed_pool_checks": mixed_pool_checks,
         "citation_checks": citation_checks,
-        "stage7_auto_dispatch": stage7_auto_dispatch,
+        "auto_dispatch": auto_dispatch,
         "artifact_status": artifacts,
         "summary": build_summary(current_stage, blockers, next_actions),
     }
@@ -342,7 +342,7 @@ def build_citation_checks(
     }
 
 
-def build_stage7_auto_dispatch_status(
+def build_auto_dispatch_status(
     artifacts: dict[str, dict[str, Any]],
     workflow_state: dict[str, Any],
     analysis_packet: dict[str, Any],
@@ -352,7 +352,7 @@ def build_stage7_auto_dispatch_status(
         "market_structure": artifacts.get("market_structure_packet", {}).get("exists", False) or bool((workflow_state.get("known_inputs") or {}).get("stage7_market_structure_evidence")),
         "voc": artifacts.get("review_voc_packet", {}).get("exists", False),
     }
-    stage7_ready = all(required_ready.values())
+    dispatch_ready = all(required_ready.values())
     source_packets = analysis_packet.get("source_packets") if isinstance(analysis_packet.get("source_packets"), list) else []
     real_spawn_packets = [
         packet
@@ -371,10 +371,10 @@ def build_stage7_auto_dispatch_status(
             and str(review.get("status") or "").lower() in {"available", "completed", "pass"}
         ):
             independent_reviews.append(review)
-    if stage7_ready and analysis_packet:
+    if dispatch_ready and analysis_packet:
         status = "completed"
         next_step = "Stage 7 市场预审报告已生成；检查 QA 后决定继续看/谨慎继续/暂缓。"
-    elif stage7_ready:
+    elif dispatch_ready:
         status = "ready_to_dispatch"
         next_step = "Search/Market/VOC evidence 已齐，默认启动 Stage 7 市场预审。"
     else:

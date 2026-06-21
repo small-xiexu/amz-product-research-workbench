@@ -7,7 +7,7 @@ Evidence Packet 是多 Agent 协作的交接单位。每个数据源专家 Agent
 ```json
 {
   "packet_id": "market_structure_evidence",
-  "packet_version": "P32",
+  "packet_version": "market-precheck-v2",
   "agent_role": "Market Structure Agent",
   "source_scope": ["SellerSprite"],
   "created_at": "YYYY-MM-DD",
@@ -56,8 +56,8 @@ Evidence Packet 是多 Agent 协作的交接单位。每个数据源专家 Agent
 | `market_structure_evidence` | Market Structure Agent | 卖家精灵市场、Top100、ABA、关键词反查 |
 | `search_demand_evidence` | Search Demand Agent | Sorftime 类目、关键词、趋势、竞品流量词 |
 | `voc_evidence` | VOC Evidence Agent | 评论插件、评论证据、痛点到规格映射 |
-| `analysis_evidence_packet` | Lead Operator Agent | Stage 7 市场机会判断，读取市场/搜索/VOC 证据 |
-| `integrated_operator_judgment` | Lead Operator Agent | 只读以上证据包和 `research_package.json` |
+| `analysis_evidence_packet` | 脚本 `build_analysis_report.py` | Stage 7 结构化综合判断，由脚本自动生成 |
+| `integrated_operator_judgment` | AI 主 Agent | 读证据包后手写 `analysis_report.html`，JSON 中间产物 |
 | `delivery_qa_result` | Delivery QA Agent | 最终交付物、校验结果和证据边界 |
 
 ## 通用业务对象
@@ -83,6 +83,24 @@ Evidence Packet 是多 Agent 协作的交接单位。每个数据源专家 Agent
 | `rating_count` | 否 | 评论数 |
 | `confidence` | 是 | `high` / `medium` / `low` |
 | `lineage` | 是 | 可回表证据 |
+
+### `category_landscape`
+
+**多类目全景（Stage 1 / Stage 7 必填）**。一个品类可能分布在多个亚马逊细分类目下，必须全部列出，不能只看一个类目就出结论。
+
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `category_name` | 是 | 亚马逊细分类目名 |
+| `node_id` | 是 | 类目 nodeId |
+| `category_path` | 否 | 所属上级类目路径 |
+| `top100_monthly_sales` | 是 | 该类目 Top100 月销量 |
+| `top100_monthly_revenue` | 是 | 该类目 Top100 月销额 |
+| `product_count_in_category` | 是 | 该类目下目标品类（不是总品数）的竞品数 |
+| `representative_asins` | 是 | 该类目下目标品类的代表 ASIN 及月销 |
+| `avg_price` | 否 | 类目均价 |
+| `category_fit` | 是 | `primary_battlefield`（主战场） / `secondary_battlefield`（次要战场） / `miscategorized`（错误挂载） / `mixed_excluded`（混杂排除） |
+| `reason` | 是 | 1-2 句判断理由 |
+| `lineage` | 是 | 数据来源（Sorftime category_report / product_detail ASIN 反查 / 卖家精灵类目映射） |
 
 ### `category_candidates`
 

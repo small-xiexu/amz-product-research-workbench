@@ -27,16 +27,16 @@ Codex 版亚马逊交互式选品主入口。
 Sorftime 搜索需求 Agent
 评论 VOC Agent
         ↓
-资深亚马逊运营主 Agent
+AI 主 Agent（资深运营专家视角手写 HTML 报告）
         ↓
-报告生成 Agent
+脚本（生成 XLSX + QA）
         ↓
 交付 QA Agent
         ↓
 运营 review + 下一轮补数
 ```
 
-这不是全阶段自动开 Agent，而是受控调度：Stage 0-5 默认由主 Agent 串行推进；Stage 6 以后在运行环境支持时，按 `references/multi_agent_dispatch.md` 启动 VOC、Sorftime 深扫、市场结构、报告生成和 QA 等专家 Agent。专家 Agent 只产 Evidence Packet，主 Agent 才做综合市场机会结论、路线优先级和下一步动作。
+这不是全阶段自动开 Agent，而是受控调度：Stage 0-5 默认由主 Agent 串行推进；Stage 6 以后在运行环境支持时，按 `references/multi_agent_dispatch.md` 启动 VOC、Sorftime 深扫、市场结构等专家 Agent。专家 Agent 只产 Evidence Packet，AI 主 Agent 读证据包后直接手写报告，脚本只跑 XLSX 和 QA。
 
 Web 页面暂不作为主线。等 Codex 版闭环稳定后，再把 Web 作为外壳接入同一套脚本和产物。
 
@@ -91,7 +91,6 @@ runs/<yyyymmdd>_<direction>/
 - Agent 分工：`agents/`
 - Evidence Packet 契约：`references/evidence_packet_contract.md`
 - 多 Agent 调度：`references/multi_agent_dispatch.md`
-- 市场机会报告契约：`references/integrated_precheck_report.md`
 - Codex 跑通手册：`references/codex_runbook.md`
 - 产物契约：`references/artifact_contract.md`
 - 全局链路文档：`skills/amazon-product-research/SKILL.md`

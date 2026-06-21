@@ -38,7 +38,7 @@ from packages.report_renderer.render_report import (
     render_markdown,
     render_report_html,
 )
-from packages.research_core.pipeline.build_stage7_analysis_report import build_analysis_packet, build_workbook_sheets, render_html_report
+from packages.research_core.pipeline.build_analysis_report import build_analysis_packet, build_workbook_sheets, render_html_report
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -170,7 +170,7 @@ class RegressionTests(unittest.TestCase):
 
         self.assertEqual(violations, [])
 
-    def test_stage7_analysis_report_uses_operator_research_objects(self) -> None:
+    def test_analysis_report_uses_operator_research_objects(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             run_dir = Path(tmpdir) / "generic_stage7_run"
             run_dir.mkdir()
@@ -446,16 +446,13 @@ class RegressionTests(unittest.TestCase):
             self.assertTrue(analysis["category_selection_derivation"]["disconfirming_evidence"])
 
             html = render_html_report(analysis)
-            for text in ["市场是否值得继续看", "为什么还不能直接立项", "下一步", "风险 / 缺口 / 下一步", "什么证据会推翻当前判断", "参考 ASIN", "大类 / 小类市场分析", "关键词与需求信号", "价格带机会", "混池/排除词", "类目淡旺季"]:
+            # 新决策导向模板的 8 个板块
+            for text in ["市场全貌", "数据来源与口径", "核心竞品", "用户痛点", "产品规格", "价格带分布", "关键词与流量策略", "风险与下一步", "Go / No-Go", "下一步"]:
                 self.assertIn(text, html)
-            for forbidden in ["供应商预审", "主市场均价", "资深亚马逊运营专家视角", "资深亚马逊运营视角", "stage_7_integrated_precheck_report", "含义待解释"]:
+            for forbidden in ["供应商预审", "stage_7_integrated_precheck_report", "含义待解释"]:
                 self.assertNotIn(forbidden, html)
-            self.assertIn("fact-row", html)
+            # 新模板不使用 fact-row 和旧 CSS 技巧
             self.assertNotIn("<p>；</p>", html)
-            self.assertIn("break-inside: avoid", html)
-            self.assertIn("min-width: max(1180px, 100%)", html)
-            self.assertIn("min-width: 0;", html)
-            self.assertIn("max-width: 100%;", html)
 
             sheet_names = [name for name, _rows in build_workbook_sheets(analysis)]
             for name in ["Reference ASINs", "Category Candidates", "Keyword Pool", "Market Opportunity", "Route Judgment", "Risks And Next"]:

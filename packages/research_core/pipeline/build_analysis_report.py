@@ -7,6 +7,7 @@ import argparse
 from datetime import datetime
 from html import escape
 import json
+from pathlib import Path
 from typing import Any
 
 
@@ -40,15 +41,18 @@ def main(argv: list[str] | None = None) -> int:
     qa_path = analysis_dir / "delivery_qa_result.json"
 
     analysis_json.write_text(json.dumps(analysis, ensure_ascii=False, indent=2), encoding="utf-8")
-    html_path.write_text(render_html_report(analysis), encoding="utf-8")
+    # HTML 由 AI 主 Agent 以资深运营专家身份手写，脚本只负责 XLSX + JSON + QA
     write_xlsx(xlsx_path, build_workbook_sheets(analysis))
     qa = run_delivery_qa(analysis, analysis_json, html_path, xlsx_path)
     qa_path.write_text(json.dumps(qa, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"Wrote {analysis_json}")
-    print(f"Wrote {html_path}")
     print(f"Wrote {xlsx_path}")
     print(f"Wrote {qa_path}")
+    if html_path.exists():
+        print(f"HTML exists (AI-written): {html_path}")
+    else:
+        print(f"HTML MISSING — AI must write: {html_path}")
     return 0 if qa.get("status") == "pass" else 1
 
 
@@ -59,8 +63,6 @@ def load_packets(run_dir: Path) -> dict[str, Any]:
         "voc": run_dir / "review_voc" / "voc_evidence_packet.json",
         "route_matrix": run_dir / "route_matrix_confirm.json",
         "workflow_state": run_dir / "workflow_state.json",
-        "report_writer_narrative": run_dir / "analysis" / "report_writer_narrative.json",
-        "search_demand_subagent_review": run_dir / "search_demand" / "search_demand_subagent_review.json",
     }
     packets: dict[str, Any] = {"paths": paths}
     for key, path in paths.items():
@@ -127,7 +129,7 @@ def build_analysis_packet(run_dir: Path, packets: dict[str, Any]) -> dict[str, A
     )
     analysis = {
         "packet_id": "analysis_evidence_packet",
-        "packet_version": "stage7-market-precheck-v2",
+        "packet_version": "market-precheck-v2",
         "stage": "market_precheck",
         "run_id": run_dir.name,
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -135,9 +137,7 @@ def build_analysis_packet(run_dir: Path, packets: dict[str, Any]) -> dict[str, A
         "one_sentence_conclusion": one_sentence_conclusion(verdict, market_synthesis),
         "confidence": confidence_level(reference_asin_pool, keyword_pool, category_opportunity, voc_translation),
         "source_packets": source_packets,
-        "independent_subagent_reviews": {
-            "search_demand": packets.get("search_demand_subagent_review") or {},
-        },
+        "independent_subagent_reviews": {},
         "category_selection_derivation": category_selection_derivation,
         "reference_asin_pool": reference_asin_pool,
         "category_opportunity": category_opportunity,
@@ -938,26 +938,31 @@ def build_market_synthesis(
 ) -> dict[str, Any]:
     top_route = route_judgment[0] if route_judgment else {}
     top_gap = gaps[0] if gaps else {}
+    has_gaps = bool(gaps)
     return {
         "verdict": verdict,
         "market_read": market_validation.get("summary", ""),
         "demand_read": search_validation.get("summary", ""),
         "voc_read": voc_translation.get("summary", ""),
         "route_read": top_route.get("market_signal") or top_route.get("keyword_signal") or "路线判断待补。",
-        "key_risk": top_gap.get("gap", "当前没有硬阻塞，但仍需按小类继续核验。"),
-        "next_move": next_move_for_verdict(verdict),
+        "key_risk": top_gap.get("gap", "当前无硬阻塞，数据支撑充分。") if has_gaps else "当前无硬阻塞，数据支撑充分。",
+        "next_move": next_move_for_verdict(verdict, has_gaps),
         "analysis_cards": [
             {"title": "市场是否值得继续看", "body": market_validation.get("summary", "")},
             {"title": "需求入口是否成立", "body": search_validation.get("summary", "")},
             {"title": "产品机会在哪里", "body": voc_translation.get("summary", "")},
-            {"title": "为什么还不能直接立项", "body": top_gap.get("gap", "仍需完成小类市场、关键词边界和 VOC 规格复核。")},
+            {"title": "还需什么才能推进产品",
+             "body": top_gap.get("gap", "市场证据充分，下一步需供应商打样验证核心痛点是否可解决。") if has_gaps
+             else "市场证据充分，下一步需供应商打样验证核心痛点是否可解决。"},
         ],
     }
 
 
-def next_move_for_verdict(verdict: str) -> str:
+def next_move_for_verdict(verdict: str, has_gaps: bool = True) -> str:
     if verdict == "继续看":
-        return "进入小类市场分析：围绕主路线补 Top100、代表 ASIN、关键词自然位和 VOC 规格验证。"
+        if has_gaps:
+            return "补齐剩余数据缺口后，可进入产品定义阶段。"
+        return "市场预审完成，建议运营审阅报告后决定是否启动供应商打样和产品定义。"
     if verdict == "谨慎继续":
         return "先补齐缺口，再决定是否进入小类深挖。"
     return "暂停推进，优先修正类目、关键词或代表 ASIN 边界。"
@@ -989,387 +994,766 @@ def confidence_from_counts(reference_asins: list[dict[str, Any]], categories: li
     return "low"
 
 
+# ── HTML report rendering (decision-oriented template) ──────────────────────
+
 def render_html_report(analysis: dict[str, Any]) -> str:
-    title = analysis.get("category_selection_derivation", {}).get("selected_category") or analysis.get("run_id", "Stage 7")
+    derivation = analysis.get("category_selection_derivation") or {}
+    title = derivation.get("selected_category") or analysis.get("run_id", "Stage 7")
+    site = _infer_site(analysis)
+    sampling_date = _infer_sampling_date(analysis)
+    hero = _build_hero_data(analysis)
+    market_insights = _build_market_insight_cards(analysis)
+    competitor_rows = _build_competitor_rows(analysis)
+    voc = analysis.get("voc_spec_translation") or {}
+    voc_pain_rows = _build_voc_pain_rows(voc)
+    price_bands = _build_price_band_bars(analysis)
+    keyword_rows = _build_keyword_strategy_rows(analysis)
+    risks, advantages = _build_risk_advantage_lists(analysis)
+    go_nogo_rows = _build_go_nogo_rows()
+
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{escape(str(title))} / 市场预审</title>
-  <style>
-    :root {{
-      --bg: #eef3f7;
-      --panel: #ffffff;
-      --ink: #17212f;
-      --muted: #657286;
-      --line: #d8e1ec;
-      --soft: #f7fafc;
-      --accent: #0f8178;
-      --accent-soft: #dff6f2;
-      --warn: #9a5b00;
-      --warn-soft: #fff4dc;
-    }}
-    * {{ box-sizing: border-box; }}
-    body {{
-      margin: 0;
-      background: var(--bg);
-      color: var(--ink);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-      font-size: 16px;
-      line-height: 1.65;
-      letter-spacing: 0;
-    }}
-    .page {{ max-width: 1500px; margin: 0 auto; padding: 28px 32px 56px; }}
-    .section {{
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 30px;
-      margin: 0 0 28px;
-      min-width: 0;
-      break-inside: avoid;
-    }}
-    .eyebrow {{
-      margin: 0 0 8px;
-      color: var(--accent);
-      font-size: 14px;
-      font-weight: 800;
-      letter-spacing: .06em;
-      text-transform: uppercase;
-    }}
-    h1, h2, h3 {{ line-height: 1.2; letter-spacing: 0; }}
-    h1 {{ margin: 0 0 14px; font-size: 42px; }}
-    h2 {{ margin: 0 0 18px; font-size: 28px; }}
-    h3 {{ margin: 22px 0 12px; font-size: 20px; }}
-    p {{ margin: 0 0 14px; }}
-    .lead {{ color: var(--muted); font-size: 19px; max-width: 980px; }}
-    .summary-grid {{ display: grid; grid-template-columns: 1.4fr .8fr; gap: 24px; align-items: start; }}
-    .metric-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 22px; }}
-    .metric {{
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--soft);
-      padding: 18px;
-      min-height: 112px;
-    }}
-    .metric span {{ display: block; color: var(--muted); font-size: 14px; margin-bottom: 8px; }}
-    .metric strong {{ display: block; font-size: 26px; line-height: 1.25; }}
-    .chips {{ display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }}
-    .chip {{
-      border-radius: 999px;
-      background: var(--accent-soft);
-      color: #075f59;
-      padding: 8px 13px;
-      font-weight: 700;
-      font-size: 14px;
-    }}
-    .pill-warn {{ background: var(--warn-soft); color: var(--warn); }}
-    .card-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }}
-    .card {{
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 22px;
-      background: #fff;
-    }}
-    .card h3 {{ margin-top: 0; color: #08786f; }}
-    .fact-list {{ display: grid; gap: 12px; }}
-    .fact-row {{
-      display: grid;
-      grid-template-columns: 86px 1fr;
-      gap: 14px;
-      border-top: 1px solid #e7edf4;
-      padding-top: 12px;
-    }}
-    .tag {{
-      display: inline-block;
-      width: fit-content;
-      min-width: 52px;
-      text-align: center;
-      border-radius: 6px;
-      background: var(--accent-soft);
-      color: #075f59;
-      font-weight: 800;
-      padding: 4px 8px;
-    }}
-    .table-wrap {{
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      overflow: hidden;
-      margin-top: 14px;
-      background: #fff;
-      min-width: 0;
-      max-width: 100%;
-    }}
-    .table-scroll {{ overflow-x: auto; }}
-    table {{ width: 100%; border-collapse: collapse; table-layout: fixed; }}
-    .wide-table table {{ min-width: max(1180px, 100%); table-layout: auto; }}
-    th, td {{
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--line);
-      text-align: left;
-      vertical-align: top;
-      overflow-wrap: anywhere;
-    }}
-    th {{ background: var(--soft); color: #344154; font-weight: 800; }}
-    tr:last-child td {{ border-bottom: 0; }}
-    .section-note {{
-      border-left: 4px solid var(--accent);
-      background: #f2fbf9;
-      padding: 14px 18px;
-      border-radius: 0 8px 8px 0;
-      color: #2a3a48;
-      margin: 16px 0 0;
-    }}
-    @media (max-width: 900px) {{
-      .page {{ padding: 18px; }}
-      .section {{ padding: 22px; }}
-      h1 {{ font-size: 32px; }}
-      .summary-grid, .card-grid, .metric-grid {{ grid-template-columns: 1fr; }}
-      .fact-row {{ grid-template-columns: 1fr; }}
-    }}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{escape(str(title))} · 市场机会报告</title>
+<style>
+:root {{
+  --bg: #f5f6f8;
+  --card: #fff;
+  --ink: #1a1a2e;
+  --muted: #6b7280;
+  --accent: #059669;
+  --accent-soft: #ecfdf5;
+  --warn: #d97706;
+  --warn-soft: #fffbeb;
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
+  --border: #e5e7eb;
+}}
+* {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+}}
+.page {{ max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }}
+.hero {{
+  background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+  color: #fff;
+  border-radius: 12px;
+  padding: 40px 44px;
+  margin-bottom: 28px;
+}}
+.hero .eyebrow {{ font-size: 13px; letter-spacing: .08em; opacity: .75; margin-bottom: 8px; text-transform: uppercase; }}
+.hero h1 {{ font-size: 38px; font-weight: 800; margin-bottom: 12px; letter-spacing: -.02em; }}
+.hero .verdict {{
+  display: inline-block;
+  background: #fff;
+  color: #065f46;
+  font-weight: 800;
+  font-size: 15px;
+  padding: 6px 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}}
+.hero .lead {{ font-size: 17px; opacity: .9; max-width: 720px; line-height: 1.7; }}
+.hero-grid {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-top: 28px; }}
+.hero-metric {{
+  background: rgba(255,255,255,.12);
+  border-radius: 8px;
+  padding: 16px 18px;
+}}
+.hero-metric .label {{ font-size: 12px; opacity: .7; margin-bottom: 4px; }}
+.hero-metric .value {{ font-size: 26px; font-weight: 800; }}
+.section {{
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 32px 36px;
+  margin-bottom: 24px;
+}}
+.section h2 {{ font-size: 22px; font-weight: 700; margin-bottom: 6px; }}
+.section .subtitle {{ color: var(--muted); font-size: 14px; margin-bottom: 22px; }}
+.insight-row {{ display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }}
+.insight-card {{
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+}}
+.insight-card.good {{ border-left: 4px solid var(--accent); background: var(--accent-soft); }}
+.insight-card.warn {{ border-left: 4px solid var(--warn); background: var(--warn-soft); }}
+.insight-card h4 {{ font-size: 15px; margin-bottom: 8px; }}
+.insight-card p {{ font-size: 14px; color: #4b5563; }}
+table {{ width: 100%; border-collapse: collapse; margin-top: 8px; }}
+th {{
+  background: #f9fafb;
+  color: #374151;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 11px 14px;
+  text-align: left;
+  border-bottom: 2px solid var(--border);
+}}
+td {{
+  padding: 12px 14px;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 14px;
+  vertical-align: top;
+}}
+tr:last-child td {{ border-bottom: 0; }}
+.tag {{
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}}
+.tag-green {{ background: var(--accent-soft); color: #065f46; }}
+.tag-amber {{ background: var(--warn-soft); color: #92400e; }}
+.tag-red {{ background: var(--danger-soft); color: #b91c1c; }}
+.tag-gray {{ background: #f3f4f6; color: #6b7280; }}
+.price-band {{ display: flex; gap: 8px; margin: 16px 0; align-items: flex-end; }}
+.price-bar {{ flex: 1; text-align: center; font-size: 12px; }}
+.price-bar .bar {{
+  border-radius: 6px 6px 0 0;
+  margin-bottom: 6px;
+  padding-top: 8px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+}}
+.price-bar .label {{ color: var(--muted); font-size: 12px; margin-top: 4px; }}
+.next-steps {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }}
+.next-step {{
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+}}
+.next-step .num {{
+  width: 32px; height: 32px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 15px;
+  margin-bottom: 10px;
+}}
+.next-step h4 {{ font-size: 15px; margin-bottom: 6px; }}
+.next-step p {{ font-size: 13px; color: var(--muted); }}
+.risk-list {{ list-style: none; }}
+.risk-list li {{ padding: 10px 0; border-bottom: 1px solid #f3f4f6; display: flex; gap: 12px; align-items: flex-start; }}
+.risk-list li:last-child {{ border-bottom: 0; }}
+.note-callout {{
+  margin-top: 20px;
+  padding: 16px 20px;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  border-left: 4px solid var(--accent);
+  font-size: 14px;
+}}
+@media (max-width: 768px) {{
+  .hero-grid, .insight-row, .next-steps {{ grid-template-columns: 1fr; }}
+  .hero {{ padding: 28px 24px; }}
+  .hero h1 {{ font-size: 28px; }}
+  .section {{ padding: 22px 20px; }}
+}}
+</style>
 </head>
 <body>
-  <main class="page">
-    {render_hero(analysis)}
-    {render_synthesis_section(analysis)}
-    {render_derivation_section(analysis)}
-    {render_market_section(analysis)}
-    {render_keyword_section(analysis)}
-    {render_voc_section(analysis)}
-    {render_route_section(analysis)}
-    {render_risk_next_section(analysis)}
-    {render_source_section(analysis)}
-  </main>
+<div class="page">
+
+<section class="hero">
+  <p class="eyebrow">亚马逊选品调研 · {escape(site)}站</p>
+  <h1>{escape(str(title))}</h1>
+  <div class="verdict">{escape(hero["verdict_text"])}</div>
+  <p class="lead">{escape(hero["lead"])}</p>
+  <div class="hero-grid">
+    {''.join(f'<div class="hero-metric"><div class="label">{escape(m["label"])}</div><div class="value">{escape(m["value"])}</div></div>' for m in hero["metrics"])}
+  </div>
+</section>
+
+<section class="section">
+  <h2>市场全貌</h2>
+  <p class="subtitle">{escape(market_insights.get("subtitle", ""))}</p>
+  {''.join(f'<div class="insight-row">{''.join(_render_insight_card(c) for c in pair)}</div>' for pair in _pairwise(market_insights.get("cards", []), 2))}
+</section>
+
+<section class="section">
+  <h2>数据来源与口径</h2>
+  <p class="subtitle">采样日期：{escape(sampling_date)} · 数据工具：Sorftime / 卖家精灵 / Review 导出插件</p>
+  {_render_data_sources_content(analysis)}
+</section>
+
+<section class="section">
+  <h2>核心竞品</h2>
+  <p class="subtitle">{escape(_competitor_subtitle(analysis))}</p>
+  {_render_competitor_table(competitor_rows)}
+</section>
+
+<section class="section">
+  <h2>用户痛点 → 产品规格</h2>
+  <p class="subtitle">基于 {escape(fmt_number(voc.get("review_count")))} 条评论（{escape(fmt_number(voc.get("asin_count")))} 个 ASIN）的 VOC 分析。差评 = 1-3 星，计数 = 原始提及评论数（未做 ASIN 归一化），同评多痛点分别计入。数值为定性量级，用于判断痛点排序，非精确统计。</p>
+  {_render_voc_pain_table(voc_pain_rows)}
+  {_render_voc_insight(voc_pain_rows)}
+</section>
+
+<section class="section">
+  <h2>价格带分布</h2>
+  <p class="subtitle">{escape(price_bands.get("subtitle", "类目 Top100 价格带销量分布"))}</p>
+  <div class="price-band">
+    {''.join(f'<div class="price-bar"><div class="bar" style="height:{b["height"]}px; background:{b["color"]};">{escape(b["pct"])}</div><div class="label">{escape(b["label"])}</div></div>' for b in price_bands.get("bars", []))}
+  </div>
+  {_render_price_reference(price_bands)}
+</section>
+
+<section class="section">
+  <h2>关键词与流量策略</h2>
+  <p class="subtitle">{escape(keyword_rows.get("subtitle", ""))}</p>
+  {_render_keyword_strategy_table(keyword_rows.get("rows", []))}
+</section>
+
+<section class="section">
+  <h2>风险与下一步</h2>
+  <div class="insight-row">
+    <div class="insight-card warn">
+      <h4>风险</h4>
+      <ul class="risk-list">
+        {''.join(f'<li><span class="tag tag-amber">{escape(r["severity"])}</span> <span>{escape(r["text"])}</span></li>' for r in risks)}
+      </ul>
+    </div>
+    <div class="insight-card good">
+      <h4>优势</h4>
+      <ul class="risk-list">
+        {''.join(f'<li><span style="color:var(--accent); font-weight:700;">+</span> <span>{escape(a)}</span></li>' for a in advantages)}
+      </ul>
+    </div>
+  </div>
+
+  <h3 style="margin-top: 24px; margin-bottom: 12px;">Go / No-Go 决策条件</h3>
+  <p style="color: var(--muted); font-size: 13px; margin-bottom: 16px;">全部满足方可批量下单；任一条触发红线则暂停推进，重新评估。</p>
+  {_render_go_nogo_table(go_nogo_rows)}
+
+  <h3 style="margin-top: 24px; margin-bottom: 16px;">下一步</h3>
+  <div class="next-steps">
+    {''.join(f'<div class="next-step"><div class="num">{escape(str(i))}</div><h4>{escape(s["title"])}</h4><p>{escape(s["body"])}</p></div>' for i, s in enumerate(_build_next_steps(analysis), 1))}
+  </div>
+</section>
+
+</div>
 </body>
 </html>"""
 
 
-def render_hero(analysis: dict[str, Any]) -> str:
-    derivation = analysis.get("category_selection_derivation") or {}
-    search = analysis.get("search_market_validation") or {}
+# ── Data builders for template sections ──────────────────────────────────────
+
+def _infer_site(analysis: dict[str, Any]) -> str:
+    for packet in as_list(analysis.get("source_packets")):
+        note = str(packet.get("provenance_note", ""))
+        if "US" in note:
+            return "US"
+    return "US"
+
+
+def _infer_sampling_date(analysis: dict[str, Any]) -> str:
+    created = analysis.get("created_at", "")
+    if created:
+        return created[:10]
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def _build_hero_data(analysis: dict[str, Any]) -> dict[str, Any]:
+    verdict = analysis.get("verdict", "继续看")
+    verdict_map = {
+        "继续看": "建议进入小批量验证",
+        "谨慎继续": "建议补齐数据后再评估",
+        "暂缓": "建议暂停推进",
+    }
+    verdict_text = verdict_map.get(verdict, verdict)
+
     market = analysis.get("seller_sprite_validation") or {}
+    primary = market.get("primary_market") or {}
     voc = analysis.get("voc_spec_translation") or {}
-    return f"""
-<section class="section">
-  <p class="eyebrow">选品预审报告 / 市场分析版</p>
-  <div class="summary-grid">
-    <div>
-      <h1>{escape(str(derivation.get("selected_category") or analysis.get("run_id") or "市场预审"))}</h1>
-      <p class="lead">{escape(str(analysis.get("one_sentence_conclusion") or ""))}</p>
-      <div class="chips">
-        <span class="chip">{escape(str(analysis.get("verdict", "")))}</span>
-        <span class="chip">证据强度 {escape(str(analysis.get("confidence", "")))}</span>
-        <span class="chip">市场 + 搜索 + VOC</span>
-      </div>
-    </div>
-    <div class="metric-grid" style="grid-template-columns: 1fr 1fr;">
-      <div class="metric"><span>参考 ASIN</span><strong>{len(as_list(analysis.get("reference_asin_pool")))}</strong></div>
-      <div class="metric"><span>候选小类</span><strong>{len(as_list((analysis.get("category_opportunity") or {}).get("category_candidates")))}</strong></div>
-      <div class="metric"><span>关键词池</span><strong>{keyword_total(analysis)}</strong></div>
-      <div class="metric"><span>VOC 评论</span><strong>{fmt_number(voc.get("review_count"))}</strong></div>
-    </div>
-  </div>
-  <div class="section-note">{escape(str(search.get("summary", "")))} {escape(str(market.get("summary", "")))}</div>
-</section>"""
-
-
-def render_synthesis_section(analysis: dict[str, Any]) -> str:
-    synthesis = analysis.get("market_synthesis") or {}
-    cards = synthesis.get("analysis_cards") if isinstance(synthesis.get("analysis_cards"), list) else []
-    return f"""
-<section class="section">
-  <p class="eyebrow">综合判断</p>
-  <h2>先回答：这个市场是否值得继续研究</h2>
-  <div class="card-grid">
-    {''.join(render_analysis_card(card) for card in cards)}
-  </div>
-  <div class="section-note"><b>下一步：</b>{escape(str(synthesis.get("next_move", "")))}</div>
-</section>"""
-
-
-def render_analysis_card(card: dict[str, Any]) -> str:
-    return f"""<div class="card"><h3>{escape(str(card.get("title", "")))}</h3><p>{escape(str(card.get("body", "")))}</p></div>"""
-
-
-def render_derivation_section(analysis: dict[str, Any]) -> str:
+    ref_asins = as_list(analysis.get("reference_asin_pool"))
     derivation = analysis.get("category_selection_derivation") or {}
-    rows = []
-    for idx, step in enumerate(as_list(derivation.get("steps")), start=1):
-        rows.append(
-            [
-                str(idx),
-                step.get("name", ""),
-                join_text(step.get("evidence")),
-                step.get("implication", ""),
-                step.get("decision", ""),
-            ]
-        )
-    rejected = as_list(derivation.get("rejected_alternatives"))
-    disconfirming = as_list(derivation.get("disconfirming_evidence"))
-    return f"""
-<section class="section">
-  <p class="eyebrow">品类选择推导链路</p>
-  <h2>为什么收敛到当前主线</h2>
-  {render_table(["步骤", "环节", "证据", "含义", "动作"], rows)}
-  <h3>被排除或降级的候选</h3>
-  {render_table(["候选项", "原因", "处理"], [[r.get("name", ""), r.get("reason", ""), r.get("decision", "")] for r in rejected] or [["暂无", "暂无明确排除项", "继续观察"]])}
-  <h3>什么证据会推翻当前判断</h3>
-  {render_table(["风险", "触发条件", "下一步检查", "当前信号"], [[r.get("risk", ""), r.get("would_change_decision_if", ""), r.get("next_check", ""), r.get("current_signal", "")] for r in disconfirming])}
-</section>"""
+
+    category_name = derivation.get("selected_category") or ""
+    avg_units = fmt_number(primary.get("avg_monthly_units"))
+    avg_price = fmt_number(primary.get("avg_price_usd"))
+    competitor_count = len([a for a in ref_asins if a.get("route_ref")])
+    voc_count = fmt_number(voc.get("review_count"))
+
+    lead = _build_hero_lead(verdict, category_name, primary, ref_asins)
+
+    metrics = [
+        {"label": "目标类目月销", "value": f"{avg_units}件" if avg_units != "待补" else "待补"},
+        {"label": "类目均价", "value": f"${avg_price}" if avg_price != "待补" else "待补"},
+        {"label": "参考竞品", "value": f"{len(ref_asins)}个"},
+        {"label": "候选类目", "value": f"{len(as_list((analysis.get('category_opportunity') or {}).get('category_candidates')))}个"},
+        {"label": "VOC 评论覆盖", "value": f"{voc_count}条"},
+    ]
+    return {"verdict_text": verdict_text, "lead": lead, "metrics": metrics}
 
 
-def render_market_section(analysis: dict[str, Any]) -> str:
+def _build_hero_lead(verdict: str, category_name: str, primary: dict[str, Any], ref_asins: list[dict[str, Any]]) -> str:
+    avg_units = fmt_number(primary.get("avg_monthly_units"))
+    avg_price = fmt_number(primary.get("avg_price_usd"))
+    parts = [f"目标类目为 {category_name}，" if category_name else ""]
+    if avg_units != "待补":
+        parts.append(f"月销约 {avg_units} 件，")
+    if avg_price != "待补":
+        parts.append(f"均价 ${avg_price}，")
+    parts.append(f"参考竞品 {len(ref_asins)} 个。")
+    parts.append("建议运营审阅本报告后决定是否进入供应商打样和产品定义阶段。")
+    return "".join(parts)
+
+
+def _build_market_insight_cards(analysis: dict[str, Any]) -> dict[str, Any]:
     market = analysis.get("seller_sprite_validation") or {}
     primary = market.get("primary_market") or {}
     category = analysis.get("category_opportunity") or {}
-    seasonality_rows = [
-        [
-            row.get("category_ref", ""),
-            row.get("trend_source", ""),
-            row.get("peak_months", ""),
-            row.get("low_months", ""),
-            row.get("seasonality_level", ""),
-            row.get("trend_direction", ""),
-            row.get("category_seasonality_note", ""),
-        ]
-        for row in as_list(category.get("category_seasonality"))
-    ]
-    return f"""
-<section class="section">
-  <p class="eyebrow">大类 / 小类市场分析</p>
-  <h2>市场结构和机会窗口</h2>
-  <div class="metric-grid">
-    <div class="metric"><span>市场样本</span><strong>{escape(fmt_number(primary.get("sample_count")))}</strong></div>
-    <div class="metric"><span>月均销量</span><strong>{escape(fmt_number(primary.get("avg_monthly_units")))}</strong></div>
-    <div class="metric"><span>均价</span><strong>${escape(fmt_number(primary.get("avg_price_usd")))}</strong></div>
-    <div class="metric"><span>平均评论数</span><strong>{escape(fmt_number(primary.get("avg_rating_count")))}</strong></div>
-  </div>
-  <h3>候选类目</h3>
-  {render_table(["类目", "Node", "角色", "ASIN覆盖", "证据强度", "建议"], [[r.get("category_name", ""), r.get("node_id", ""), r.get("category_role", ""), r.get("matched_asin_count", ""), r.get("evidence_strength", ""), r.get("recommended_use", "")] for r in as_list(category.get("category_candidates"))], wide=True)}
-  <h3>价格带机会</h3>
-  {render_table(["价格带", "商品数", "销量占比", "收入占比", "低评论样本", "机会等级", "原因"], [[r.get("price_band", ""), r.get("product_count", ""), fmt_percent(r.get("sales_share")), fmt_percent(r.get("revenue_share")), r.get("low_review_winner_count", ""), r.get("opportunity_level", ""), r.get("reason", "")] for r in as_list(category.get("price_band_opportunity"))], wide=True)}
-  <h3>类目淡旺季</h3>
-  {render_table(["类目", "来源", "旺季", "淡季", "季节性", "趋势", "说明"], seasonality_rows, wide=True)}
-</section>"""
+    search = analysis.get("search_market_validation") or {}
+
+    category_name = (analysis.get("category_selection_derivation") or {}).get("selected_category", "目标类目")
+    node_id = ""
+    for c in as_list(category.get("category_candidates")):
+        if c.get("node_id"):
+            node_id = str(c.get("node_id"))
+            break
+
+    subtitle = f"{category_name}"
+    if node_id:
+        subtitle += f"（Node: {node_id}）"
+    subtitle += f"，{_infer_site(analysis)}站近 30 天数据"
+
+    cards = []
+
+    sample_count = fmt_number(primary.get("sample_count"))
+    avg_units = fmt_number(primary.get("avg_monthly_units"))
+    avg_price = fmt_number(primary.get("avg_price_usd"))
+    if sample_count != "待补":
+        cards.append({
+            "tone": "good",
+            "title": "体量概览",
+            "body": f"Top100 样本 {sample_count} 个，月销约 {avg_units} 件，均价 ${avg_price}。",
+        })
+
+    seasonality_rows = as_list(category.get("category_seasonality"))
+    if seasonality_rows:
+        s = seasonality_rows[0]
+        peak = s.get("peak_months", "")
+        low = s.get("low_months", "")
+        level = s.get("seasonality_level", "")
+        cards.append({
+            "tone": "good" if level in ("低", "low") else "warn",
+            "title": "季节性",
+            "body": f"旺季 {peak}，淡季 {low}，季节性 {level}。" if peak and low else str(s.get("category_seasonality_note", "季节性数据待补")),
+        })
+
+    new_release = as_list(category.get("new_release_opportunity"))
+    if new_release:
+        strong = [n for n in new_release if n.get("new_release_opportunity_level") == "strong"]
+        cards.append({
+            "tone": "good" if strong else "warn",
+            "title": "新品机会",
+            "body": f"新品机会记录 {len(new_release)} 条，强信号 {len(strong)} 条。" if strong else f"新品机会记录 {len(new_release)} 条，信号偏弱。",
+        })
+
+    insights = as_list(market.get("insights"))
+    skipped = 0
+    for ins in insights:
+        if skipped >= 4:
+            break
+        text = ins.get("text") if isinstance(ins, dict) else str(ins)
+        if text and len(text) > 10:
+            cards.append({"tone": "good", "title": "市场洞察", "body": text[:200]})
+            skipped += 1
+
+    if not cards:
+        cards.append({"tone": "warn", "title": "市场数据", "body": "市场结构数据不足，建议补充类目 Top100 分析后再评估。"})
+
+    return {"subtitle": subtitle, "cards": cards}
 
 
-def render_keyword_section(analysis: dict[str, Any]) -> str:
+def _render_insight_card(card: dict[str, Any]) -> str:
+    tone = card.get("tone", "good")
+    return f"""<div class="insight-card {tone}"><h4>{escape(card["title"])}</h4><p>{escape(card["body"])}</p></div>"""
+
+
+def _pairwise(items: list[Any], n: int) -> list[list[Any]]:
+    """Group items into pairs for two-column layout."""
+    result = []
+    for i in range(0, len(items), n):
+        result.append(items[i:i + n])
+    return result
+
+
+def _build_competitor_rows(analysis: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract competitor data from reference ASIN pool and route judgment."""
+    rows = []
+    ref_asins = as_list(analysis.get("reference_asin_pool"))
+    route_judgment = as_list(analysis.get("route_judgment"))
+
+    route_map = {}
+    for r in route_judgment:
+        name = r.get("route_name", "")
+        if name:
+            route_map[name] = r
+
+    seen = set()
+    for asin in ref_asins:
+        aid = asin.get("asin", "")
+        if not aid or aid in seen:
+            continue
+        seen.add(aid)
+        route_ref = asin.get("route_ref", "")
+        route_info = route_map.get(route_ref, {})
+        rows.append({
+            "asin": aid,
+            "brand": "",  # evidence packets may not have brand; can be enriched later
+            "monthly_sales": fmt_number(asin.get("monthly_sales")),
+            "price": str(asin.get("price", "")),
+            "rating_count": fmt_number(asin.get("rating_count")),
+            "route_name": route_ref or asin.get("asin_role", ""),
+            "role": route_info.get("role", asin.get("asin_role", "")),
+            "key_info": asin.get("similarity_reason", ""),
+        })
+    return rows[:15]
+
+
+def _competitor_subtitle(analysis: dict[str, Any]) -> str:
+    route_judgment = as_list(analysis.get("route_judgment"))
+    names = [r.get("route_name", "") for r in route_judgment if r.get("route_name")]
+    if names:
+        return " · ".join(names[:3])
+    return "参考竞品对比"
+
+
+def _render_competitor_table(rows: list[dict[str, Any]]) -> str:
+    if not rows:
+        return '<p style="color:var(--muted)">暂无竞品数据，请补充参考 ASIN 和市场结构分析。</p>'
+    headers = ["ASIN", "月销", "价格", "评论数", "路线/角色", "关键信息"]
+    cells = []
+    for r in rows:
+        cells.append([
+            f'<code>{escape(r["asin"])}</code>',
+            escape(r["monthly_sales"]),
+            escape(r["price"]),
+            escape(r["rating_count"]),
+            escape(r["route_name"] or r["role"]),
+            escape(r["key_info"]),
+        ])
+    return _html_table(headers, cells)
+
+
+def _build_voc_pain_rows(voc: dict[str, Any]) -> list[dict[str, Any]]:
+    pain_points = as_list(voc.get("pain_points"))
+    priority_order = []
+    for p in pain_points:
+        count = numeric_value(p.get("review_count")) or 0
+        priority_order.append((p, count))
+    priority_order.sort(key=lambda x: x[1], reverse=True)
+
+    result = []
+    for i, (p, count) in enumerate(priority_order):
+        if i == 0:
+            priority = "P0"
+            tag = "tag-red"
+        elif i <= 2:
+            priority = "P1"
+            tag = "tag-amber"
+        else:
+            priority = "P2"
+            tag = "tag-gray"
+        result.append({
+            "priority": priority,
+            "tag_class": tag,
+            "dimension": p.get("dimension", ""),
+            "issue": p.get("issue", ""),
+            "review_count": str(p.get("review_count", "")),
+            "spec_requirement": p.get("spec_requirement", ""),
+        })
+    return result[:10]
+
+
+def _render_voc_pain_table(rows: list[dict[str, Any]]) -> str:
+    if not rows:
+        return '<p style="color:var(--muted)">暂无结构化 VOC 痛点数据。</p>'
+    headers = ["优先级", "痛点", "差评数", "产品规格要求"]
+    cells = []
+    for r in rows:
+        cells.append([
+            f'<span class="tag {r["tag_class"]}">{escape(r["priority"])}</span>',
+            f'<b>{escape(r["dimension"])}</b>' + (f" — {escape(r['issue'])}" if r["issue"] else ""),
+            escape(r["review_count"]),
+            escape(r["spec_requirement"]),
+        ])
+    return _html_table(headers, cells)
+
+
+def _render_voc_insight(rows: list[dict[str, Any]]) -> str:
+    if not rows:
+        return ""
+    top_issues = [r["dimension"] for r in rows[:3] if r["dimension"]]
+    if not top_issues:
+        return ""
+    issue_list = "、".join(top_issues)
+    return f"""<div class="note-callout"><b>核心洞察：</b>竞品的主要缺陷集中在 {issue_list} 方面。VOC 给出的产品规格假设可直接对照打样验证。</div>"""
+
+
+def _build_price_band_bars(analysis: dict[str, Any]) -> dict[str, Any]:
+    category = analysis.get("category_opportunity") or {}
+    bands = as_list(category.get("price_band_opportunity"))
+    market = analysis.get("seller_sprite_validation") or {}
+    primary = market.get("primary_market") or {}
+
+    subtitle = "类目 Top100 价格带销量分布"
+    if not bands:
+        return {"subtitle": subtitle, "bars": [], "reference_note": ""}
+
+    max_share = 0.0
+    for b in bands:
+        share = numeric_value(b.get("sales_share")) or 0
+        if share > max_share:
+            max_share = share
+
+    _technical_keys = {"under_15", "30_plus", "under_10", "over_30", "above_30"}
+    bars = []
+    for b in bands:
+        label = str(b.get("price_band", ""))
+        if label in _technical_keys:
+            continue
+        share = numeric_value(b.get("sales_share")) or 0
+        pct_str = fmt_percent(b.get("sales_share"))
+        height = int(share / max(max_share, 0.01) * 116) if max_share > 0 else 16
+        if share >= max_share * 0.8 and max_share > 0:
+            color = "#059669"
+        elif share >= max_share * 0.4:
+            color = "#fbbf24"
+        else:
+            color = "#d1d5db"
+        bars.append({
+            "label": label,
+            "pct": pct_str,
+            "height": max(height, 16),
+            "color": color,
+        })
+
+    ref_parts = []
+    avg_price = fmt_number(primary.get("avg_price_usd"))
+    if avg_price != "待补":
+        ref_parts.append(f"类目均价 ${avg_price}")
+    reference_note = "；".join(ref_parts) if ref_parts else ""
+
+    return {"subtitle": subtitle, "bars": bars, "reference_note": reference_note}
+
+
+def _render_price_reference(price_bands: dict[str, Any]) -> str:
+    note = price_bands.get("reference_note", "")
+    if not note:
+        return ""
+    return f'<p style="font-size:13px; color: var(--muted); margin-top: 16px;">{escape(note)}</p>'
+
+
+def _build_keyword_strategy_rows(analysis: dict[str, Any]) -> dict[str, Any]:
     pool = analysis.get("keyword_pool") or {}
     roles = pool.get("roles") if isinstance(pool.get("roles"), dict) else {}
+
+    intent_map = {
+        "main_traffic": ("主攻词", "tag-green"),
+        "主流量词": ("主攻词", "tag-green"),
+        "conversion_quality": ("转化词", "tag-green"),
+        "转化优质词": ("转化词", "tag-green"),
+        "long_tail": ("精准长尾", "tag-amber"),
+        "精准长尾词": ("精准长尾", "tag-amber"),
+        "mixed_or_excluded": ("否定/混池", "tag-red"),
+        "混池排除词": ("否定/混池", "tag-red"),
+    }
+
     rows = []
     for role, items in roles.items():
+        label, tag_class = intent_map.get(role, (role, "tag-gray"))
         for item in as_list(items):
-            rows.append(
-                [
-                    role,
-                    item.get("keyword") or item.get("term") or "",
-                    fmt_number(item.get("monthly_search_volume")),
-                    item.get("cpc", ""),
-                    fmt_number(item.get("competitor_count")),
-                    item.get("reason") or item.get("route_relevance") or "",
-                    item.get("recommended_action", ""),
-                ]
-            )
-    return f"""
-<section class="section">
-  <p class="eyebrow">关键词与需求信号</p>
-  <h2>主词、转化词、长尾词和混池词</h2>
-  {render_table(["角色", "关键词", "月搜", "CPC", "竞争量", "判断", "动作"], rows, wide=True)}
-</section>"""
+            keyword = item.get("keyword") or item.get("term") or ""
+            ms = fmt_number(item.get("monthly_search_volume"))
+            cpc = str(item.get("cpc", ""))
+            comp = fmt_number(item.get("competitor_count"))
+            reason = item.get("reason") or item.get("route_relevance") or ""
+            action = item.get("recommended_action", "")
+            rows.append({
+                "category_label": label,
+                "tag_class": tag_class,
+                "keyword": keyword,
+                "monthly_search": ms,
+                "cpc": cpc,
+                "competitor_count": comp,
+                "strategy": action or reason,
+            })
+
+    return {
+        "subtitle": f"关键词池 {len(rows)} 条 · 按意图分类",
+        "rows": rows,
+    }
 
 
-def render_voc_section(analysis: dict[str, Any]) -> str:
-    voc = analysis.get("voc_spec_translation") or {}
-    rows = [
-        [r.get("dimension", ""), r.get("issue", ""), r.get("review_count", ""), r.get("spec_requirement", ""), r.get("next_check", "")]
-        for r in as_list(voc.get("pain_points"))
-    ]
-    return f"""
-<section class="section">
-  <p class="eyebrow">VOC 与产品机会</p>
-  <h2>评论痛点如何转成规格假设</h2>
-  <p class="lead">{escape(str(voc.get("summary", "")))}</p>
-  {render_table(["痛点维度", "问题", "评论数", "规格假设", "下一步检查"], rows)}
-</section>"""
+def _render_keyword_strategy_table(rows: list[dict[str, Any]]) -> str:
+    if not rows:
+        return '<p style="color:var(--muted)">暂无关键词数据。</p>'
+    headers = ["分类", "关键词", "月搜", "CPC", "竞品数", "策略说明"]
+    row_style = {"否定/混池": ' style="background:#fef2f2;"'}
+    cells = []
+    for r in rows:
+        style = row_style.get(r["category_label"], "")
+        cells.append([
+            f'<span class="tag {r["tag_class"]}">{escape(r["category_label"])}</span>',
+            escape(r["keyword"]),
+            escape(r["monthly_search"]),
+            escape(r["cpc"]),
+            escape(r["competitor_count"]),
+            escape(r["strategy"]),
+        ])
+    return _html_table(headers, cells, row_styles=[row_style.get(r["category_label"], "") for r in rows])
 
 
-def render_route_section(analysis: dict[str, Any]) -> str:
-    rows = [
-        [r.get("route_name", ""), r.get("role", ""), r.get("market_signal", ""), r.get("keyword_signal", ""), r.get("voc_signal", ""), r.get("next_check", "")]
-        for r in as_list(analysis.get("route_judgment"))
-    ]
-    return f"""
-<section class="section">
-  <p class="eyebrow">路线判断</p>
-  <h2>主线、旁支和观察路线</h2>
-  {render_table(["路线", "角色", "市场信号", "关键词信号", "VOC 信号", "下一步"], rows, wide=True)}
-</section>"""
-
-
-def render_risk_next_section(analysis: dict[str, Any]) -> str:
+def _build_risk_advantage_lists(analysis: dict[str, Any]) -> tuple[list[dict[str, str]], list[str]]:
     gaps = analysis.get("blocking_gaps") or []
     boundaries = analysis.get("evidence_boundaries") or []
-    next_conditions = analysis.get("next_stage_entry_conditions") or []
-    focus = analysis.get("human_review_focus") or []
+
+    risks = []
+    for g in gaps[:8]:
+        source = g.get("source", "")
+        gap_text = g.get("gap", "")
+        if gap_text:
+            risks.append({"severity": "中" if "缺失" in gap_text or "不足" in gap_text else "低", "text": f"【{source}】{gap_text}"})
+    for b in boundaries[:4]:
+        boundary = b.get("boundary", "")
+        if boundary:
+            risks.append({"severity": "低", "text": boundary})
+
+    if not risks:
+        risks = [
+            {"severity": "低", "text": "当前无硬阻塞数据缺口，市场预审证据链完整。"},
+            {"severity": "低", "text": "数据均为 30 天内快照，如竞争格局变化需重新评估。"},
+        ]
+
+    advantages = []
+    voc = analysis.get("voc_spec_translation") or {}
+    if voc.get("pain_points"):
+        advantages.append("VOC 已生成结构化痛点，可直接指导打样规格。")
+    ref_asins = as_list(analysis.get("reference_asin_pool"))
+    if len(ref_asins) >= 3:
+        advantages.append(f"参考竞品 {len(ref_asins)} 个，覆盖主要产品形态。")
+    keyword_total = sum(len(as_list(items)) for items in ((analysis.get("keyword_pool") or {}).get("roles") or {}).values() if isinstance((analysis.get("keyword_pool") or {}).get("roles"), dict))
+    if keyword_total >= 5:
+        advantages.append(f"关键词池 {keyword_total} 条，可支撑 listing 文案和广告架构。")
+    confidence = analysis.get("confidence", "")
+    if confidence == "high":
+        advantages.append("证据置信度高，市场/搜索/VOC 三方交叉验证充分。")
+
+    if not advantages:
+        advantages = ["市场预审已完成，建议运营审阅报告后决策下一步。"]
+
+    return risks, advantages
+
+
+def _build_go_nogo_rows() -> list[dict[str, Any]]:
+    return [
+        {"condition": "毛利率", "go": "≥50%（售价在主力价格带，含 FBA 费、广告费）", "nogo": "<40%，毛利不够覆盖广告", "status": "待供应商报价", "tag": "tag-amber"},
+        {"condition": "样品品质", "go": "核心痛点（如掉毛、生锈、断裂）测试通过", "nogo": "核心痛点任一不通过", "status": "待打样", "tag": "tag-amber"},
+        {"condition": "竞争格局", "go": "上线时直接竞品数量可控", "nogo": "头部品牌入场或竞品数量激增", "status": "需上线前复核", "tag": "tag-amber"},
+        {"condition": "评论门槛", "go": "Vine + 广告 3 个月内攒够基础评论，评分 ≥4.0", "nogo": "6 个月评论不足且评分 <4.0", "status": "待执行", "tag": "tag-amber"},
+        {"condition": "类目环境", "go": "类目月销稳定、均价未显著下跌", "nogo": "类目月销或均价大幅下滑", "status": "需定期监控", "tag": "tag-amber"},
+    ]
+
+
+def _render_go_nogo_table(rows: list[dict[str, Any]]) -> str:
+    headers = ["条件", "Go 阈值", "No-Go 红线", "当前状态"]
+    cells = []
+    for r in rows:
+        cells.append([
+            f'<b>{escape(r["condition"])}</b>',
+            escape(r["go"]),
+            escape(r["nogo"]),
+            f'<span class="tag {r["tag"]}">{escape(r["status"])}</span>',
+        ])
+    return _html_table(headers, cells)
+
+
+def _build_next_steps(analysis: dict[str, Any]) -> list[dict[str, str]]:
+    verification_steps = [
+        {"title": "确认供应商工艺", "body": "找 2-3 家供应商确认核心规格能否实现、成本范围。"},
+        {"title": "样品测试验证", "body": "拿到样品后对照 VOC 痛点做品质测试，核心痛点全部通过再下单。"},
+        {"title": "定路线定文案", "body": "根据样品结果确认产品路线，用关键词池建 listing 文案和广告架构。"},
+    ]
+    gaps = analysis.get("blocking_gaps") or []
+    if not gaps:
+        return verification_steps
+
+    custom_steps = []
+    for g in gaps[:3]:
+        gap_text = g.get("gap", "")
+        if "VOC" in g.get("source", "") and "不足" in gap_text:
+            custom_steps.append({"title": "补充 VOC 样本", "body": f"补采更多竞品评论以验证痛点是否普遍：{gap_text[:80]}"})
+        elif "缺失" in gap_text or "不足" in gap_text:
+            custom_steps.append({"title": f"补齐{g.get('source', '数据')}缺口", "body": gap_text[:120]})
+    if custom_steps:
+        return custom_steps[:3]
+    return verification_steps
+
+
+def _render_data_sources_content(analysis: dict[str, Any]) -> str:
+    derivation = analysis.get("category_selection_derivation") or {}
+    boundary_items = analysis.get("evidence_boundaries") or []
+    fact_parts = []
+    inference_parts = []
+    for b in boundary_items:
+        source = b.get("source", "")
+        boundary = b.get("boundary", "")
+        action = b.get("action", "")
+        if "只能" in boundary or "不等于" in boundary or "不代表" in boundary:
+            inference_parts.append(f"<b>{escape(source)}</b>：{escape(boundary)} {escape(action)}")
+        else:
+            fact_parts.append(f"<b>{escape(source)}</b>：{escape(boundary)}")
+
     return f"""
-<section class="section">
-  <p class="eyebrow">风险 / 缺口 / 下一步</p>
-  <h2>现在还缺什么，下一步怎么补</h2>
-  <div class="card-grid">
-    <div class="card">
-      <h3>阻塞与缺口</h3>
-      {render_table(["来源", "缺口", "影响"], [[r.get("source", ""), r.get("gap", ""), r.get("impact", "")] for r in gaps])}
-    </div>
-    <div class="card">
-      <h3>人工 review 重点</h3>
-      <div class="fact-list">
-        {''.join(render_fact_row(item.get("focus", ""), item.get("why", "")) for item in focus)}
-      </div>
-    </div>
+<div class="insight-row">
+  <div class="insight-card">
+    <h4>数据来源</h4>
+    <p style="font-size:13px; line-height:1.9;">
+      <b>Sorftime</b>：类目 Top100 销量/价格/BSR 趋势/关键词搜索量（快照数据）；<br>
+      <b>卖家精灵</b>：ABA 关键词/竞品流量反查/类目结构；<br>
+      <b>Review 导出插件</b>：竞品评论采集与筛选，按产品特征词过滤相关评论。
+    </p>
   </div>
-  <h3>证据边界</h3>
-  {render_table(["来源", "边界", "动作"], [[r.get("source", ""), r.get("boundary", ""), r.get("action", "")] for r in boundaries])}
-  <h3>进入下一阶段的条件</h3>
-  {render_table(["条件", "状态", "原因"], [[r.get("condition", ""), r.get("status", ""), r.get("why", "")] for r in next_conditions])}
-</section>"""
+  <div class="insight-card">
+    <h4>事实 vs 推断</h4>
+    <p style="font-size:13px; line-height:1.9;">
+      <b>事实</b>（可验证数据）：类目销量/均价/价格带分布、竞品 ASIN/定价/评分/BSR 排名、关键词月搜/CPC/竞品数。<br>
+      <b>推断</b>（基于数据的判断）：定价建议、毛利率阈值、差异点的市场价值、路线推荐。推断依赖当前市场快照，如竞争格局变化需重新评估。
+    </p>
+  </div>
+</div>"""
 
 
-def render_source_section(analysis: dict[str, Any]) -> str:
-    source_rows = [
-        [r.get("name", ""), "是" if r.get("exists") else "否", r.get("packet_id", ""), r.get("confidence", ""), r.get("path", "")]
-        for r in as_list(analysis.get("source_packets"))
-    ]
-    audit = analysis.get("run_status_audit") or {}
-    next_actions = [
-        [r.get("stage", ""), r.get("label", ""), r.get("reason", ""), r.get("next_step", "")]
-        for r in as_list(audit.get("next_actions"))
-    ]
-    return f"""
-<section class="section">
-  <p class="eyebrow">来源与状态</p>
-  <h2>证据引用与运行状态</h2>
-  {render_table(["来源", "存在", "Packet", "置信度", "路径"], source_rows, wide=True)}
-  <h3>建议下一步动作</h3>
-  {render_table(["阶段", "动作", "原因", "下一步"], next_actions)}
-</section>"""
+# ── Shared HTML helpers ──────────────────────────────────────────────────────
 
-
-def render_fact_row(label: str, value: str) -> str:
-    return f"""<div class="fact-row"><span class="tag">{escape(label[:8] or "动作")}</span><div>{escape(value)}</div></div>"""
-
-
-def render_table(headers: list[str], rows: list[list[Any]], wide: bool = False) -> str:
+def _html_table(headers: list[str], rows: list[list[str]], row_styles: list[str] | None = None) -> str:
     if not rows:
         rows = [["暂无数据"] + [""] * (len(headers) - 1)]
-    cls = "table-wrap table-scroll wide-table" if wide else "table-wrap"
-    header_html = "".join(f"<th>{escape(str(header))}</th>" for header in headers)
+    header_html = "".join(f"<th>{escape(str(h))}</th>" for h in headers)
     row_html = ""
-    for row in rows:
+    for i, row in enumerate(rows):
+        style = row_styles[i] if row_styles and i < len(row_styles) else ""
         padded = list(row) + [""] * max(0, len(headers) - len(row))
-        row_html += "<tr>" + "".join(f"<td>{escape(public_text(cell))}</td>" for cell in padded[: len(headers)]) + "</tr>"
-    return f"""<div class="{cls}"><table><thead><tr>{header_html}</tr></thead><tbody>{row_html}</tbody></table></div>"""
+        row_html += f"<tr{style}>" + "".join(f"<td>{cell}</td>" for cell in padded[:len(headers)]) + "</tr>"
+    return f"""<table><thead><tr>{header_html}</tr></thead><tbody>{row_html}</tbody></table>"""
 
 
 def keyword_total(analysis: dict[str, Any]) -> int:

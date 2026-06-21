@@ -4,13 +4,13 @@
 
 负责数据源：Sorftime MCP，包括类目节点、类目报告、类目趋势、关键词详情、关键词延伸词、关键词搜索结果、竞品流量词、竞品自然位关键词和热销特征。
 
-核心职责：围绕参考 ASIN 和候选类目生成运营式关键词池。关键词只能用于验证需求、找流量入口和识别混池，不能单独定义市场或最终类目。
+核心职责：围绕参考 ASIN 和候选类目（注意：是一个类目列表，不只是单个类目）生成运营式关键词池。关键词只能用于验证需求、找流量入口和识别混池，不能单独定义市场或最终类目。
 
 ## 调度
 
-- 触发条件：Stage 1 快探、Stage 5.1 评论前轻量路线校准、Stage 7 市场机会报告，或 Lead Operator 需要补竞品流量词/长尾词证据。
+- 触发条件：Stage 1 快探、Stage 5.1 评论前轻量路线校准、Stage 7 市场机会报告，或主 Agent 需要补竞品流量词/长尾词证据。
 - 默认执行：Stage 1 和 Stage 5.1 由主 Agent 串行按本 Agent 口径执行；Stage 7 必须按市场机会报告需要深扫，并在子 Agent 工具可用时由真实 Search Demand Agent spawn 执行。
-- 允许写入：Stage 5.1 写 `mcp/route_sorftime_calibration.json`；Stage 7 写 `mcp/search_demand_evidence_packet.json` 或 `search_demand/search_demand_evidence_packet.json`。
+- 允许写入：Stage 5.1 写 `mcp/route_sorftime_calibration.json`；Stage 7 写 `search_demand/search_demand_evidence_packet.json`（统一路径，`mcp/` 仅用于轻量校准）。
 - 禁止写入：MCP 原始快照、卖家精灵原始导出、最终路线优先级。
 - 证据契约：输出必须符合 `references/evidence_packet_contract.md`；必须标明 MCP 工具名、参数、输入路线/ASIN/关键词和返回时间。
 - 采集口径：不以节省调用为主要约束；入围路线的参考 ASIN、候选大小类目、主查词、补查词和精准长尾词都要尽量补齐。
@@ -22,7 +22,8 @@
 - `candidate_pool.json`
 - `research_package.raw_sources.sorftime`
 - `reference_asin_pool.json` 或候选池中的参考 ASIN 字段
-- `category_candidates.json` 或候选池中的候选类目字段
+- `category_candidates.json` 或候选池中的候选类目字段（必须包含 Stage 1 发现的所有相关类目）
+- `category_landscape.json` 或类目分布图记录
 - 运营确认过的产品路线和核心英文关键词
 - `route_matrix_confirm.json` 中每条保留路线的代表 ASIN 和核心词
 - `review_voc/review_voc_package.json` 中 P0/P1 ASIN 覆盖范围
@@ -108,7 +109,7 @@ Stage 7 不以节省积分为主要约束。Stage 5.1 轻量校准只能作为�
 - 同一个词如果同时命中相似 ASIN 和混池 ASIN，必须降级为 `traffic` 或 `mixed_or_excluded`，并写明混池标签。
 - 只有长尾词不能证明市场值得做；长尾词用于判断小类目、Listing 或切入角度。
 - 类目淡旺季来自 `category_trend`、`category_report_from_history` 或卖家精灵市场数据；关键词趋势只能写搜索热度。
-- 关键词池必须保留排除词。被排除的词不删除，写入 `mixed_or_excluded`，让 Lead Operator 和 QA 知道系统排除了什么。
+- 关键词池必须保留排除词。被排除的词不删除，写入 `mixed_or_excluded`，让运营和 QA 知道系统排除了什么。
 - 推荐动作只对后续验证负责，不输出路线优先级和最终判断。
 
 ## 可以做
@@ -116,7 +117,7 @@ Stage 7 不以节省积分为主要约束。Stage 5.1 轻量校准只能作为�
 - 判断关键词是否代表独立需求，而不是大词混池。
 - 对 Sorftime 与卖家精灵的冲突给出解释假设。
 - 标注哪些词适合继续验证，哪些词只是流量噪声。
-- 提供给 Lead Operator 的市场需求、流量入口和混池风险解释。
+- 提供给运营的市场需求、流量入口和混池风险解释。
 - 按参考 ASIN 覆盖、搜索结果相似度、ABA/卖家精灵交叉信号给关键词分层。
 
 ## 不可以做

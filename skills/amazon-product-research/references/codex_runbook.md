@@ -174,7 +174,7 @@ python3 scripts/run_research_workflow.py \
   --review-input runs/<run_id>/inputs/reviews/<review-report.html>
 ```
 
-## 9. 校验
+## 10. 校验
 
 ```bash
 python3 scripts/validate_research_outputs.py runs/<run_id>

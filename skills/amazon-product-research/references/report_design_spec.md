@@ -1,0 +1,77 @@
+# Stage 7 报告视觉设计规范
+
+本文件规定 `analysis_report.html` 的视觉标准。**CSS 源码唯一事实源：`references/report_template.css`。** 每次手写 HTML 必须 `<link>` 引用该文件，不手写 `<style>` 块。
+
+---
+
+## 1. 引用方式（强制）
+
+```html
+<link rel="stylesheet" href="../../skills/amazon-product-research/references/report_template.css">
+```
+
+HTML 中只写内容结构（`.page > .hero + .section * 8`），所有样式由 CSS 文件提供。禁止在 HTML 中写 `<style>` 块覆盖或新增样式。
+
+---
+
+## 2. 组件使用规则
+
+| 组件 | HTML 模式 | 何时用 |
+|---|---|---|
+| Hero | `.hero > .eyebrow + h1 + .verdict + .lead + .hero-grid` | 报告首屏，必须第一个 |
+| Section 卡片 | `.section > h2 + .subtitle + 内容` | 每个板块必须包裹 |
+| 洞察卡片 | `.insight-row > .insight-card.good\|.warn` | 类目全景展开、风险/优势双栏 |
+| 标签 | `.tag.tag-green\|tag-amber\|tag-red\|tag-gray` | 表格判断列、状态标注 |
+| 价格柱状图 | `.price-band > .price-bar > .bar + .label` | 价格带板块，必须配合表格 |
+| 下一步卡片 | `.next-steps > .next-step > .num + h4 + p` | 风险和下一步板块末尾 |
+| 风险列表 | `ul.risk-list > li > .severity + 内容` | 风险/优势双栏内部 |
+| Go/No-Go 表 | `table.go-nogo > thead > tr > th*4` + `tbody` | 风险和下一步板块中段 |
+
+## 3. 标签仅 4 种
+
+| 标签 | 用途 |
+|---|---|
+| `tag-green` | 正面：主战场、低门槛、有机会、已验证 |
+| `tag-amber` | 需注意：次要战场、中等风险、需验证 |
+| `tag-red` | 风险/否定：高壁垒、错误挂载、排除 |
+| `tag-gray` | 中性标注：待确认、信息不足 |
+
+**禁止**新增 tag-blue、tag-purple 等额外颜色。
+
+## 4. 8 个板块（顺序固定）
+
+1. **Hero** — 绿色渐变，一句话结论 + 5 KPI
+2. **类目全景** — 表格 + 2 列洞察卡片
+3. **数据来源与口径** — 采样日期、工具、事实 vs 推断
+4. **核心竞品** — 竞品对比表，每条路线 ≥2 个 ASIN
+5. **用户痛点 → 产品规格** — P0/P1/P2 + 规格建议
+6. **价格带分布** — flex 柱状图 + 表格
+7. **关键词与流量策略** — 按意图三分：主攻/可测/否定
+8. **风险与下一步** — 风险/优势双栏 + Go/No-Go 表 + 3 张下一步卡片
+
+## 5. 禁止事项
+
+| 禁止 | 正确做法 |
+|---|---|
+| HTML 中写 `<style>` 块 | `<link>` 引用 `report_template.css` |
+| 深灰/黑色 Hero | 绿色渐变（CSS 已定义） |
+| 裸内容无 `.section` 包裹 | 每个板块进 `.section` 卡片 |
+| 超过 4 种 tag 颜色 | 只用 green/amber/red/gray |
+| 价格带只用表格 | flex 柱状图 + 表格配合 |
+| max-width 不是 1100px | CSS 已设置 1100px |
+| 下一步用普通列表 | 3 列 `.next-step` 编号卡片 |
+| 类目全景只列一个类目 | 列出所有相关类目 |
+| HTML 中出现 Agent/MCP/tool/spawn/packet | 用"Sorftime""卖家精灵""Review 导出插件" |
+
+## 6. 写前检查
+
+- [ ] HTML 以 `<link>` 引用 `report_template.css`，不含 `<style>` 块
+- [ ] Hero 存在且有 `.verdict` 结论标签
+- [ ] 所有板块用 `.section` 包裹
+- [ ] 标签仅 green/amber/red/gray
+- [ ] 价格带有 `.price-band` 柱状图
+- [ ] 类目全景列出所有相关类目
+- [ ] 洞察卡片有 `.good` / `.warn` 左边框
+- [ ] 下一步是 3 张 `.next-step` 编号卡片
+- [ ] 全文无内部术语
+- [ ] 用词克制，事实和推断分开

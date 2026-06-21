@@ -6,11 +6,11 @@
 
 ## 调度
 
-- 触发条件：`analysis/*`、`research_package.json`、`final_report/*` 或最终交付物已生成。
+- 触发条件：`analysis/*`、`research_package.json` 或最终交付物已生成。
 - 推荐执行：正式交付前优先 spawn；若没有真实子 Agent，由主 Agent 按本文件逐项自检。
-- 允许写入：`analysis/delivery_qa_result.json`、`analysis/qa_notes.md`、`final_report/delivery_qa_result.json`、`final_report/qa_notes.md`。
+- 允许写入：`analysis/delivery_qa_result.json`、`analysis/qa_notes.md`。
 - 禁止写入：商业判断和原始数据。
-- 证据契约：输出必须符合 `references/evidence_packet_contract.md` 中 `delivery_qa_result` 的边界，不修改 Lead Operator 结论。
+- 证据契约：输出必须符合 `references/evidence_packet_contract.md` 中 `delivery_qa_result` 的边界，不修改 AI 主 Agent 的商业判断。
 
 ## 输入
 
@@ -18,13 +18,7 @@
 - `analysis/analysis_report.xlsx`
 - `analysis/analysis_evidence_packet.json`
 - `research_package.json`
-- `workflow_summary.json`
-- `final_report/report.md`
-- `final_report/report.html`
-- `final_report/dashboard.html`
-- `final_report/data.xlsx`
 - 各 Evidence Packet
-- `validate_research_outputs.py` 输出
 
 ## 输出
 
@@ -42,10 +36,9 @@
 
 - 运行或读取正式交付校验结果。
 - 检查报告是否引用了不存在的数据。
-- 检查分析模式是否至少使用 3 种。
 - 检查 VOC 痛点是否映射到产品规格或样品验证动作。
 - 标记专家 Agent 是否越权输出最终决策。
-- 检查 Stage 7 HTML 是否包含主 Agent 的详细综合分析，而不是 Agent 摘要拼接。
+- 检查 Stage 7 HTML 是否包含 AI 以资深运营专家视角的详细综合分析，而不是多源摘要拼接。
 - 检查是否先建立参考 ASIN 池，再反查关键词和确认大小类目。
 - 检查关键词是否按主要流量词、转化优质词、流量词、精准长尾词、混池/排除词分层。
 - 检查市场机会是否按小类目、价格带、集中度和新品机会表达。
@@ -60,27 +53,22 @@
 - 不因为只有 warning 就自动忽略风险，必须说明影响。
 - 不把 QA 发现的问题改写成最终进入结论。
 
-## 最终报告必查项
+## 最终报告必查项（legacy，当前主链路以 Stage 7 必查项为准）
 
-- final_report 五件套存在。
-- `report.md` 固定章节完整。
-- `data.xlsx` 可读取且 Sheet 与报告章节能回表。
-- Executive Summary 至少 3 条 `数据点 -> 含义 -> 行动建议`。
-- 分析模式自检表至少 3 种已用。
-- 市场机会评分卡 8 个维度完整。
-- 所有继续研究理由都能追到 Evidence Packet 或 `research_package.json`。
+- `analysis_report.html` 和 `analysis_report.xlsx` 存在（最终交付物）。
+- `analysis_evidence_packet.json` 和 `delivery_qa_result.json` 存在（中间产物）。
+- HTML 包含完整的 8 板块结构，用词克制，决策导向。
+- HTML 未出现 Agent、MCP、tool、spawn、packet 等内部术语。
 
 ## Stage 7 必查项
 
-- `analysis_report.html`、`analysis_report.xlsx`、`analysis_evidence_packet.json` 存在。
-- HTML 包含：首屏结论、资深运营综合分析、参考 ASIN 池、大小类目选择、小类目机会、价格带机会、运营式关键词池、关键词验证、VOC、市场机会评分、风险与待验证项、下一步条件、证据审计。
-- `analysis_evidence_packet.json.persona = "资深亚马逊运营专家"`。
-- 预审结论只能是 `继续看 / 谨慎继续 / 暂缓`，且必须说明数据缺口。
-- Sorftime 在 Stage 7 必须展示候选类目、参考 ASIN 流量词、竞品关键词、运营式关键词池、自然位、类目淡旺季和混池提示；若缺失，必须显示待补证据，不只是 Stage 1 快探复述。
-- 卖家精灵在 Stage 7 必须展示参考 ASIN 池、候选大/小类、ASIN 类目反推、Top100、价格带机会、集中度、ABA、关键词反查和新品机会。
-- VOC 在 Stage 7 必须展示评论采集范围、覆盖 ASIN/路线/角色、有效评论数、低分评论数、站点/评论地区口径、痛点到规格映射和样本缺口；若缺失，必须显示待补证据。
-- Stage 7 若运行环境支持子 Agent，`search_demand_evidence.execution_provenance.executed_by_agent` 必须为 `true`，`execution_mode` 必须为 `real_subagent_spawn`；否则标记为待补或流程草稿。
-- Excel 至少包含 `Executive Summary`、`Route Matrix`、`Reference ASINs`、`Category Candidates`、`Keyword Pool`、`Price Bands`、`Sorftime`、`SellerSprite`、`VOC Spec Map`、`Market Scorecard`、`Evidence Audit`。
+- `analysis_report.html`、`analysis_report.xlsx` 存在（最终交付物）。
+- `analysis_evidence_packet.json`、`delivery_qa_result.json` 存在（中间产物）。
+- HTML 8 个板块完整：Hero、市场全貌、数据来源与口径、核心竞品、用户痛点→产品规格、价格带分布、关键词与流量策略、风险与下一步。
+- HTML 首屏有明确结论（建议进入小批量验证 / 建议补齐数据后再评估 / 建议暂停推进）。
+- HTML 全篇用词克制，事实和推断可区分，不出现 Agent/MCP/tool/spawn/packet 等内部术语。
+- HTML 未出现品类推导链路、来源与状态、进入下一阶段的条件等开发向板块。
+- Excel 包含以下 Sheet（与 `build_analysis_report.py` 输出一致）：`Summary`、`Source Packets`、`Category Derivation`、`Category Candidates`、`Reference ASINs`、`Market Opportunity`、`Keyword Pool`、`VOC`、`Route Judgment`、`Risks And Next`。
 - 通用模板没有硬编码当前品类、ASIN 或关键词。
 
 ## 运营式调研 QA

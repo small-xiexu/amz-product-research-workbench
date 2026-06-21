@@ -2,16 +2,16 @@
 
 亚马逊选品全流程工作台方案。
 
-当前方向：输入模糊选品意图，系统主动发现候选品，再逐层筛选、深挖、生成报告和看板。不是让运营先找好产品，再让系统写报告。
+当前方向：输入模糊选品意图，系统主动发现候选品，再逐层筛选、深挖、生成决策报告。不是让运营先找好产品，再让系统写报告。
 
-当前阶段先沉淀产品路线、业务流程和技术方案，不直接开发完整应用。后续按 `候选品发现 Skill + 本地报告生成器 -> 轻量网页工作台 -> 完整选品应用` 演进。
+当前处于 Codex 版主线闭环阶段，后续演进方向：Codex 版 -> 轻量网页工作台 -> 完整选品应用。
 
 ## 当前目标
 
 - V1 采用三源融合：卖家精灵手动导出（广域候选池）+ Sorftime MCP（类目/关键词/竞品深度验证）+ 自有评论插件（VOC 证据链）。
 - 主产品体验是 AI 与运营交互式推进：AI 判断当前阶段、下一步动作、是否需要运营决策；最终报告沉淀整个交互过程。
-- 当前已跑通 `卖家精灵导出文件夹 -> 候选品池 -> 可选 Sorftime 深度验证 -> 可选评论 VOC -> 深挖报告`。
-- 生成正式交付物：Markdown 主报告、HTML 正式报告、Excel 数据底表。
+- 当前已跑通完整 7 阶段主链路：`运营意图 -> Sorftime 快验 -> 卖家精灵导出 -> 数据盘点 -> 候选池 -> 路线矩阵 -> 评论 VOC -> AI 手写决策报告 + 脚本 XLSX`。
+- 最终交付物：`analysis_report.html`（AI 以资深运营专家视角手写）+ `analysis_report.xlsx`（脚本生成数据回表）。
 - 保留 Excel 数据底表和可追溯证据链。
 - 自有评论插件已通过 Excel/HTML 文件导入方式接入重点候选深挖。
 
@@ -35,10 +35,7 @@
 |---|---|
 | `docs/plans/V1选品系统实施计划.md` | 唯一进度台账，下次恢复任务先看这里 |
 | `docs/选品系统方向锚点.md` | 项目方向主锚点，防止偏成“录入产品做报告” |
-| `skills/amazon-product-research/SKILL.md` | 当前主流程入口，定义运营式调研、手动采集、多 Agent 调度和阶段推进规则 |
-| `skills/market-scan/SKILL.md` | 候选发现和市场扫描 |
-| `skills/candidate-deep-dive/SKILL.md` | 重点候选深挖、Sorftime 验证和正式报告生成 |
-| `skills/review-voc-analysis/SKILL.md` | 评论 VOC 分析 |
+| `skills/amazon-product-research/SKILL.md` | 当前唯一主流程入口，覆盖全阶段 |
 | `packages/research_core/workflows/` | 交互式状态推进和批量报告编排，可被 CLI/网页/API 复用 |
 | `packages/research_core/contracts/` | 核心数据包结构校验 |
 | `packages/research_core/` | 统一数据结构、Adapter、状态规则 |
@@ -46,7 +43,6 @@
 | `scripts/` | 本地 CLI 入口和兼容工具脚本 |
 | `examples/` | 最小输入样例和 mock 数据包 |
 | `requirements.txt` | 本地脚本依赖，当前主要用于读取 Excel |
-| `docs/V1范围冻结.md` | 冻结第一版要做什么、不做什么、输出什么 |
 | `docs/字段来源表.md` | 每个字段来自手动导出、MCP、手填、系统计算还是人工复核 |
 | `docs/卖家精灵导出指令完整性规范.md` | 卖家精灵真实菜单入口、导出对象和字段要求 |
 | `docs/评论VOC导出指令完整性规范.md` | 评价插件采集口径，用户侧只需要 ASIN 清单 |
@@ -54,8 +50,6 @@
 | `docs/多数据源适配器架构设计.md` | 新数据源接入 Adapter 的设计边界 |
 | `docs/sorftime-mcp-工具调用策略.md` | Sorftime MCP 调用时机、参数和数据写入口径 |
 | `docs/架构原则.md` | 脚本、Workflow、Skill、报告层的职责边界 |
-| `docs/分析模式库.md` | Claude 做市场/VOC/深挖判断时使用的分析模式 |
-| `docs/亚马逊选品全流程产品路线图.md` | 产品目标、阶段规划、V0-V5 演进路线 |
 
 ## 开发校验
 
@@ -100,149 +94,37 @@ python3 scripts/plan_interactive_workflow.py \
 - AI 应该问运营的问题
 - 下一步动作卡
 
-交互推进后生成最终报告时，把当前状态文件传给批量重跑入口：
+交互推进到 Stage 7 后，AI 以资深运营专家身份手写 `analysis_report.html`，脚本生成 `analysis_report.xlsx` 数据回表。
+
+## Stage 7 交付
+
+AI 完成 7 阶段分析后，运行脚本生成数据回表和 QA：
 
 ```bash
-python3 scripts/run_research_workflow.py \
-  卖家精灵导出样例_美国站_宠物牵引绳_20260607 \
-  /tmp/research_workbench_workflow \
-  --site US \
-  --task-name 美国站宠物牵引绳样例 \
-  --workflow-state /tmp/workflow_state.json
+python3 -m packages.research_core.pipeline.build_analysis_report runs/<run_id>
 ```
 
-最终 `report.md` 会在 12 章结构内记录交互式流程状态、下一步动作和关键决策记录；`data.xlsx` 会新增 `交互决策记录` Sheet。
+产物：
+- `analysis/analysis_report.html` — AI 手写决策报告（最终交付）
+- `analysis/analysis_report.xlsx` — 脚本生成数据回表（最终交付）
+- `analysis/analysis_evidence_packet.json` — 结构化证据（中间产物）
+- `analysis/delivery_qa_result.json` — QA 校验结果（中间产物）
 
-## 本地验证
-
-一键完整流程用于数据齐全后的报告重跑和回归验证：
+定期运行通用性扫描：
 
 ```bash
-python3 scripts/run_research_workflow.py \
-  卖家精灵导出样例_美国站_宠物牵引绳_20260607 \
-  /tmp/research_workbench_workflow \
-  --site US \
-  --task-name 美国站宠物牵引绳样例 \
-  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07.xlsx \
-  --review-input /Users/sxie/Downloads/B07R56CBWX-multi-2026-06-07-report.html \
-  --workflow-state /tmp/workflow_state.json
+python3 scripts/check_generic_redlines.py
 ```
 
-输出：
-
-- `/tmp/research_workbench_workflow/import_manifest.json`
-- `/tmp/research_workbench_workflow/candidate_pool.json`
-- `/tmp/research_workbench_workflow/review_voc/review_voc_package.json`
-- `/tmp/research_workbench_workflow/research_package.json`
-- `/tmp/research_workbench_workflow/final_report/report.md`
-- `/tmp/research_workbench_workflow/final_report/report.html`
-- `/tmp/research_workbench_workflow/final_report/data.xlsx`
-- `/tmp/research_workbench_workflow/workflow_summary.md`
-
-生成后必须运行正式交付校验：
+## 回归测试
 
 ```bash
-python3 scripts/render_deliverables.py \
-  /tmp/research_workbench_workflow/research_package.json \
-  /tmp/research_workbench_workflow/final_report \
-  --mode validate
+python3 -m unittest tests.test_regression -v
 ```
-
-校验器会检查正式报告五件套、`workflow_summary`、Excel 关键 Sheet、Top100 行数、12 章报告结构、网页版报告结构、属性/交叉分析、竞品选择逻辑、VOC 证据链和 Go/Wait/No-Go 评分卡。
-
-如果已经有 `research_package.json`，可以用统一入口一次生成全部正式交付物并自动校验：
-
-```bash
-python3 scripts/render_deliverables.py \
-  /tmp/research_workbench_workflow/research_package.json \
-  /tmp/research_workbench_workflow/final_report \
-  --mode all
-```
-
-`--mode` 也支持 `report`、`html`、`dashboard`、`xlsx`、`validate`，用于只重渲染某一类交付物或只跑校验。
-
-## P20 回归样例
-
-当前默认用两组真实样例回归正式深挖链路：
-
-```bash
-python3 scripts/run_research_workflow.py \
-  卖家精灵导出样例_美国站_宠物牵引绳_20260607 \
-  /tmp/amz_p20_regression_dog \
-  --site US \
-  --task-name P20宠物牵引绳回归 \
-  --review-input 评论插件导出_免手持牵引绳_20260608/B07R56CBWX-multi-2026-06-07.xlsx \
-  --review-input 评论插件导出_免手持牵引绳_20260608/B07R56CBWX-multi-2026-06-07-report.html
-
-python3 scripts/render_deliverables.py \
-  /tmp/amz_p20_regression_dog/research_package.json \
-  /tmp/amz_p20_regression_dog/final_report \
-  --mode validate
-
-python3 scripts/run_research_workflow.py \
-  卖家精灵导出_刮窗器_20260608 \
-  /tmp/amz_p20_regression_window \
-  --site US \
-  --task-name P20刮窗器回归 \
-  --review-input 评价导出_刮窗器_20260609/B0BKTM56C3-multi-2026-06-09.xlsx \
-  --review-input 评价导出_刮窗器_20260609/B0BKTM56C3-multi-2026-06-09-report.html
-
-python3 scripts/render_deliverables.py \
-  /tmp/amz_p20_regression_window/research_package.json \
-  /tmp/amz_p20_regression_window/final_report \
-  --mode validate
-```
-
-只验证报告渲染器时使用最小 mock：
-
-```bash
-python3 scripts/build_mock_report.py examples/minimal_research_package.json /tmp/research_workbench_mock
-```
-
-输出：
-
-- `/tmp/research_workbench_mock/research_package.json`
-- `/tmp/research_workbench_mock/data.xlsx`
-- `/tmp/research_workbench_mock/report.md`
-- `/tmp/research_workbench_mock/report.html`
 
 ## 手动导出数据盘点
 
-卖家精灵 MCP 接入前，V1 优先读取运营手动导出的 Excel/CSV。
-
-```bash
-python3 scripts/inspect_manual_exports.py \
-  卖家精灵导出样例_美国站_宠物牵引绳_20260607 \
-  /tmp/manual_export_manifest.json \
-  --site US \
-  --task-name 美国站宠物牵引绳样例
-```
-
-脚本会识别搜索结果、市场分析、关键词反查、ABA 关键词等文件，并输出字段缺失检查。
-
-继续生成候选品池：
-
-```bash
-python3 scripts/build_candidate_pool_from_import_manifest.py \
-  /tmp/manual_export_manifest.json \
-  /tmp/manual_export_candidate_pool.json
-```
-
-生成候选品池预审输出：
-
-```bash
-python3 scripts/build_candidate_pool_precheck.py \
-  /tmp/manual_export_candidate_pool.json \
-  /tmp/manual_export_precheck
-```
-
-输出：
-
-- `/tmp/manual_export_precheck/candidate_pool.json`
-- `/tmp/manual_export_precheck/precheck_report.md`
-- `/tmp/manual_export_precheck/precheck_summary.md`
-- `/tmp/manual_export_precheck/precheck_dashboard.html`
-- `/tmp/manual_export_precheck/precheck_data.xlsx`
+卖家精灵 MCP 接入前，V1 优先读取运营手动导出的 Excel/CSV。详见 Skill Stage 2-3。
 
 ## 自有评论插件导入
 
@@ -276,24 +158,14 @@ python3 scripts/build_research_package_from_candidate.py \
 
 ## 当前阶段
 
-项目处于 V1 骨架阶段，先完成 `候选品发现 Skill + 本地报告生成器`，不直接做完整应用。
+Codex 版主线已闭环（2026-06-21）。完整 7 阶段流程：运营意图 → Sorftime 快验 → 卖家精灵导出 → 数据盘点 → 候选池 → 路线矩阵 → 评论 VOC → AI 手写决策报告 + 脚本 XLSX。
 
-最近步骤：
-
-1. 冻结 V1 范围。
-2. 整理字段来源表。
-3. 制作静态报告 mock。
-4. 搭建 Skill 和 references 骨架。
-5. 搭建最小本地报告生成器。
-6. 打通卖家精灵手动导出数据到候选品池。
-7. 新增候选品池预审输出，用于判断是否进入正式深挖。
-8. 接入自有评论插件 Excel/HTML 导出。
-9. 将评论 VOC 合并进重点候选深挖报告。
-10. 补充决策检查、风险矩阵和一键完整流程脚本。
+已收敛：1 个主 Skill、4 个 Agent、5 个 Reference、2 份最终产物。
 
 ## 暂不包含
 
-- 不包含完整应用代码。
-- 不包含卖家精灵 MCP 调用实现。
+- 不包含完整 Web 应用代码（server/ 有骨架）。
+- 不包含卖家精灵 MCP 调用实现（目前手动导出）。
 - 不包含自有评论插件源码。
+- 不包含 1688 供应链、知产合规、利润核算等后置落地模块。
 - 不包含历史调研数据、备份文件和临时输出。
