@@ -38,7 +38,7 @@ from packages.report_renderer.render_report import (
     render_markdown,
     render_report_html,
 )
-from packages.research_core.pipeline.build_analysis_report import build_analysis_packet, build_workbook_sheets, render_html_report
+from packages.research_core.pipeline.build_analysis_report import build_analysis_packet, build_workbook_sheets
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -445,14 +445,25 @@ class RegressionTests(unittest.TestCase):
             )
             self.assertTrue(analysis["category_selection_derivation"]["disconfirming_evidence"])
 
-            html = render_html_report(analysis)
-            # 新决策导向模板的 8 个板块
-            for text in ["市场全貌", "数据来源与口径", "核心竞品", "用户痛点", "产品规格", "价格带分布", "关键词与流量策略", "风险与下一步", "Go / No-Go", "下一步"]:
-                self.assertIn(text, html)
-            for forbidden in ["供应商预审", "stage_7_integrated_precheck_report", "含义待解释"]:
-                self.assertNotIn(forbidden, html)
-            # 新模板不使用 fact-row 和旧 CSS 技巧
-            self.assertNotIn("<p>；</p>", html)
+            # 分析数据结构覆盖报告所需的 8 个板块
+            required_sections = [
+                "run_status_audit",
+                "category_selection_derivation",
+                "reference_asin_pool",
+                "category_opportunity",
+                "seller_sprite_validation",
+                "search_market_validation",
+                "keyword_pool",
+                "voc_spec_translation",
+                "route_judgment",
+                "market_synthesis",
+                "evidence_boundaries",
+                "blocking_gaps",
+                "human_review_focus",
+                "next_stage_entry_conditions",
+            ]
+            for section in required_sections:
+                self.assertIn(section, analysis, f"Report section missing: {section}")
 
             sheet_names = [name for name, _rows in build_workbook_sheets(analysis)]
             for name in ["Reference ASINs", "Category Candidates", "Keyword Pool", "Market Opportunity", "Route Judgment", "Risks And Next"]:

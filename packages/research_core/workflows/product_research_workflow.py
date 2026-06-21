@@ -46,7 +46,7 @@ class WorkflowConfig:
 @dataclass(frozen=True)
 class WorkflowResult:
     output_dir: Path
-    final_report_dir: Path
+    analysis_dir: Path
     selected_candidate_id: str
     selected_candidate_name: str
     manifest_path: Path
@@ -57,7 +57,7 @@ class WorkflowResult:
 
     @property
     def report_path(self) -> Path:
-        return self.final_report_dir / "report.md"
+        return self.analysis_dir / "report.md"
 
 
 def run_research_workflow(config: WorkflowConfig) -> WorkflowResult:
@@ -103,15 +103,15 @@ def run_research_workflow(config: WorkflowConfig) -> WorkflowResult:
     research_package_path = output_dir / "research_package.json"
     write_json(research_package_path, research_package)
 
-    final_report_dir = output_dir / "final_report"
-    render_deliverables(research_package_path, final_report_dir, mode="all", validate=False)
+    analysis_dir = output_dir / "analysis"
+    render_deliverables(research_package_path, analysis_dir, mode="all", validate=False)
 
     workflow_summary = build_workflow_summary(
         output_dir=output_dir,
         manifest=manifest,
         candidate=candidate,
         voc_package=voc_package,
-        final_report_dir=final_report_dir,
+        analysis_dir=analysis_dir,
         research_package=research_package,
         workflow_trace=research_package.get("workflow_trace", {}),
     )
@@ -122,7 +122,7 @@ def run_research_workflow(config: WorkflowConfig) -> WorkflowResult:
 
     return WorkflowResult(
         output_dir=output_dir,
-        final_report_dir=final_report_dir,
+        analysis_dir=analysis_dir,
         selected_candidate_id=candidate_id,
         selected_candidate_name=candidate_name,
         manifest_path=manifest_path,
@@ -186,7 +186,7 @@ def build_workflow_summary(
     manifest: dict[str, Any],
     candidate: dict[str, Any],
     voc_package: dict[str, Any] | None,
-    final_report_dir: Path,
+    analysis_dir: Path,
     research_package: dict[str, Any],
     workflow_trace: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -225,9 +225,9 @@ def build_workflow_summary(
             "import_manifest": str(output_dir / "import_manifest.json"),
             "candidate_pool": str(output_dir / "candidate_pool.json"),
             "research_package": str(output_dir / "research_package.json"),
-            "final_report": str(final_report_dir / "report.md"),
-            "web_report": str(final_report_dir / "report.html"),
-            "data_workbook": str(final_report_dir / "data.xlsx"),
+            "analysis_report_md": str(analysis_dir / "report.md"),
+            "analysis_report_html": str(analysis_dir / "report.html"),
+            "analysis_data_xlsx": str(analysis_dir / "data.xlsx"),
         },
     }
 
