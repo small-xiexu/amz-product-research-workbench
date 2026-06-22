@@ -41,6 +41,7 @@ Codex 对话 -> 初始方向/种子词 -> 候选 ASIN 池 -> 大小类目反推 
 - `agents/market-structure-agent.md`：卖家精灵市场结构证据
 - `agents/search-demand-agent.md`：Sorftime 搜索需求证据
 - `agents/voc-evidence-agent.md`：评论 VOC 证据
+- `agents/report-generation-agent.md`：报告生成（两步流程 + 数据溯源）
 - `agents/delivery-qa-agent.md`：交付质量和证据边界检查
 
 Web 页面只作为后续外壳，底层链路未跑通前不继续扩展 Web。
@@ -73,6 +74,7 @@ Web 页面只作为后续外壳，底层链路未跑通前不继续扩展 Web。
 | Market Structure Agent | 市场结构分析师 | 卖家精灵 | `market_structure_evidence` |
 | Search Demand Agent | 搜索需求分析师 | Sorftime MCP | `search_demand_evidence` |
 | VOC Evidence Agent | 用户痛点产品经理 | 评论插件 | `voc_evidence` |
+| Report Generation Agent | 报告生成器 | 4 份证据包 | `report_data.json` → `analysis_report.html` |
 | Delivery QA Agent | 交付质检员 | 最终产物和校验结果 | 交付状态、证据边界问题、缺口清单 |
 
 协作顺序：
@@ -420,7 +422,11 @@ Stage 7 必须围绕已确认路线、参考 ASIN Top5/Top10、候选大小类�
 
 #### 7.3 AI 手写 HTML 报告
 
-**这是 Stage 7 的核心步骤。** AI 以资深亚马逊运营专家（5 年以上经验）的身份，读 4 份证据包，直接写 `analysis_report.html`。不跑脚本模板，不拼接字段。
+**这是 Stage 7 的核心步骤。** 必须按 `agents/report-generation-agent.md` 执行两步生成流程：
+
+**第一步：生成 `analysis/report_data.json`** — 从 4 份证据包提取所有将出现在 HTML 中的事实数据，每个数字标注 `source_path` 指向证据包具体字段。写完并通过自检后，才能进入第二步。
+
+**第二步：对着 `report_data.json` 写 `analysis/report_data.html`** — HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条数，必须能在 `report_data.json` 中找到对应条目。不在 `report_data.json` 里的数字禁止写入 HTML。
 
 **报告定位：决策建议书，不是数据罗列。** 运营看完要能回答：做不做、做什么样、卖多少钱、主打什么词、风险在哪、下一步干什么。
 
@@ -446,6 +452,7 @@ Stage 7 必须围绕已确认路线、参考 ASIN Top5/Top10、候选大小类�
 - 类目全景必须完整：如果目标品类分布在多个类目，只展示一个类目属于数据遗漏。即使某个类目只有 1-2 个竞品，也必须列出并标注"次要战场"或"错误挂载"。
 - HTML 中不出现 Agent、MCP、tool、spawn、packet、pipeline 等内部术语。数据来源用”Sorftime””卖家精灵””Review 导出插件”等业务名称。
 - HTML 视觉必须遵循 `references/report_design_spec.md`：绿色渐变 Hero、`.section` 卡片分区、仅 4 种标签、价格 flex 柱状图、1100px 最大宽度、3 列编号下一步卡片。禁止深灰 Hero、裸内容无卡片、9 种标签、纯表格价格带。
+- **禁止新增数字**：HTML 中每一个数字必须能在 `report_data.json` 中找到，且 `report_data.json` 中的每一个事实必须有 `source_path` 指向证据包。竞品的品牌名、子体数、产地、材质细节等如不在证据包中，禁止写入 HTML。详见 `agents/report-generation-agent.md` 的"不可以做"和"数据溯源表"。
 
 #### 7.4 脚本生成 XLSX + QA
 
@@ -459,6 +466,7 @@ python3 -m packages.research_core.pipeline.build_analysis_report <run_dir>
 - 生成 `analysis_evidence_packet.json`（结构化数据落盘）
 - 生成 `analysis_report.xlsx`（Excel 数据回表，10 个 Sheet）
 - 运行 QA 校验，输出 `delivery_qa_result.json`
+- **新增**：校验 `report_data.json` 是否存在且包含所有必要板块（Layer 3 证据溯源校验）
 
 注意：脚本只生成 XLSX + JSON + QA，不生成 HTML。HTML 由 AI 单独手写，两者互不覆盖。
 
@@ -466,6 +474,7 @@ python3 -m packages.research_core.pipeline.build_analysis_report <run_dir>
 
 AI 最终自检：
 
+- [ ] `report_data.json` 已生成，每个事实有 `source_path`
 - [ ] HTML 首屏有明确结论（建议进入小批量验证 / 建议补齐数据后再评估 / 建议暂停推进）
 - [ ] HTML 视觉质量符合 `references/report_design_spec.md`（`<link>` 引用 CSS、绿色 Hero、卡片分区、4 种标签、价格柱状图、1100px、无内部术语）
 - [ ] 细分 TAM 和大类 TAM 已分开，不混着讲

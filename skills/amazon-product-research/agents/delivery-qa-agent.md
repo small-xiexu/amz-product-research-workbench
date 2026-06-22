@@ -64,6 +64,7 @@
 
 - `analysis_report.html`、`analysis_report.xlsx` 存在（最终交付物）。
 - `analysis_evidence_packet.json`、`delivery_qa_result.json` 存在（中间产物）。
+- **`analysis/report_data.json` 存在且包含所有必要板块**（`hero`、`category_panorama`、`competitors`、`pain_points`、`price_bands`、`keywords`、`risks`、`advantages`、`gonogo_conditions`、`next_steps`）。这是 AI 写 HTML 前的事实提取中间层，缺失即为跳过两步流程。
 - HTML 8 个板块完整：Hero、市场全貌、数据来源与口径、核心竞品、用户痛点→产品规格、价格带分布、关键词与流量策略、风险与下一步。
 - HTML 首屏有明确结论（建议进入小批量验证 / 建议补齐数据后再评估 / 建议暂停推进）。
 - HTML 全篇用词克制，事实和推断可区分，不出现 Agent/MCP/tool/spawn/packet 等内部术语。
@@ -71,6 +72,22 @@
 - HTML 未出现品类推导链路、来源与状态、进入下一阶段的条件等开发向板块。
 - Excel 包含以下 Sheet（与 `build_analysis_report.py` 输出一致）：`Summary`、`Source Packets`、`Category Derivation`、`Category Candidates`、`Reference ASINs`、`Market Opportunity`、`Keyword Pool`、`VOC`、`Route Judgment`、`Risks And Next`。
 - 通用模板没有硬编码当前品类、ASIN 或关键词。
+
+## report_data.json 证据溯源校验（Stage 7 Layer 3）
+
+除了检查 `report_data.json` 存在和板块完整，QA 还应关注事实的可追溯性：
+
+| 检查项 | 级别 | 判定规则 |
+|---|---|---|
+| `report_data.json` 缺失 | `blocker` | 文件不存在即表示 AI 跳过了两步流程的第一步，报告中的数字未经溯源标注 |
+| 必填板块缺失 | `error` | `hero`、`category_panorama`、`competitors`、`pain_points`、`price_bands`、`keywords` 任一缺失 |
+| 事实条目无 `source_path` | `warning` | `report_data.json` 中 `value` 所在对象缺少 `source_path` 字段，该数字无法追溯到证据包 |
+| `source_path` 为空字符串 | `error` | 标注了溯源但路径为空，形同虚设 |
+| HTML 数字与 `report_data.json` 不一致 | `error` | 同一个数字在 HTML 和 report_data.json 中值不同（需人工抽查重点板块） |
+
+未来增强（当前不做自动校验，但 QA Agent 应标记为待办）：
+- `source_path` 在证据包 JSON 中的路径是否真实可解析
+- `report_data.json` 中的值与 `source_path` 指向的证据包字段值是否一致
 
 ## 运营式调研 QA
 

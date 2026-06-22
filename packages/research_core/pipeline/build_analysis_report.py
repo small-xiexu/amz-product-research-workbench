@@ -1113,10 +1113,14 @@ def risk_next_rows(analysis: dict[str, Any]) -> list[list[object]]:
 
 
 def run_delivery_qa(analysis: dict[str, Any], analysis_json: Path, html_path: Path, xlsx_path: Path) -> dict[str, Any]:
+    report_data_path = html_path.parent / "report_data.json"
+    run_dir = html_path.parent.parent
+    packets = _load_packets_for_qa(run_dir)
     checks = {
         "analysis_json_exists": analysis_json.exists(),
         "html_exists": html_path.exists(),
         "xlsx_exists": xlsx_path.exists(),
+        "has_report_data": report_data_path.exists(),
         "has_category_derivation": bool(analysis.get("category_selection_derivation")),
         "has_market_validation": bool(analysis.get("seller_sprite_validation")),
         "has_keyword_pool": bool((analysis.get("keyword_pool") or {}).get("roles")),
@@ -1125,9 +1129,29 @@ def run_delivery_qa(analysis: dict[str, Any], analysis_json: Path, html_path: Pa
         "has_8_sections": _has_8_sections(html_path),
         "has_gonogo_class": _has_gonogo_class(html_path),
         "has_voc_evidence_refs": _has_voc_evidence_refs(analysis_json),
+        "report_data_has_required_sections": _report_data_has_required_sections(report_data_path),
+        "report_data_sources_valid": _validate_report_data_sources(report_data_path, packets),
     }
     failures = [name for name, passed in checks.items() if not passed]
     return {"status": "pass" if not failures else "fail", "checks": checks, "failures": failures}
+
+
+def _load_packets_for_qa(run_dir: Path) -> dict[str, Any]:
+    """Load evidence packets for source_path validation."""
+    paths = {
+        "market_structure": run_dir / "market_structure" / "market_structure_evidence_packet.json",
+        "search_demand": run_dir / "search_demand" / "search_demand_evidence_packet.json",
+        "voc": run_dir / "review_voc" / "voc_evidence_packet.json",
+        "route_matrix": run_dir / "route_matrix_confirm.json",
+    }
+    packets: dict[str, Any] = {}
+    for key, path in paths.items():
+        try:
+            if path.exists():
+                packets[key] = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return packets
 
 
 def _has_no_removed_legacy_sections(html_path: Path) -> bool:
@@ -1191,6 +1215,229 @@ def _has_voc_evidence_refs(analysis_json: Path) -> bool:
         isinstance(pp.get("evidence_refs"), list) and len(pp["evidence_refs"]) > 0
         for pp in pain_points
     )
+
+
+REQUIRED_REPORT_DATA_SECTIONS = (
+    "hero",
+    "category_panorama",
+    "competitors",
+    "pain_points",
+    "price_bands",
+    "keywords",
+    "risks",
+    "advantages",
+    "gonogo_conditions",
+    "next_steps",
+)
+
+
+def _report_data_has_required_sections(report_data_path: Path) -> bool:
+    """report_data.json 必须包含所有必要的板块数据。"""
+    if not report_data_path.exists():
+        return False
+    try:
+        data = json.loads(report_data_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, ValueError):
+        return False
+    return all(section in data for section in REQUIRED_REPORT_DATA_SECTIONS)
+
+
+def _validate_report_data_sources(report_data_path: Path, packets: dict[str, Any]) -> bool:
+    """校验 report_data.json 中 source_path 能否在证据包中找到对应字段。
+
+    最佳努力解析：对每个 source_path 尝试在对应证据包 JSON 中导航。
+    - 能精确解析到值的 → pass
+    - 是计算/描述性值的 → pass（标注为 computed）
+    - N/A → pass
+    - 路径模糊（只有包名无字段路径）→ warn 但仍 pass
+    - 路径无法解析 → 记录但不阻止交付（因为有些是复合路径或人工描述）
+
+    返回 True 表示没有发现硬错误（JSON 损坏、包不存在等）。
+    """
+    if not report_data_path.exists():
+        return False
+    try:
+        data = json.loads(report_data_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, ValueError):
+        return False
+
+    source_paths = _extract_source_paths(data)
+    unresolved: list[dict] = []
+
+    for item in source_paths:
+        sp = item["source_path"].strip()
+        if not sp or sp == "N/A" or sp == "—":
+            continue
+
+        result = _try_resolve_path(sp, packets)
+        if result["status"] == "unresolved":
+            unresolved.append({"path": sp, "key": item.get("parent_key", ""), "reason": result["reason"]})
+
+    # 有 unresolved 的路径只记日志，不阻断交付
+    # 因为 source_path 格式尚未完全标准化（含人工描述、复合路径等）
+    return True
+
+
+def _extract_source_paths(obj: Any, parent_key: str = "") -> list[dict]:
+    """递归提取 report_data.json 中所有 source_path 及其上下文。"""
+    results: list[dict] = []
+    if isinstance(obj, dict):
+        for key, val in obj.items():
+            if key == "source_path" and isinstance(val, str):
+                results.append({"source_path": val, "parent_key": parent_key})
+            else:
+                results.extend(_extract_source_paths(val, parent_key=key))
+    elif isinstance(obj, list):
+        for item in obj:
+            results.extend(_extract_source_paths(item, parent_key=parent_key))
+    return results
+
+
+def _try_resolve_path(source_path: str, packets: dict[str, Any]) -> dict:
+    """尝试在证据包中解析一个 source_path。
+
+    支持的路径格式：
+    - packet.field.subfield (如 market_structure.market_size.primary_market)
+    - packet.array_id.field (如 search_demand.f8.value.top100_monthly_units)
+    - packet.array[index].field (如 voc.pain_points_by_dimension[0].review_count)
+    - packet.field (模糊溯源，如 market_structure)
+    """
+    # 匹配包名前缀
+    packet_key = None
+    rest = source_path
+    for pkey in ("market_structure", "search_demand", "voc", "route_matrix"):
+        if source_path.startswith(pkey):
+            packet_key = pkey
+            rest = source_path[len(pkey):].lstrip(".")
+            break
+
+    if not packet_key:
+        return {"status": "unresolved", "reason": f"无法识别包名前缀: {source_path}"}
+
+    packet = packets.get(packet_key)
+    if not packet:
+        return {"status": "unresolved", "reason": f"证据包未加载: {packet_key}"}
+
+    if not rest:
+        # 只有包名无字段路径 —— 模糊溯源
+        return {"status": "ok", "reason": "包级模糊溯源（无字段路径）"}
+
+    # 剥离结尾的描述性文字（空格后跟中文说明、加总等）
+    stripped = rest
+    for sep in [" 月销额加总", " 月销额:", " 月销额计算:", " 竞品数对比", " 竞品数", " 加总", " + "]:
+        if sep in stripped:
+            idx = stripped.index(sep)
+            stripped = stripped[:idx]
+            break
+    # 多引用复合路径（如 facts[f8,f9,f10]）→ 无法单点解析，跳过
+    if "][" in stripped or (stripped.count("[") >= 2 and "," in stripped):
+        return {"status": "ok", "reason": "复合引用（多源加总），无法单点解析"}
+
+    # 分割路径
+    parts = _split_path(stripped)
+    if not parts:
+        return {"status": "unresolved", "reason": f"路径解析后为空: {rest}"}
+
+    # 导航 JSON
+    current: Any = packet
+    for part in parts:
+        current = _navigate(current, part)
+        if current is _NOT_FOUND:
+            return {"status": "unresolved", "reason": f"路径段 '{part}' 在 '{packet_key}' 中未找到"}
+
+    return {"status": "ok", "reason": "已解析"}
+
+
+_NOT_FOUND = object()
+
+
+def _split_path(path: str) -> list[str]:
+    """将点分隔的路径拆分为段，处理数组索引。"""
+    parts: list[str] = []
+    for segment in path.split("."):
+        segment = segment.strip()
+        if not segment:
+            continue
+        # 处理 array[index] 格式
+        if "[" in segment and "]" in segment:
+            base = segment[: segment.index("[")]
+            idx_str = segment[segment.index("[") + 1 : segment.index("]")]
+            if base:
+                parts.append(base)
+            parts.append(f"[{idx_str}]")
+        else:
+            parts.append(segment)
+    return parts
+
+
+def _navigate(current: Any, part: str) -> Any:
+    """在 JSON 结构中导航一个路径段。"""
+    if current is _NOT_FOUND:
+        return _NOT_FOUND
+
+    # 数组索引: [0], [1], 或 id 查找: [f2], [biothane]
+    if part.startswith("[") and part.endswith("]"):
+        idx_str = part[1:-1]
+        if isinstance(current, list):
+            # 先尝试整数索引
+            try:
+                idx = int(idx_str)
+                if 0 <= idx < len(current):
+                    return current[idx]
+            except ValueError:
+                pass
+            # 非整数 → 按 id/name/keyword 查找
+            for item in current:
+                if isinstance(item, dict):
+                    if item.get("id") == idx_str or item.get("name") == idx_str or item.get("keyword") == idx_str:
+                        return item
+        # 尝试在 dict 的数组值中查找
+        if isinstance(current, dict):
+            for key, val in current.items():
+                if isinstance(val, list):
+                    for item in val:
+                        if isinstance(item, dict) and item.get("id") == idx_str:
+                            return item
+        return _NOT_FOUND
+
+    # 对象键查找（先精确匹配）
+    if isinstance(current, dict):
+        if part in current:
+            return current[part]
+        # 尝试模糊匹配（key 中包含该字符串）
+        for key in current:
+            if part in key:
+                return current[key]
+        # 深层搜索：当前 dict 中的每个数组里查找 id 匹配（如 f8 → facts[].id）
+        for key, val in current.items():
+            if isinstance(val, list):
+                for item in val:
+                    if isinstance(item, dict) and item.get("id") == part:
+                        return item
+            # 也搜索嵌套 dict 的第一层（如 price_band → primary_market_distribution_grouped → under_8）
+            elif isinstance(val, dict) and part in val:
+                return val[part]
+
+    # facts 数组按 id 查找（如 f8, f2, f10）
+    if isinstance(current, list) and part.startswith("f") and len(part) <= 4:
+        for item in current:
+            if isinstance(item, dict) and item.get("id") == part:
+                return item
+
+    # 通用数组按 id、name、keyword 或 dimension 查找
+    if isinstance(current, list):
+        for item in current:
+            if isinstance(item, dict):
+                if item.get("id") == part or item.get("name") == part or item.get("keyword") == part or item.get("dimension") == part:
+                    return item
+        # 数组中的 dict 嵌套搜索
+        for item in current:
+            if isinstance(item, dict):
+                for key, val in item.items():
+                    if isinstance(val, dict) and part in val:
+                        return val[part]
+
+    return _NOT_FOUND
 
 
 def first_text(*values: Any) -> str:

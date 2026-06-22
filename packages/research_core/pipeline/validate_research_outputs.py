@@ -18,6 +18,7 @@ ANALYSIS_REQUIRED_SHEETS = (
     "Category Derivation",
     "Category Candidates",
     "Reference ASINs",
+    "Market Opportunity",
     "Keyword Pool",
     "VOC",
     "Route Judgment",
@@ -687,6 +688,8 @@ ANALYSIS_HTML_SECTION_MARKERS = (
     "风险与下一步",
 )
 
+HERO_MARKERS = ('class="hero"', 'class="verdict"')
+
 
 def _check_analysis_html_sections(result: ValidationResult, report_html: str) -> None:
     if not report_html:
@@ -695,8 +698,12 @@ def _check_analysis_html_sections(result: ValidationResult, report_html: str) ->
     missing = [m for m in ANALYSIS_HTML_SECTION_MARKERS if m not in report_html]
     if missing:
         result.errors.append(f"analysis_report.html 缺少板块：{', '.join(missing)}")
-    else:
-        result.notes.append("analysis_report.html 8 板块完整")
+    missing_hero = [m for m in HERO_MARKERS if m not in report_html]
+    if missing_hero:
+        result.errors.append(f"analysis_report.html Hero 首屏缺失或不完整，缺少标记：{', '.join(missing_hero)}")
+    if missing or missing_hero:
+        return
+    result.notes.append("analysis_report.html 8 板块完整（含 Hero）")
     if 'class="go-nogo"' not in report_html and "class='go-nogo'" not in report_html:
         result.warnings.append("analysis_report.html Go/No-Go 表缺少 .go-nogo class")
     if "<style>" in report_html:
