@@ -368,6 +368,25 @@ python3 scripts/build_review_voc_from_plugin_export.py \
 - 正向卖点（好评中重复出现的加分项）
 - 混池信号（场景词、人群词与目标品不符的评论占比）
 
+每个痛点必须包含 `evidence_refs` 字段，记录证据可追溯链：
+
+```json
+{
+  "dimension": "痛点维度名",
+  "evidence_quotes": ["用户原文摘录"],
+  "evidence_refs": [
+    {
+      "review_id": "RXXXXXXXXXX",
+      "quote": "用户原文摘录",
+      "rating": "1.0",
+      "asin": "B0XXXXXXXX"
+    }
+  ]
+}
+```
+
+`evidence_refs` 中每条记录对应一条原始评论，`quote` 为评论中的原文片段（非 AI 归纳），`review_id` 可追溯到 `review_voc_package.json` 中的 `normalized_reviews`。
+
 暂停点 6：有效评论 < 30 条时，给出补抓 ASIN 建议，不强行出痛点结论。
 
 ### Stage 7 · 多数据源市场机会报告

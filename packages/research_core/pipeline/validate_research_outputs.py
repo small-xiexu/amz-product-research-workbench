@@ -12,6 +12,17 @@ from openpyxl import load_workbook
 REQUIRED_FINAL_FILES = ("report.md", "report.html", "data.xlsx")
 # 当前主链路 analysis/ 目录的预期文件（与 legacy final_report/ 五件套不同）
 REQUIRED_ANALYSIS_FILES = ("analysis_report.html", "analysis_report.xlsx")
+ANALYSIS_REQUIRED_SHEETS = (
+    "Summary",
+    "Source Packets",
+    "Category Derivation",
+    "Category Candidates",
+    "Reference ASINs",
+    "Keyword Pool",
+    "VOC",
+    "Route Judgment",
+    "Risks And Next",
+)
 REQUIRED_WORKFLOW_FILES = ("workflow_summary.md", "workflow_summary.json")
 BASE_REQUIRED_SHEETS = (
     "数据来源说明",
@@ -140,37 +151,46 @@ def validate_workflow_output(input_dir: Path | str) -> ValidationResult:
     data_workbook = final_report_dir / ("analysis_report.xlsx" if is_analysis_format else "data.xlsx")
     if data_workbook.exists():
         sheet_names = _load_sheet_names(data_workbook, result)
-        _check_required_sheets(result, sheet_names, BASE_REQUIRED_SHEETS, "基础交付")
-        _check_top100_rows(data_workbook, result)
-        _check_attribute_analysis(data_workbook, result)
-        _check_competitor_selection_logic(data_workbook, result)
-        _check_go_nogo_scorecard(data_workbook, workflow_summary, result)
-        _check_report_excel_traceability(sheet_names, result)
+        if is_analysis_format:
+            _check_required_sheets(result, sheet_names, ANALYSIS_REQUIRED_SHEETS, "分析报告")
+        else:
+            _check_required_sheets(result, sheet_names, BASE_REQUIRED_SHEETS, "基础交付")
+            _check_top100_rows(data_workbook, result)
+            _check_attribute_analysis(data_workbook, result)
+            _check_competitor_selection_logic(data_workbook, result)
+            _check_go_nogo_scorecard(data_workbook, workflow_summary, result)
+            _check_report_excel_traceability(sheet_names, result)
 
-    if _review_voc_enabled(workflow_dir, workflow_summary):
+    if _review_voc_enabled(workflow_dir, workflow_summary) and not is_analysis_format:
         _check_required_sheets(result, sheet_names, VOC_REQUIRED_SHEETS, "评论 VOC")
         if data_workbook.exists():
             _check_voc_evidence_chain(data_workbook, result)
 
-    if _interactive_workflow_enabled(workflow_summary):
+    if _interactive_workflow_enabled(workflow_summary) and not is_analysis_format:
         _check_required_sheets(result, sheet_names, ("交互决策记录",), "交互式流程")
 
-    _check_report_terms(result, report_text)
-    _check_report_html(result, report_html)
-    if _interactive_workflow_enabled(workflow_summary):
-        _check_interactive_report_terms(result, report_text)
-    _check_report_sections(result, report_text)
-    _check_report_quality_terms(result, report_text)
-    _check_analysis_mode_coverage(result, report_text)
-    _check_quantitative_report_quality(result, report_text)
+    if is_analysis_format:
+        _check_analysis_html_sections(result, report_html)
+    else:
+        _check_report_terms(result, report_text)
+        _check_report_html(result, report_html)
+        if _interactive_workflow_enabled(workflow_summary):
+            _check_interactive_report_terms(result, report_text)
+        _check_report_sections(result, report_text)
+        _check_report_quality_terms(result, report_text)
+        _check_analysis_mode_coverage(result, report_text)
+        _check_quantitative_report_quality(result, report_text)
     return result
 
 
 def resolve_output_dirs(path: Path) -> tuple[Path, Path]:
-    # 当前主链路：analysis/ 目录
+    # 路径本身就是 analysis/ 或 final_report/ 目录
+    if path.is_dir() and path.name in ("analysis", "final_report"):
+        return path.parent, path
+    # 当前主链路：analysis/ 子目录
     if (path / "analysis").is_dir():
         return path, path / "analysis"
-    # Legacy: final_report/ 目录
+    # Legacy: final_report/ 子目录
     if (path / "final_report").is_dir():
         return path, path / "final_report"
     if (path / "report.md").exists() or (path / "data.xlsx").exists():
@@ -655,6 +675,32 @@ def _check_report_sections(result: ValidationResult, report_text: str) -> None:
         result.errors.append("report.md 正式章节顺序不符合 P20.2 标准")
         return
     result.notes.append("report.md 正式 12 章结构完整且顺序正确")
+
+
+ANALYSIS_HTML_SECTION_MARKERS = (
+    "类目全景",
+    "数据来源与口径",
+    "核心竞品",
+    "用户痛点",
+    "价格带分布",
+    "关键词与流量策略",
+    "风险与下一步",
+)
+
+
+def _check_analysis_html_sections(result: ValidationResult, report_html: str) -> None:
+    if not report_html:
+        result.errors.append("analysis_report.html 为空")
+        return
+    missing = [m for m in ANALYSIS_HTML_SECTION_MARKERS if m not in report_html]
+    if missing:
+        result.errors.append(f"analysis_report.html 缺少板块：{', '.join(missing)}")
+    else:
+        result.notes.append("analysis_report.html 8 板块完整")
+    if 'class="go-nogo"' not in report_html and "class='go-nogo'" not in report_html:
+        result.warnings.append("analysis_report.html Go/No-Go 表缺少 .go-nogo class")
+    if "<style>" in report_html:
+        result.errors.append("analysis_report.html 含内联 <style>，应 <link> 引用 report_template.css")
 
 
 if __name__ == "__main__":

@@ -11,4 +11,4 @@ if str(ROOT) not in sys.path:
 from packages.research_core.pipeline.validate_research_outputs import main
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

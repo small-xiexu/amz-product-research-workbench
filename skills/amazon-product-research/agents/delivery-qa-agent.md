@@ -67,6 +67,7 @@
 - HTML 8 个板块完整：Hero、市场全貌、数据来源与口径、核心竞品、用户痛点→产品规格、价格带分布、关键词与流量策略、风险与下一步。
 - HTML 首屏有明确结论（建议进入小批量验证 / 建议补齐数据后再评估 / 建议暂停推进）。
 - HTML 全篇用词克制，事实和推断可区分，不出现 Agent/MCP/tool/spawn/packet 等内部术语。
+- VOC 痛点有 `evidence_refs` 可追溯至原始评论（`review_id`、`quote`、`rating`、`asin`），非 HTML AI 报告摘要。
 - HTML 未出现品类推导链路、来源与状态、进入下一阶段的条件等开发向板块。
 - Excel 包含以下 Sheet（与 `build_analysis_report.py` 输出一致）：`Summary`、`Source Packets`、`Category Derivation`、`Category Candidates`、`Reference ASINs`、`Market Opportunity`、`Keyword Pool`、`VOC`、`Route Judgment`、`Risks And Next`。
 - 通用模板没有硬编码当前品类、ASIN 或关键词。

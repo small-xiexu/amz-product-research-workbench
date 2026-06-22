@@ -616,6 +616,7 @@ def build_voc_translation(voc: dict[str, Any]) -> dict[str, Any]:
                 "review_count": item.get("review_count", item.get("count", "")),
                 "spec_requirement": join_text(item.get("spec_requirement")),
                 "evidence": join_text(item.get("evidence_quotes") or item.get("evidence")),
+                "evidence_refs": as_list(item.get("evidence_refs")),
                 "next_check": join_text(item.get("next_check")),
             }
         )
@@ -1121,6 +1122,9 @@ def run_delivery_qa(analysis: dict[str, Any], analysis_json: Path, html_path: Pa
         "has_keyword_pool": bool((analysis.get("keyword_pool") or {}).get("roles")),
         "has_no_removed_legacy_sections": _has_no_removed_legacy_sections(html_path),
         "has_linked_css": _has_linked_css(html_path),
+        "has_8_sections": _has_8_sections(html_path),
+        "has_gonogo_class": _has_gonogo_class(html_path),
+        "has_voc_evidence_refs": _has_voc_evidence_refs(analysis_json),
     }
     failures = [name for name, passed in checks.items() if not passed]
     return {"status": "pass" if not failures else "fail", "checks": checks, "failures": failures}
@@ -1146,6 +1150,47 @@ def _has_linked_css(html_path: Path) -> bool:
     has_link = 'report_template.css' in html
     has_inline_style = '<style>' in html
     return has_link and not has_inline_style
+
+
+REQUIRED_SECTION_MARKERS = (
+    "类目全景",
+    "数据来源与口径",
+    "核心竞品",
+    "用户痛点",
+    "价格带分布",
+    "关键词与流量策略",
+    "风险与下一步",
+)
+
+
+def _has_8_sections(html_path: Path) -> bool:
+    if not html_path.exists():
+        return False
+    html = html_path.read_text(encoding="utf-8")
+    return all(marker in html for marker in REQUIRED_SECTION_MARKERS)
+
+
+def _has_gonogo_class(html_path: Path) -> bool:
+    if not html_path.exists():
+        return False
+    html = html_path.read_text(encoding="utf-8")
+    return 'class="go-nogo"' in html or "class='go-nogo'" in html
+
+
+def _has_voc_evidence_refs(analysis_json: Path) -> bool:
+    """VOC 痛点必须有 evidence_refs 可追溯至原始评论。"""
+    if not analysis_json.exists():
+        return False
+    data = json.loads(analysis_json.read_text(encoding="utf-8"))
+    voc = data.get("voc_spec_translation") or {}
+    pain_points = voc.get("pain_points") or []
+    if not pain_points:
+        # 没有痛点时不扣分（可能评论样本不足）
+        return True
+    return all(
+        isinstance(pp.get("evidence_refs"), list) and len(pp["evidence_refs"]) > 0
+        for pp in pain_points
+    )
 
 
 def first_text(*values: Any) -> str:
