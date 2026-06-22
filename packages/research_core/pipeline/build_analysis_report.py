@@ -1116,6 +1116,7 @@ def run_delivery_qa(analysis: dict[str, Any], analysis_json: Path, html_path: Pa
     report_data_path = html_path.parent / "report_data.json"
     run_dir = html_path.parent.parent
     packets = _load_packets_for_qa(run_dir)
+    source_result = _validate_report_data_sources(report_data_path, packets)
     checks = {
         "analysis_json_exists": analysis_json.exists(),
         "html_exists": html_path.exists(),
@@ -1130,9 +1131,11 @@ def run_delivery_qa(analysis: dict[str, Any], analysis_json: Path, html_path: Pa
         "has_gonogo_class": _has_gonogo_class(html_path),
         "has_voc_evidence_refs": _has_voc_evidence_refs(analysis_json),
         "report_data_has_required_sections": _report_data_has_required_sections(report_data_path),
-        "report_data_sources_valid": _validate_report_data_sources(report_data_path, packets),
+        "report_data_sources_valid": source_result["pass"],
     }
-    failures = [name for name, passed in checks.items() if not passed]
+    if source_result.get("reason"):
+        checks["report_data_sources_note"] = source_result["reason"]
+    failures = [name for name, passed in checks.items() if not passed and name != "report_data_sources_note"]
     return {"status": "pass" if not failures else "fail", "checks": checks, "failures": failures}
 
 
@@ -1201,8 +1204,11 @@ def _has_gonogo_class(html_path: Path) -> bool:
     return 'class="go-nogo"' in html or "class='go-nogo'" in html
 
 
+VOC_REQUIRED_EVIDENCE_FIELDS = ("review_id", "quote", "rating", "asin")
+
+
 def _has_voc_evidence_refs(analysis_json: Path) -> bool:
-    """VOC 痛点必须有 evidence_refs 可追溯至原始评论。"""
+    """VOC 痛点必须有 evidence_refs，且每个 ref 包含 review_id/quote/rating/asin 四字段。"""
     if not analysis_json.exists():
         return False
     data = json.loads(analysis_json.read_text(encoding="utf-8"))
@@ -1212,7 +1218,13 @@ def _has_voc_evidence_refs(analysis_json: Path) -> bool:
         # 没有痛点时不扣分（可能评论样本不足）
         return True
     return all(
-        isinstance(pp.get("evidence_refs"), list) and len(pp["evidence_refs"]) > 0
+        isinstance(pp.get("evidence_refs"), list)
+        and len(pp["evidence_refs"]) > 0
+        and all(
+            isinstance(ref, dict)
+            and all(ref.get(field) for field in VOC_REQUIRED_EVIDENCE_FIELDS)
+            for ref in pp["evidence_refs"]
+        )
         for pp in pain_points
     )
 
@@ -1242,27 +1254,25 @@ def _report_data_has_required_sections(report_data_path: Path) -> bool:
     return all(section in data for section in REQUIRED_REPORT_DATA_SECTIONS)
 
 
-def _validate_report_data_sources(report_data_path: Path, packets: dict[str, Any]) -> bool:
+def _validate_report_data_sources(report_data_path: Path, packets: dict[str, Any]) -> dict:
     """校验 report_data.json 中 source_path 能否在证据包中找到对应字段。
 
-    最佳努力解析：对每个 source_path 尝试在对应证据包 JSON 中导航。
-    - 能精确解析到值的 → pass
-    - 是计算/描述性值的 → pass（标注为 computed）
-    - N/A → pass
-    - 路径模糊（只有包名无字段路径）→ warn 但仍 pass
-    - 路径无法解析 → 记录但不阻止交付（因为有些是复合路径或人工描述）
-
-    返回 True 表示没有发现硬错误（JSON 损坏、包不存在等）。
+    返回 dict 包含 pass/fail 和解析明细。阈值：
+    - 未解析率 > 20% → block（pass=False）
+    - 未解析率 > 5% → warning（pass=True，但记录）
+    - 未解析率 ≤ 5% → pass
     """
     if not report_data_path.exists():
-        return False
+        return {"pass": False, "total": 0, "resolved": 0, "vague": 0, "unresolved": 0, "unresolved_pct": 0.0, "reason": "report_data.json 不存在"}
     try:
         data = json.loads(report_data_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, ValueError):
-        return False
+        return {"pass": False, "total": 0, "resolved": 0, "vague": 0, "unresolved": 0, "unresolved_pct": 0.0, "reason": "report_data.json 解析失败"}
 
     source_paths = _extract_source_paths(data)
     unresolved: list[dict] = []
+    resolved = 0
+    vague = 0
 
     for item in source_paths:
         sp = item["source_path"].strip()
@@ -1272,10 +1282,33 @@ def _validate_report_data_sources(report_data_path: Path, packets: dict[str, Any
         result = _try_resolve_path(sp, packets)
         if result["status"] == "unresolved":
             unresolved.append({"path": sp, "key": item.get("parent_key", ""), "reason": result["reason"]})
+        elif result["status"] == "ok" and "模糊" in result.get("reason", ""):
+            vague += 1
+        else:
+            resolved += 1
 
-    # 有 unresolved 的路径只记日志，不阻断交付
-    # 因为 source_path 格式尚未完全标准化（含人工描述、复合路径等）
-    return True
+    total = len(source_paths)
+    # 只计算有效 source_path（排除空/N/A）
+    effective = resolved + vague + len(unresolved)
+    unresolved_pct = len(unresolved) / max(effective, 1)
+
+    passed = unresolved_pct <= 0.20
+    reason = ""
+    if unresolved_pct > 0.20:
+        reason = f"未解析率 {unresolved_pct:.0%} 超过 20% 阈值，共 {len(unresolved)}/{effective} 条路径无法溯源"
+    elif unresolved_pct > 0.05:
+        reason = f"未解析率 {unresolved_pct:.0%} 在 5%-20% 之间，共 {len(unresolved)}/{effective} 条路径无法溯源（不阻断）"
+
+    return {
+        "pass": passed,
+        "total": total,
+        "resolved": resolved,
+        "vague": vague,
+        "unresolved": len(unresolved),
+        "unresolved_pct": unresolved_pct,
+        "reason": reason,
+        "unresolved_paths": unresolved,
+    }
 
 
 def _extract_source_paths(obj: Any, parent_key: str = "") -> list[dict]:

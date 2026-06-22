@@ -12,8 +12,6 @@ from .interactive_workflow import (
     plan_next_action,
     workflow_state_from_dict,
 )
-from .product_research_workflow import WorkflowConfig, WorkflowResult, build_workflow_trace, run_research_workflow
-
 __all__ = [
     "DecisionRecord",
     "EvidenceRef",
@@ -21,12 +19,8 @@ __all__ = [
     "NextActionOption",
     "RecommendedAction",
     "WorkflowState",
-    "WorkflowConfig",
-    "WorkflowResult",
     "advance_stage",
-    "build_workflow_trace",
     "create_initial_state",
     "plan_next_action",
-    "run_research_workflow",
     "workflow_state_from_dict",
 ]

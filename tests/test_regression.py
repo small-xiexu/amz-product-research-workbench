@@ -21,8 +21,6 @@ from packages.research_core.contracts import (
     validate_research_package_chapters,
     validate_workflow_state,
 )
-from packages.research_core.workflows import WorkflowConfig, run_research_workflow
-from packages.research_core.workflows.product_research_workflow import build_workflow_trace
 from packages.research_core.workflows import DecisionRecord, advance_stage, create_initial_state
 from packages.research_core.pipeline.build_route_matrix_confirm import build_route_matrix_confirm
 from packages.research_core.pipeline.build_candidate_pool_from_import_manifest import build_candidate_pool
@@ -32,12 +30,7 @@ from packages.research_core.pipeline.cross_analysis import build_cross_analysis
 from packages.research_core.pipeline.parse_top100_dimensions import parse_top100_dimensions
 from packages.research_core.pipeline.audit_run_status import audit_run_status
 from packages.research_core.pipeline.validate_research_outputs import validate_workflow_output
-from packages.report_renderer.render_report import (
-    FORMAL_REPORT_SECTION_TITLES,
-    render_data_workbook,
-    render_markdown,
-    render_report_html,
-)
+from packages.report_renderer.constants import FORMAL_REPORT_SECTION_TITLES
 from packages.research_core.pipeline.build_analysis_report import build_analysis_packet, build_workbook_sheets
 
 
@@ -815,55 +808,6 @@ class RegressionTests(unittest.TestCase):
 
         self.assertTrue(result.ok, result.errors)
 
-    def test_render_markdown_uses_formal_report_sections(self) -> None:
-        package = _load_json("examples/minimal_research_package.json")
-        report = render_markdown(package)
-        positions = [report.index(f"## {title}") for title in FORMAL_REPORT_SECTION_TITLES]
-
-        self.assertEqual(positions, sorted(positions))
-        self.assertIn("## Executive Summary / 当前结论", report)
-        self.assertIn("## 下一步动作与证据附录", report)
-
-    def test_render_report_html_contains_formal_report_links(self) -> None:
-        package = _load_json("examples/minimal_research_package.json")
-        report = render_report_html(package)
-
-        self.assertIn("<!doctype html>", report)
-        self.assertIn('<html lang="zh-CN">', report)
-        self.assertIn("选品决策报告", report)
-        self.assertIn("一眼看懂", report)
-        self.assertIn("市场机会评分", report)
-        self.assertIn('href="data.xlsx" download', report)
-        self.assertIn('href="report.md" download', report)
-        self.assertIn("下载 Excel 报表", report)
-        self.assertIn("下载 Markdown 报告", report)
-        self.assertNotIn('href="summary.md"', report)
-        self.assertNotIn('href="dashboard.html"', report)
-        self.assertNotIn("旧版摘要看板", report)
-
-    def test_render_markdown_includes_interactive_workflow_trace(self) -> None:
-        package = _load_json("examples/minimal_research_package.json")
-        package["workflow_trace"] = _sample_workflow_trace()
-        report = render_markdown(package)
-
-        self.assertIn("### 交互式流程状态", report)
-        self.assertIn("workflow-001", report)
-        self.assertIn("确认主线为窗户清洁组合工具", report)
-        self.assertIn("### 关键决策记录", report)
-
-    def test_data_workbook_includes_interactive_decision_sheet(self) -> None:
-        package = _load_json("examples/minimal_research_package.json")
-        package["workflow_trace"] = _sample_workflow_trace()
-        with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp) / "data.xlsx"
-            render_data_workbook(package, output)
-            workbook = load_workbook(output, read_only=True, data_only=True)
-            sheet = workbook["交互决策记录"]
-            values = [row[0] for row in sheet.iter_rows(values_only=True)]
-
-        self.assertIn("流程状态", values)
-        self.assertIn("决策记录", values)
-
     def test_contract_validators_reject_missing_handoff_fields(self) -> None:
         with self.assertRaisesRegex(ContractValidationError, "metadata"):
             validate_import_manifest({"files": [], "data_quality": {}})
@@ -937,13 +881,10 @@ class RegressionTests(unittest.TestCase):
             )
         candidate = candidate_pool["candidates"][0]
         research_package = build_research_package(candidate_pool, candidate["candidate_id"])
-        report = render_markdown(research_package)
 
         self.assertEqual(candidate["demand_evidence"]["sorftime_category_report"]["product_count"], 2)
         self.assertIn("price_band_context", candidate)
         self.assertEqual(candidate["price_band_context"]["note"], "仅用于判断市场价格带和新品切入口，不做后置落地测算。")
-        self.assertIn("Sorftime category_report 快照", report)
-        self.assertIn("价格带", report)
         self.assertEqual(research_package["price_band_context"]["top_price_band_by_units"], candidate["price_band_context"]["top_price_band_by_units"])
 
     def test_research_package_records_expert_ai_analysis_persona(self) -> None:
@@ -966,18 +907,12 @@ class RegressionTests(unittest.TestCase):
         }
 
         research_package = build_research_package(candidate_pool, candidate["candidate_id"], voc_package)
-        report = render_report_html(research_package)
 
         self.assertEqual(research_package["ai_analysis"]["persona"], "资深亚马逊运营专家")
         self.assertIn("卖家精灵", research_package["ai_analysis"]["data_source_scope"][0])
         self.assertIn("Sorftime", research_package["ai_analysis"]["data_source_scope"][1])
         self.assertIn("评价插件", research_package["ai_analysis"]["data_source_scope"][2])
         self.assertIn("路线矩阵", research_package["ai_analysis"]["data_source_scope"][3])
-        self.assertIn("资深亚马逊运营专家视角", report)
-        self.assertIn("AI 综合分析", report)
-        self.assertIn("数据越多越好，但不是拿来堆字", report)
-        self.assertIn("四份数据怎么一起看", report)
-        self.assertIn("评论要变成怎么改", report)
 
     def test_voc_risk_matrix_uses_summary_when_findings_are_not_curated(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1045,7 +980,6 @@ class RegressionTests(unittest.TestCase):
         research_package = build_research_package(candidate_pool, candidate["candidate_id"])
         routes = {item["route_id"]: item for item in research_package["product_route_matrix"]}
         route_plan = {item["route_id"]: item for item in research_package["route_deep_dive_plan"]}
-        html = render_report_html(research_package)
 
         self.assertIn("upgraded_core", routes)
         self.assertGreaterEqual(routes["upgraded_core"]["candidate_count"], 1)
@@ -1055,9 +989,6 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(route_plan["upgraded_core"]["recommended_depth"], "必须路线小深挖")
         self.assertIn("双牵引绳 腰包", route_plan["upgraded_core"]["route_search_terms"])
         self.assertTrue(route_plan["upgraded_core"]["review_voc_asin_plan"])
-        self.assertIn("产品路线对比", html)
-        self.assertIn("路线级小深挖计划", html)
-        self.assertIn("双牵引绳 + 腰包/腰带", html)
 
     def test_product_route_matrix_is_generic_for_window_squeegee(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1279,14 +1210,6 @@ class RegressionTests(unittest.TestCase):
         # targeted_deep_dive 的 exploration_planning 先做 Sorftime 前置快验，action_type 为 mcp_call
         self.assertEqual(next_state.next_actions[0].recommended_action.action_type, "mcp_call")
 
-    def test_build_workflow_trace_preserves_decision_log_for_report(self) -> None:
-        trace = build_workflow_trace(_sample_workflow_state(), Path("/tmp/workflow_state.json"))
-
-        self.assertEqual(trace["workflow_state"]["workflow_id"], "workflow-001")
-        self.assertEqual(trace["decision_log"][0]["decision"], "确认主线为窗户清洁组合工具")
-        self.assertEqual(trace["next_actions"][0]["recommended_action"]["type"], "operator_export")
-        self.assertTrue(trace["source_file"].endswith("/tmp/workflow_state.json"))
-
     def test_interactive_workflow_cli_writes_state_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "workflow_state.json"
@@ -1331,64 +1254,6 @@ class RegressionTests(unittest.TestCase):
         candidate = candidate_pool["candidates"][0]
         self.assertTrue(candidate["candidate_id"].startswith("cand-"))
         self.assertGreaterEqual(len(candidate.get("top_products", [])), 1)
-
-    @unittest.skipUnless(
-        (ROOT / "卖家精灵导出样例_美国站_宠物牵引绳_20260607").exists(),
-        "local SellerSprite sample folder is ignored and may be absent",
-    )
-    def test_workflow_api_runs_manual_export_sample(self) -> None:
-        source = ROOT / "卖家精灵导出样例_美国站_宠物牵引绳_20260607"
-        with tempfile.TemporaryDirectory() as tmp:
-            copied_source = Path(tmp) / source.name
-            output_dir = Path(tmp) / "workflow"
-            shutil.copytree(source, copied_source, ignore=shutil.ignore_patterns(".DS_Store"))
-
-            result = run_research_workflow(
-                WorkflowConfig(
-                    manual_export_folder=copied_source,
-                    output_dir=output_dir,
-                    site="US",
-                    task_name="Workflow API 回归",
-                )
-            )
-
-            validation = validate_workflow_output(output_dir)
-
-        self.assertTrue(result.report_path.name.endswith("report.md"))
-        self.assertTrue(validation.ok, validation.errors)
-
-    @unittest.skipUnless(
-        (ROOT / "卖家精灵导出样例_美国站_宠物牵引绳_20260607").exists(),
-        "local SellerSprite sample folder is ignored and may be absent",
-    )
-    def test_workflow_cli_stays_compatible(self) -> None:
-        source = ROOT / "卖家精灵导出样例_美国站_宠物牵引绳_20260607"
-        with tempfile.TemporaryDirectory() as tmp:
-            copied_source = Path(tmp) / source.name
-            output_dir = Path(tmp) / "workflow_cli"
-            shutil.copytree(source, copied_source, ignore=shutil.ignore_patterns(".DS_Store"))
-
-            completed = subprocess.run(
-                [
-                    "python3",
-                    str(ROOT / "scripts/run_research_workflow.py"),
-                    str(copied_source),
-                    str(output_dir),
-                    "--site",
-                    "US",
-                    "--task-name",
-                    "Workflow CLI 回归",
-                ],
-                cwd=ROOT,
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-            validation = validate_workflow_output(output_dir)
-
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertIn("Wrote workflow outputs", completed.stdout)
-        self.assertTrue(validation.ok, validation.errors)
 
 
 def _load_json(relative_path: str) -> dict:
@@ -1527,10 +1392,6 @@ def _sample_workflow_state() -> dict:
         ],
         "updated_at": "2026-06-12T00:05:00+00:00",
     }
-
-
-def _sample_workflow_trace() -> dict:
-    return build_workflow_trace(_sample_workflow_state(), Path("/tmp/workflow_state.json"))
 
 
 def _minimal_import_manifest(source_folder: Path) -> dict:

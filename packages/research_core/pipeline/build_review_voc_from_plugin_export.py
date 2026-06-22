@@ -28,7 +28,7 @@ except ImportError as exc:  # pragma: no cover
     raise SystemExit("openpyxl is required to read review plugin Excel exports") from exc
 
 
-from packages.report_renderer.render_report import _write_xlsx
+from packages.report_renderer.xlsx_writer import write_xlsx
 
 
 EXPECTED_SHEET = "评论数据"
@@ -397,7 +397,7 @@ def render_summary(package: dict[str, Any]) -> str:
 
 def render_workbook(package: dict[str, Any], output_path: Path) -> None:
     stats = package.get("stats") or package.get("summary", {})
-    _write_xlsx(
+    write_xlsx(
         output_path,
         [
             ("数据概况", _stats_rows(stats)),
