@@ -56,8 +56,8 @@ Evidence Packet 是多 Agent 协作的交接单位。每个数据源专家 Agent
 | `market_structure_evidence` | Market Structure Agent | 卖家精灵市场、Top100、ABA、关键词反查 |
 | `search_demand_evidence` | Search Demand Agent | Sorftime 类目、关键词、趋势、竞品流量词 |
 | `voc_evidence` | VOC Evidence Agent | 评论插件、评论证据、痛点到规格映射 |
-| `analysis_evidence_packet` | 脚本 `build_analysis_report.py` | Stage 7 结构化综合判断，由脚本自动生成 |
-| `integrated_operator_judgment` | AI 主 Agent | 读证据包后手写 `analysis_report.html`，JSON 中间产物 |
+| `report_data` | 脚本 `build_analysis_report.py` 生成 seed，AI 增强 | 唯一数据中枢，所有事实含 `source_path` 溯源 |
+| `integrated_operator_judgment` | AI 主 Agent | 读证据包后手写 `<中文品名>_分析报告.html`，JSON 中间产物 |
 | `delivery_qa_result` | Delivery QA Agent | 最终交付物、校验结果和证据边界 |
 
 ## 通用业务对象
@@ -193,14 +193,14 @@ Evidence Packet 是多 Agent 协作的交接单位。每个数据源专家 Agent
 
 当运行环境支持子 Agent 且用户要求多 Agent 时，Stage 7 的 `search_demand_evidence` 应由 Search Demand Agent 真实子 Agent 产出。主 Agent 可以在 Stage 1 快探中直接调用 Sorftime，但 Stage 7 Sorftime 深扫不能静默由主 Agent 代跑；如因工具不可用降级，必须在 `execution_provenance.execution_mode = "serial_fallback"` 和 `data_gaps` 中说明，并由 QA 标记为待补。
 
-Route Matrix、workflow_state 等非 Evidence Packet 文件不强制 `executed_by_agent=true`；若被 `analysis_evidence_packet.source_packets` 引用，应在来源审计里标明为 `workflow_state`、`route_matrix`、`legacy_import` 或 `script_generated`。
+Route Matrix、workflow_state 等非 Evidence Packet 文件不强制 `executed_by_agent=true`；若被 `report_data.json` 的 `source_path` 引用，应在来源审计里标明为 `workflow_state`、`route_matrix`、`legacy_import` 或 `script_generated`。
 
 ## 越权规则
 
 - 专家 Agent 不输出 `final_decision`、`route_priority`。
 - 专家 Agent 可以写 `evidence_strength`，不能写“建议立项”。
 - 主 Agent 不新增原始数字；需要数字时必须引用 Evidence Packet、MCP 快照、结构化中间文件或 `research_package.json`。
-- Stage 7 的 `analysis_evidence_packet` 可以输出 `继续看 / 谨慎继续 / 暂缓`，但必须说明数据缺口和结论边界。
+- Stage 7 的 `report_data.json` 可以包含 `继续看 / 谨慎继续 / 暂缓` 判词，但必须说明数据缺口和结论边界。
 - QA Agent 不改商业判断，只判断是否有证据、是否违反边界、是否可交付。
 - 任一证据包 `confidence=low` 时，主 Agent 必须在最终判断里说明影响。
 
@@ -218,14 +218,14 @@ Route Matrix、workflow_state 等非 Evidence Packet 文件不强制 `executed_b
 
 ## Stage 7 市场机会特殊要求
 
-Stage 7 生成 `analysis_report.html` 前，至少要有以下证据结构；如果某项缺失，必须在 `data_gaps` 和 HTML 报告中说明影响：
+Stage 7 生成 `<中文品名>_分析报告.html` 前，至少要有以下证据结构；如果某项缺失，必须在 `data_gaps` 和 HTML 报告中说明影响：
 
 | 证据 | 必备内容 |
 |---|---|
 | `search_demand_evidence` | 候选类目、参考 ASIN 流量词、竞品关键词、运营式关键词池、自然位、热销特征、类目淡旺季、混池风险 |
 | `market_structure_evidence` | 参考 ASIN 池、候选大/小类、ASIN 类目反推、Top100、ABA、关键词反查、价格带机会、评论门槛、新品机会 |
 | `voc_evidence` | 高频痛点、正向驱动、痛点到规格/测试映射 |
-| `analysis_evidence_packet` | 主 Agent 详细综合分析、参考 ASIN 和类目选择、小类目机会、关键词分层解释、市场机会结论、人工 review 指南、下一步补数条件 |
+| `report_data` | 主 Agent 详细综合分析、参考 ASIN 和类目选择、小类目机会、关键词分层解释、市场机会结论、人工 review 指南、下一步补数条件 |
 
 Stage 7 真实多 Agent 执行时还必须满足：
 
@@ -233,14 +233,14 @@ Stage 7 真实多 Agent 执行时还必须满足：
 - `search_demand_evidence.execution_provenance.execution_mode = "real_subagent_spawn"`
 - `search_demand_evidence.execution_provenance.agent_role = "Search Demand Agent"`
 
-`analysis_evidence_packet` 必须声明：
+`report_data.json` 必须声明：
 
-- `persona = "资深亚马逊运营专家"`
-- `stage = "market_opportunity_review"`
-- `verdict` 只能是 `继续看`、`谨慎继续` 或 `暂缓`
-- `source_packets` 列出全部读取的 Evidence Packet 和关键输入文件
-- `lead_operator_analysis` 明确回答市场需求、竞争切入、产品形态、VOC 到规格和为什么还不能强结论
-- `market_scorecard` 包含市场机会评分卡 8 个维度
+- `run_id` 与 run 目录名一致
+- `hero.verdict` 只能是 `建议进入小批量验证`、`建议补齐数据后再评估` 或 `建议暂停推进`
+- `evidence_sources` 列出全部读取的 Evidence Packet 和关键输入文件
+- `hero.lead_analysis` 明确回答市场需求、竞争切入、产品形态、VOC 到规格和为什么还不能强结论
+- 10 个必填板块：`hero`、`category_panorama`、`data_sources`、`competitors`、`pain_points`、`price_bands`、`keywords`、`risks`、`advantages`、`gonogo_conditions`、`next_steps`
+- 所有事实值必须标注 `source_path`，可追溯到证据包具体字段
 
 ## 与运行时和现有产物关系
 

@@ -11,7 +11,7 @@
 - V1 采用三源融合：卖家精灵手动导出（广域候选池）+ Sorftime MCP（类目/关键词/竞品深度验证）+ 自有评论插件（VOC 证据链）。
 - 主产品体验是 AI 与运营交互式推进：AI 判断当前阶段、下一步动作、是否需要运营决策；最终报告沉淀整个交互过程。
 - 当前已跑通完整 7 阶段主链路：`运营意图 -> Sorftime 快验 -> 卖家精灵导出 -> 数据盘点 -> 候选池 -> 路线矩阵 -> 评论 VOC -> AI 手写决策报告 + 脚本 XLSX`。
-- 最终交付物：`analysis_report.html`（AI 以资深运营专家视角手写）+ `analysis_report.xlsx`（脚本生成数据回表）。
+- 最终交付物：`<中文品名>_分析报告.html`（AI 以资深运营专家视角手写）+ `<中文品名>_数据回表.xlsx`（脚本生成数据回表）。
 - 保留 Excel 数据底表和可追溯证据链。
 - 自有评论插件已通过 Excel/HTML 文件导入方式接入重点候选深挖。
 
@@ -94,20 +94,20 @@ python3 scripts/plan_interactive_workflow.py \
 - AI 应该问运营的问题
 - 下一步动作卡
 
-交互推进到 Stage 7 后，AI 以资深运营专家身份手写 `analysis_report.html`，脚本生成 `analysis_report.xlsx` 数据回表。
+交互推进到 Stage 7 后，AI 以资深运营专家身份手写 `<中文品名>_分析报告.html`，脚本生成 `<中文品名>_数据回表.xlsx` 数据回表。
 
 ## Stage 7 交付
 
 AI 完成 7 阶段分析后，运行脚本生成数据回表和 QA：
 
 ```bash
-python3 -m packages.research_core.pipeline.build_analysis_report runs/<run_id>
+python3 -m packages.research_core.pipeline.build_analysis_report runs/<yyyymmdd_中文品类方向>
 ```
 
 产物：
-- `analysis/analysis_report.html` — AI 手写决策报告（最终交付）
-- `analysis/analysis_report.xlsx` — 脚本生成数据回表（最终交付）
-- `analysis/analysis_evidence_packet.json` — 结构化证据（中间产物）
+- `analysis/<中文品名>_分析报告.html` — AI 手写决策报告（最终交付）
+- `analysis/<中文品名>_数据回表.xlsx` — 脚本生成数据回表（最终交付）
+- `analysis/report_data.json` — 唯一数据中枢，所有事实含 source_path 溯源（中间产物）
 - `analysis/delivery_qa_result.json` — QA 校验结果（中间产物）
 
 定期运行通用性扫描：

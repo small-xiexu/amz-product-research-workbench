@@ -66,22 +66,22 @@ Web 页面暂不作为主线。等 Codex 版闭环稳定后，再把 Web 作为�
 每次真实调试单独建一个 run 目录：
 
 ```text
-runs/<yyyymmdd>_<direction>/
+runs/<yyyymmdd>_<中文品类方向>/
 ├── inputs/
 │   ├── seller_sprite/
 │   └── reviews/
 ├── mcp/
-├── workflow_state.json
-├── import_manifest.json
 ├── candidate_pool.json
+├── route_matrix_confirm.json
+├── market_structure/
+├── search_demand/
 ├── review_voc/
 ├── analysis/
-│   ├── analysis_report.html
-│   ├── analysis_report.xlsx
-│   ├── analysis_evidence_packet.json
+│   ├── <中文品名>_分析报告.html
+│   ├── <中文品名>_数据回表.xlsx
+│   ├── report_data.json
 │   └── delivery_qa_result.json
 ├── research_package.json
-├── final_report/
 └── workflow_summary.md
 ```
 

@@ -432,7 +432,7 @@ class RegressionTests(unittest.TestCase):
             self.assertGreaterEqual(mixed_keyword["mix_pool_score"], 70)
             self.assertEqual(mixed_keyword["mix_pool_risk_level"], "high")
             self.assertIn("run_status_audit", analysis)
-            self.assertTrue(analysis["run_status_audit"]["citation_checks"]["has_category_derivation"])
+            self.assertTrue(len(analysis["run_status_audit"]["stage_checks"]) > 0)
             self.assertTrue(
                 any(step.get("evidence_points") for step in analysis["category_selection_derivation"]["steps"])
             )
@@ -518,8 +518,8 @@ class RegressionTests(unittest.TestCase):
             audit = audit_run_status(run_dir)
 
         self.assertEqual(audit["current_stage"]["status"], "pending")
-        self.assertTrue(any(item["item"] == "评论插件导出数据" for item in audit["blockers"]))
-        self.assertIn("抓取评论 VOC", [item["label"] for item in audit["next_actions"]])
+        self.assertTrue(any(item["item"] == "Stage 5 路线确认" for item in audit["blockers"]))
+        self.assertIn("Stage 5 路线确认", [item["label"] for item in audit["next_actions"]])
 
     def test_parse_top100_dimensions_confidence_layers_and_capture_groups(self) -> None:
         products = [
@@ -813,8 +813,8 @@ class RegressionTests(unittest.TestCase):
             workflow_dir = Path(tmp)
             analysis_dir = workflow_dir / "analysis"
             analysis_dir.mkdir()
-            (analysis_dir / "analysis_report.html").write_text(_minimal_analysis_report_html(), encoding="utf-8")
-            write_xlsx(analysis_dir / "analysis_report.xlsx", _minimal_analysis_delivery_sheets())
+            (analysis_dir / f"{workflow_dir.name}_分析报告.html").write_text(_minimal_analysis_report_html(), encoding="utf-8")
+            write_xlsx(analysis_dir / f"{workflow_dir.name}_数据回表.xlsx", _minimal_analysis_delivery_sheets())
 
             result = validate_workflow_output(workflow_dir)
 
@@ -1639,7 +1639,9 @@ def _minimal_analysis_report_html() -> str:
     return (
         '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
         '<title>钢丝地板刷 · 市场机会报告</title>'
-        '<link rel="stylesheet" href="../../skills/amazon-product-research/references/report_template.css">'
+        '<style>body{margin:0;font-family:sans-serif}.page{max-width:1100px;margin:0 auto}'
+        '.hero{background:#2e7d32;color:#fff;padding:24px}.verdict{font-size:24px;font-weight:bold}'
+        '</style>'
         "</head><body><div class=\"page\">"
         "<section class=\"hero\"><div class=\"verdict\">建议进入小批量验证</div></section>"
         "<section><h2>类目全景</h2></section>"

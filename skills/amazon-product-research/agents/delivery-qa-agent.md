@@ -14,19 +14,28 @@
 
 ## 输入
 
-- `analysis/analysis_report.html`
-- `analysis/analysis_report.xlsx`
-- `analysis/analysis_evidence_packet.json`
+- `analysis/<中文品名>_分析报告.html`
+- `analysis/<中文品名>_数据回表.xlsx`
+- `analysis/report_data.json`
 - `research_package.json`
 - 各 Evidence Packet
 
 ## 输出
 
+`analysis/delivery_qa_result.json` 结构：
+
 | 字段 | 说明 |
 |---|---|
-| `delivery_status` | 通过 / 待补 / 阻塞 |
-| `validation_errors` | 必须修复的 error |
-| `validation_warnings` | 可交付但需说明的 warning |
+| `status` | `pass` / `fail` |
+| `checks` | 各项检查名 → bool 的映射 |
+| `failures` | 未通过检查的名称列表 |
+
+若 `status == "fail"`，主 Agent 必须修复 `failures` 中列出的问题后重新 QA，直到 `pass`。
+
+### 辅助标记（写入 `operator_workflow_issues`）
+
+| 字段 | 说明 |
+|---|---|
 | `evidence_boundary_issues` | 数字无来源、单源越权、专家 Agent 越权等问题 |
 | `operator_workflow_issues` | ASIN 池、类目反推、关键词分层、价格带机会、淡旺季分层、手动导出边界等运营口径问题 |
 | `missing_packets` | 缺失的 Evidence Packet 或关键字段 |
@@ -55,19 +64,19 @@
 
 ## 最终报告必查项（legacy，当前主链路以 Stage 7 必查项为准）
 
-- `analysis_report.html` 和 `analysis_report.xlsx` 存在（最终交付物）。
-- `analysis_evidence_packet.json` 和 `delivery_qa_result.json` 存在（中间产物）。
+- `<中文品名>_分析报告.html` 和 `<中文品名>_数据回表.xlsx` 存在（最终交付物）。
+- `report_data.json` 和 `delivery_qa_result.json` 存在（中间产物）。
 - HTML 包含完整的 8 板块结构，用词克制，决策导向。
-- HTML 未出现 Agent、MCP、tool、spawn、packet 等内部术语。
+- HTML 未出现 Agent、MCP、tool、spawn、packet、source_path 等内部术语，也未使用"路线A/B""路线1/2"等抽象路线代号。
 
 ## Stage 7 必查项
 
-- `analysis_report.html`、`analysis_report.xlsx` 存在（最终交付物）。
-- `analysis_evidence_packet.json`、`delivery_qa_result.json` 存在（中间产物）。
+- `<中文品名>_分析报告.html`、`<中文品名>_数据回表.xlsx` 存在（最终交付物）。
+- `report_data.json`、`delivery_qa_result.json` 存在（中间产物）。
 - **`analysis/report_data.json` 存在且包含所有必要板块**（`hero`、`category_panorama`、`competitors`、`pain_points`、`price_bands`、`keywords`、`risks`、`advantages`、`gonogo_conditions`、`next_steps`）。这是 AI 写 HTML 前的事实提取中间层，缺失即为跳过两步流程。
 - HTML 8 个板块完整：Hero、市场全貌、数据来源与口径、核心竞品、用户痛点→产品规格、价格带分布、关键词与流量策略、风险与下一步。
 - HTML 首屏有明确结论（建议进入小批量验证 / 建议补齐数据后再评估 / 建议暂停推进）。
-- HTML 全篇用词克制，事实和推断可区分，不出现 Agent/MCP/tool/spawn/packet 等内部术语。
+- HTML 全篇用词克制，事实和推断可区分，不出现 Agent/MCP/tool/spawn/packet/source_path 等内部术语，也未使用"路线A/B""路线1/2"等抽象路线代号。
 - VOC 痛点有 `evidence_refs` 可追溯至原始评论（`review_id`、`quote`、`rating`、`asin`），非 HTML AI 报告摘要。
 - HTML 未出现品类推导链路、来源与状态、进入下一阶段的条件等开发向板块。
 - Excel 包含以下 Sheet（与 `build_analysis_report.py` 输出一致）：`Summary`、`Source Packets`、`Category Derivation`、`Category Candidates`、`Reference ASINs`、`Market Opportunity`、`Keyword Pool`、`VOC`、`Route Judgment`、`Risks And Next`。
@@ -85,9 +94,7 @@
 | `source_path` 为空字符串 | `error` | 标注了溯源但路径为空，形同虚设 |
 | HTML 数字与 `report_data.json` 不一致 | `error` | 同一个数字在 HTML 和 report_data.json 中值不同（需人工抽查重点板块） |
 
-未来增强（当前不做自动校验，但 QA Agent 应标记为待办）：
-- `source_path` 在证据包 JSON 中的路径是否真实可解析
-- `report_data.json` 中的值与 `source_path` 指向的证据包字段值是否一致
+`source_path` 解析状态：代码已通过 `_validate_report_data_sources()` 自动校验 `source_path` 是否能解析到证据包中的真实字段，`delivery_qa_result.json` 中 `report_data_sources_valid` 字段反映校验结果。未解析的路径会记录在 `report_data_sources_note` 中。
 
 ## 运营式调研 QA
 

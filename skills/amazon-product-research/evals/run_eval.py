@@ -18,7 +18,8 @@ if str(ROOT) not in sys.path:
 from packages.report_renderer.xlsx_writer import write_xlsx
 from packages.research_core.pipeline.build_analysis_report import (
     build_analysis_packet,
-    build_workbook_sheets,
+    seed_report_data_from_analysis,
+    xlsx_sheets_from_report_data,
 )
 
 EVAL_DIR = Path(__file__).resolve().parent
@@ -49,16 +50,16 @@ def _run_minimal_analysis_packet_eval() -> int:
         packets = _load_packets(run_dir)
         analysis = build_analysis_packet(run_dir, packets)
 
-        analysis_json = analysis_dir / "analysis_evidence_packet.json"
+        report_data_path = analysis_dir / "report_data.json"
         xlsx_path = analysis_dir / "analysis_report.xlsx"
-        analysis_json.write_text(json.dumps(analysis, ensure_ascii=False, indent=2), encoding="utf-8")
-        write_xlsx(xlsx_path, build_workbook_sheets(analysis))
+        seed = seed_report_data_from_analysis(analysis)
+        report_data_path.write_text(json.dumps(seed, ensure_ascii=False, indent=2), encoding="utf-8")
+        write_xlsx(xlsx_path, xlsx_sheets_from_report_data(report_data_path))
 
-        assert analysis_json.exists(), "analysis_evidence_packet.json not written"
+        assert report_data_path.exists(), "report_data.json not written"
         assert xlsx_path.exists(), "analysis_report.xlsx not written"
-        assert analysis.get("verdict") in ("继续看", "谨慎继续", "暂缓"), f"unexpected verdict: {analysis.get('verdict')}"
-        assert isinstance(analysis.get("summary_kpis") or {}, dict), "summary_kpis should be a dict or None"
-        print(f"generated: {analysis_json}")
+        assert seed.get("hero", {}).get("verdict") in ("继续看", "谨慎继续", "暂缓"), f"unexpected verdict: {seed.get('hero', {}).get('verdict')}"
+        print(f"generated: {report_data_path}")
         print(f"generated: {xlsx_path}")
         print("eval_ok")
     return 0

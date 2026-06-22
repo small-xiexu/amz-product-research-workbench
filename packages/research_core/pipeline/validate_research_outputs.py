@@ -10,8 +10,8 @@ from openpyxl import load_workbook
 
 
 REQUIRED_FINAL_FILES = ("report.md", "report.html", "data.xlsx")
-# 当前主链路 analysis/ 目录的预期文件（与 legacy final_report/ 五件套不同）
-REQUIRED_ANALYSIS_FILES = ("analysis_report.html", "analysis_report.xlsx")
+# analysis/ 目录的预期文件后缀（需与中文品名拼接，如 钢丝地板刷_分析报告.html）
+ANALYSIS_REPORT_SUFFIXES = ("_分析报告.html", "_数据回表.xlsx")
 ANALYSIS_REQUIRED_SHEETS = (
     "Summary",
     "Source Packets",
@@ -139,18 +139,22 @@ def validate_workflow_output(input_dir: Path | str) -> ValidationResult:
     is_analysis_format = final_report_dir.name == "analysis"
 
     if is_analysis_format:
-        _check_required_files(result, final_report_dir, REQUIRED_ANALYSIS_FILES, "analysis")
+        _check_analysis_files_by_suffix(result, final_report_dir)
         # analysis 模式不要求 workflow_summary（Link B 流水线不生成该文件）
         workflow_summary: dict[str, Any] = {}
+        html_file = _find_file_by_suffix(final_report_dir, "_分析报告.html")
+        xlsx_file = _find_file_by_suffix(final_report_dir, "_数据回表.xlsx")
     else:
         _check_required_files(result, final_report_dir, REQUIRED_FINAL_FILES, "final_report")
         _check_required_files(result, workflow_dir, REQUIRED_WORKFLOW_FILES, "workflow")
         workflow_summary = _load_json(workflow_dir / "workflow_summary.json", result)
-    report_text = _read_text(final_report_dir / ("analysis_report.html" if is_analysis_format else "report.md"))
-    report_html = _read_text(final_report_dir / ("analysis_report.html" if is_analysis_format else "report.html"))
+        html_file = final_report_dir / "report.html"
+        xlsx_file = final_report_dir / "data.xlsx"
+    report_text = _read_text(html_file if is_analysis_format else final_report_dir / "report.md")
+    report_html = _read_text(html_file)
 
     sheet_names: set[str] = set()
-    data_workbook = final_report_dir / ("analysis_report.xlsx" if is_analysis_format else "data.xlsx")
+    data_workbook = xlsx_file
     if data_workbook.exists():
         sheet_names = _load_sheet_names(data_workbook, result)
         if is_analysis_format:
@@ -264,6 +268,24 @@ def _read_text(path: Path) -> str:
     if not path.exists():
         return ""
     return path.read_text(encoding="utf-8", errors="replace")
+
+
+def _find_file_by_suffix(base_dir: Path, suffix: str) -> Path:
+    """在目录中按后缀查找文件，返回第一个匹配；无匹配则返回推测路径。"""
+    for f in base_dir.iterdir():
+        if f.is_file() and f.name.endswith(suffix):
+            return f
+    return base_dir / f"unknown{suffix}"
+
+
+def _check_analysis_files_by_suffix(result: ValidationResult, base_dir: Path) -> None:
+    """按后缀检查 analysis 目录必需文件是否存在。"""
+    for suffix in ANALYSIS_REPORT_SUFFIXES:
+        found = _find_file_by_suffix(base_dir, suffix)
+        if found.exists():
+            result.notes.append(f"analysis 文件存在：{found.name}")
+        else:
+            result.errors.append(f"analysis 缺少 *{suffix} 文件")
 
 
 def _load_sheet_names(path: Path, result: ValidationResult) -> set[str]:
@@ -707,8 +729,11 @@ def _check_analysis_html_sections(result: ValidationResult, report_html: str) ->
     result.notes.append("analysis_report.html 8 板块完整（含 Hero）")
     if 'class="go-nogo"' not in report_html and "class='go-nogo'" not in report_html:
         result.warnings.append("analysis_report.html Go/No-Go 表缺少 .go-nogo class")
-    if "<style>" in report_html:
-        result.errors.append("analysis_report.html 含内联 <style>，应 <link> 引用 report_template.css")
+    if "<style>" not in report_html:
+        result.errors.append("analysis_report.html 缺少内联 <style> 块，必须内嵌 CSS 而非 <link> 引用")
+    import re
+    if re.search(r'<link[^>]*report_template\.css', report_html):
+        result.errors.append("analysis_report.html 含外部 <link> 引用 report_template.css，应使用内联 <style>")
 
 
 if __name__ == "__main__":

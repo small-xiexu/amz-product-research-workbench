@@ -5,36 +5,41 @@
 ## 目录结构
 
 ```text
-runs/<run_id>/
+runs/<yyyymmdd>_<中文品类方向>/
+├── progress.json                      # 断点恢复（AI 自动维护）
 ├── inputs/
-│   ├── seller_sprite/
-│   └── reviews/
+│   ├── seller_sprite/                 # 卖家精灵原始导出（只读，不修改）
+│   └── reviews/                       # 评论原始导出（只读，不修改）
 ├── mcp/
-├── workflow_state.json
-├── import_manifest.json
-├── candidate_pool.json
+│   └── sorftime_verification.json     # Sorftime 采集快照
+├── candidate_pool.json                # 候选品池
+├── route_matrix_confirm.json          # 路线确认配置
+├── market_structure/
+│   └── market_structure_evidence_packet.json
+├── search_demand/
+│   └── search_demand_evidence_packet.json
 ├── review_voc/
-├── analysis/
-│   ├── analysis_report.html       ← 最终交付：AI 手写决策报告
-│   ├── analysis_report.xlsx       ← 最终交付：脚本生成数据回表
-│   ├── analysis_evidence_packet.json   ← 中间产物
-│   └── delivery_qa_result.json         ← 中间产物
-├── research_package.json
-├── final_report/                  ← legacy，当前主链路以 analysis/ 为交付
-│   ├── report.md
-│   ├── report.html
-│   ├── dashboard.html
-│   ├── summary.md
-│   └── data.xlsx
-├── workflow_summary.json
-└── workflow_summary.md
+│   ├── review_voc_package.json
+│   ├── voc_evidence_packet.json
+│   └── voc_evidence.xlsx
+└── analysis/
+    ├── <中文品名>_分析报告.html       ← 最终交付：AI 手写决策报告
+    ├── <中文品名>_数据回表.xlsx       ← 最终交付：脚本生成数据回表
+    ├── report_data.json                ← 唯一数据中枢
+    └── delivery_qa_result.json         ← QA 校验结果
 ```
+
+**关键约束：**
+- `run_id` = `yyyymmdd_中文品类方向`，如 `YYYYMMDD_示例品类`
+- `<中文品名>` 与目录名去掉日期前缀一致（`_extract_product_name()` 直接从目录名推导）
+- `inputs/` 下是运营手动导出的原始文件，只读不修改
+- 所有 AI 笔记、中间 `.md` 文件不放入 run 目录
 
 ## 命名规则
 
 | 字段 | 用途 | 例子 |
 |---|---|---|
-| `run_id` | 本轮运行 ID | `YYYYMMDD_<topic>` |
+| `run_id` | 本轮运行 ID | `YYYYMMDD_中文品类方向`，如 `YYYYMMDD_示例品类` |
 | `product_direction` | 报告主标题 | `<目标方向>` |
 | `keyword` | 查询词 | `<目标关键词>` |
 | `task_name` | 本轮任务名 | `<站点><目标方向>深挖` |
@@ -57,9 +62,9 @@ Stage 7 市场机会报告和最终报告都必须校验。最终正式报告以
 
 Stage 7 最低要求：
 
-- `analysis_report.html`、`analysis_report.xlsx` 存在（最终交付物）
-- `analysis_evidence_packet.json`、`delivery_qa_result.json` 存在（中间产物，脚本生成）
-- `analysis_report.html` 由 AI 以资深运营专家视角手写，8 个板块完整，用词克制，决策导向
+- `<中文品名>_分析报告.html`、`<中文品名>_数据回表.xlsx` 存在（最终交付物）
+- `report_data.json`、`delivery_qa_result.json` 存在（脚本生成）
+- `<中文品名>_分析报告.html` 由 AI 以资深运营专家视角手写，8 个板块完整，用词克制，决策导向
 - HTML 包含资深亚马逊运营专家综合分析，不只是多源摘要拼接
 - HTML/Excel 是用户可读报告，不能展示 Agent、MCP、tool、internal execution、spawn、packet 等内部执行术语
 - Excel 能回表到 Sorftime、卖家精灵、VOC 和证据审计，但 Sheet/标题使用用户可理解名称
@@ -77,16 +82,16 @@ Stage 7 最低要求：
 
 `analysis/` 是多数据源市场机会报告的用户 review 主入口：
 
-- `analysis_report.html`：**最终交付**。AI 以资深亚马逊运营专家视角手写的决策建议书，8 个板块，给人看。
-- `analysis_report.xlsx`：**最终交付**。脚本自动生成的数据回表，10 个 Sheet，给数字溯源。
-- `analysis_evidence_packet.json`：**中间产物**。脚本生成的结构化综合判断，供 QA 校验。
+- `<中文品名>_分析报告.html`：**最终交付**。AI 以资深亚马逊运营专家视角手写的决策建议书，8 个板块，给人看。
+- `<中文品名>_数据回表.xlsx`：**最终交付**。脚本自动生成的数据回表，10 个 Sheet，给数字溯源。
+- `report_data.json`：**唯一数据中枢**。HTML 和 XLSX 均从此文件生成，所有数据声明通过 `source_path` 可追溯到证据包。
 - `delivery_qa_result.json`：**中间产物**。QA Agent 对证据边界、硬缺口和报告完整性的检查。
 
 职责边界：
 
 - 数据源专家 Agent 只产 evidence、缺口、置信度和待补动作，不输出最终报告。
-- AI 主 Agent 以资深亚马逊运营专家身份，读全部证据包后直接手写 `analysis_report.html`。
-- 脚本只负责生成 `analysis_report.xlsx`、`analysis_evidence_packet.json` 和 QA 校验，不生成 HTML。
+- AI 主 Agent 以资深亚马逊运营专家身份，读全部证据包后直接手写 `<中文品名>_分析报告.html`。
+- 脚本只负责生成 `report_data.json`（seed/重写）、`<中文品名>_数据回表.xlsx` 和 QA 校验，不生成 HTML。
 - HTML 由 AI 单独手写，与脚本产物互不覆盖。
 
 通用模板只能写章节、字段和数据映射，不能写死当前品类、ASIN、关键词或类目。

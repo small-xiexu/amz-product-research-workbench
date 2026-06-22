@@ -7,6 +7,7 @@ import argparse
 from datetime import datetime
 import json
 from pathlib import Path
+import re
 from typing import Any
 
 
@@ -23,6 +24,162 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
+    """从脚本分析 dict 生成初始 report_data.json，供 AI 增强。"""
+    run_id = analysis.get("run_id", "")
+    verdict_raw = analysis.get("verdict", "")
+    confidence = analysis.get("confidence", "")
+    one_sentence = analysis.get("one_sentence_conclusion", "")
+    market = analysis.get("seller_sprite_validation") or {}
+    cat_opp = analysis.get("category_opportunity") or {}
+    voc_spec = analysis.get("voc_spec_translation") or {}
+    kw_pool = analysis.get("keyword_pool") or {}
+    synthesis = analysis.get("market_synthesis") or {}
+    primary = market.get("primary_market") or {}
+    price_bands_raw = cat_opp.get("price_band_opportunity") or []
+    cat_candidates = cat_opp.get("category_candidates") or []
+    gaps = analysis.get("blocking_gaps") or []
+    next_conditions = analysis.get("next_stage_entry_conditions") or []
+
+    # Category
+    top_cat = cat_candidates[0] if cat_candidates else {}
+    overview = primary.get("overview_all") or {}
+
+    # Price bands
+    price_bands = []
+    for pb in price_bands_raw:
+        price_bands.append({
+            "band": pb.get("price_band", ""),
+            "label": pb.get("price_band", ""),
+            "unit_share": pb.get("sales_share", ""),
+            "product_count": pb.get("product_count", ""),
+            "opportunity_level": pb.get("opportunity_level", ""),
+            "reason": pb.get("reason", ""),
+            "recommendation": "",
+            "source_path": "analysis.category_opportunity.price_band_opportunity",
+        })
+
+    # Competitors
+    competitors = []
+    for asin in analysis.get("reference_asin_pool") or []:
+        competitors.append({
+            "asin": asin.get("asin", ""),
+            "route": asin.get("route_ref", ""),
+            "brand": asin.get("brand", ""),
+            "price": asin.get("price", ""),
+            "monthly_sales": asin.get("monthly_sales", ""),
+            "rating": asin.get("rating", ""),
+            "rating_count": asin.get("rating_count", ""),
+            "positioning": asin.get("similarity_reason", ""),
+            "source_path": "analysis.reference_asin_pool",
+        })
+
+    # Pain points
+    pain_points = []
+    for pp in voc_spec.get("pain_points") or []:
+        pain_points.append({
+            "priority": pp.get("priority", "P1"),
+            "dimension": pp.get("dimension", ""),
+            "review_count": pp.get("review_count", ""),
+            "asins_affected": pp.get("asins_affected", ""),
+            "issue": pp.get("issue", ""),
+            "spec_requirement": pp.get("spec_requirement", ""),
+            "source_path": "analysis.voc_spec_translation",
+        })
+
+    # Keywords
+    keywords = []
+    roles = kw_pool.get("roles") or {}
+    if isinstance(roles, dict):
+        for role, items in roles.items():
+            for item in (items if isinstance(items, list) else [items]):
+                if isinstance(item, dict):
+                    keywords.append({
+                        "keyword": item.get("keyword", item.get("term", "")),
+                        "monthly_searches": item.get("monthly_search_volume", ""),
+                        "cpc": item.get("cpc", ""),
+                        "intent": role,
+                        "route": "",
+                        "source_path": "analysis.keyword_pool",
+                    })
+
+    # Risks
+    risks = []
+    for gap in gaps:
+        risks.append({
+            "severity": "medium",
+            "title": gap.get("gap", ""),
+            "detail": gap.get("impact", ""),
+            "mitigation": "",
+            "source_path": "analysis.blocking_gaps",
+        })
+
+    # Advantages (placeholder)
+    advantages = [{"title": "待AI分析补充", "detail": "", "source_path": ""}]
+
+    # Go/No-Go
+    gonogo = []
+    for cond in next_conditions:
+        gonogo.append({
+            "condition": cond.get("condition", ""),
+            "status": cond.get("status", "must"),
+            "detail": cond.get("why", ""),
+            "source_path": "analysis.next_stage_entry_conditions",
+        })
+
+    # Next steps
+    next_steps = [{"step": "联系供应商打样，基于VOC痛点制定品质标准", "detail": voc_spec.get("summary", ""), "source_path": ""}]
+
+    # Hero metrics
+    metrics = {
+        "target_market": {"label": "目标市场", "value": primary.get("category_name", top_cat.get("category_name", "")), "source_path": "analysis.seller_sprite_validation.primary_market"},
+        "monthly_demand": {"label": "月销", "value": f"{primary.get('avg_monthly_units', '')} units", "source_path": "analysis.seller_sprite_validation.primary_market"},
+        "core_search_volume": {"label": "核心词月搜", "value": "待补", "source_path": ""},
+        "avg_price": {"label": "均价", "value": f"${primary.get('avg_price_usd', '')}", "source_path": "analysis.seller_sprite_validation.primary_market"},
+        "recommended_price": {"label": "推荐定价", "value": "待补", "source_path": ""},
+        "avg_rating": {"label": "类目均分", "value": primary.get("avg_rating", ""), "source_path": "analysis.seller_sprite_validation.primary_market"},
+    }
+
+    return {
+        "run_id": run_id,
+        "snapshot_date": analysis.get("created_at", ""),
+        "hero": {
+            "verdict": verdict_raw,
+            "one_sentence": one_sentence,
+            "metrics": metrics,
+            "confidence": confidence,
+            "data_freshness": "Sorftime实时 + 卖家精灵30天滚动",
+        },
+        "category_panorama": {
+            "selected_category": {
+                "name": top_cat.get("category_name", ""),
+                "node_id": top_cat.get("node_id", ""),
+                "monthly_units": primary.get("avg_monthly_units", ""),
+                "monthly_revenue": primary.get("avg_monthly_revenue_usd", ""),
+                "avg_price": primary.get("avg_price_usd", ""),
+                "avg_rating": primary.get("avg_rating", ""),
+                "return_rate": primary.get("return_rate", ""),
+                "source_path": "analysis.seller_sprite_validation.primary_market",
+            },
+            "sub_market": {"product_form": top_cat.get("category_path", ""), "estimated_monthly_units": "待补", "estimated_monthly_revenue": "待补", "source_path": ""},
+            "market_health": {"top3_brand_share": "待补", "china_seller_share": "待补", "new_3m_share": "待补", "concentration_note": "待补", "source_path": ""},
+            "seasonality": {"peak_months": [], "trough_months": [], "peak_trough_ratio": "待补", "source_path": ""},
+            "insights": [
+                {"type": "good", "title": "待AI分析", "body": "", "source_path": ""},
+                {"type": "warn", "title": "待AI分析", "body": "", "source_path": ""},
+            ],
+        },
+        "competitors": competitors,
+        "pain_points": pain_points,
+        "price_bands": price_bands,
+        "keywords": keywords,
+        "risks": risks,
+        "advantages": advantages,
+        "gonogo_conditions": gonogo,
+        "next_steps": next_steps,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     run_dir = Path(args.run_dir).expanduser().resolve()
@@ -34,18 +191,22 @@ def main(argv: list[str] | None = None) -> int:
     analysis_dir = run_dir / "analysis"
     analysis_dir.mkdir(parents=True, exist_ok=True)
 
-    analysis_json = analysis_dir / "analysis_evidence_packet.json"
-    html_path = analysis_dir / "analysis_report.html"
-    xlsx_path = analysis_dir / "analysis_report.xlsx"
+    product_name = _extract_product_name(run_dir)
+    report_data_path = analysis_dir / "report_data.json"
+    html_path = analysis_dir / f"{product_name}_分析报告.html"
+    xlsx_path = analysis_dir / f"{product_name}_数据回表.xlsx"
     qa_path = analysis_dir / "delivery_qa_result.json"
 
-    analysis_json.write_text(json.dumps(analysis, ensure_ascii=False, indent=2), encoding="utf-8")
-    # HTML 由 AI 主 Agent 以资深运营专家身份手写，脚本只负责 XLSX + JSON + QA
-    write_xlsx(xlsx_path, build_workbook_sheets(analysis))
-    qa = run_delivery_qa(analysis, analysis_json, html_path, xlsx_path)
+    # report_data.json 是唯一数据中枢。HTML 和 XLSX 均从此文件生成。
+    if not report_data_path.exists():
+        seed = seed_report_data_from_analysis(analysis)
+        report_data_path.write_text(json.dumps(seed, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"Wrote seed {report_data_path} (待 AI 增强后重跑脚本同步 XLSX)")
+    write_xlsx(xlsx_path, xlsx_sheets_from_report_data(report_data_path))
+    qa = run_delivery_qa(report_data_path, html_path, xlsx_path, analysis)
     qa_path.write_text(json.dumps(qa, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    print(f"Wrote {analysis_json}")
+    print(f"Wrote {report_data_path}")
     print(f"Wrote {xlsx_path}")
     print(f"Wrote {qa_path}")
     if html_path.exists():
@@ -84,6 +245,14 @@ def load_json(path: Path, required: bool = True) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"JSON root must be object: {path}")
     return data
+
+
+def _extract_product_name(run_dir: Path) -> str:
+    """从 run 目录名提取中文品名，用于报告文件命名。
+
+    run 目录命名规范为 yyyymmdd_中文品类方向，去掉日期前缀即得品名。
+    """
+    return re.sub(r'^\d{8}_', '', run_dir.name)
 
 
 def build_analysis_packet(run_dir: Path, packets: dict[str, Any]) -> dict[str, Any]:
@@ -127,7 +296,7 @@ def build_analysis_packet(run_dir: Path, packets: dict[str, Any]) -> dict[str, A
         blocking_gaps,
     )
     analysis = {
-        "packet_id": "analysis_evidence_packet",
+        "packet_id": "analysis_packet",
         "packet_version": "market-precheck-v2",
         "stage": "market_precheck",
         "run_id": run_dir.name,
@@ -154,14 +323,14 @@ def build_analysis_packet(run_dir: Path, packets: dict[str, Any]) -> dict[str, A
             "run_dir": str(run_dir),
             "source_packet_paths": {key: str(path) for key, path in paths.items()},
             "output_paths": {
-                "analysis_json": str(run_dir / "analysis" / "analysis_evidence_packet.json"),
-                "html": str(run_dir / "analysis" / "analysis_report.html"),
-                "xlsx": str(run_dir / "analysis" / "analysis_report.xlsx"),
+                "report_data": str(run_dir / "analysis" / "report_data.json"),
+                "html": str(run_dir / "analysis" / f"{_extract_product_name(run_dir)}_分析报告.html"),
+                "xlsx": str(run_dir / "analysis" / f"{_extract_product_name(run_dir)}_数据回表.xlsx"),
                 "qa": str(run_dir / "analysis" / "delivery_qa_result.json"),
             },
         },
     }
-    analysis["run_status_audit"] = audit_run_status(run_dir, analysis)
+    analysis["run_status_audit"] = audit_run_status(run_dir)
     return analysis
 
 
@@ -994,6 +1163,235 @@ def confidence_from_counts(reference_asins: list[dict[str, Any]], categories: li
     return "low"
 
 
+def xlsx_sheets_from_report_data(report_data_path: Path) -> list[tuple[str, list[list[object]]]]:
+    """从 AI 手写的 report_data.json 重建 XLSX，保证与 HTML 数据一致。"""
+    rd = json.loads(report_data_path.read_text(encoding="utf-8"))
+    hero = rd.get("hero") or {}
+    verdict = hero.get("verdict", "")
+    if isinstance(verdict, dict):
+        verdict = verdict.get("value", verdict.get("label", str(verdict)))
+    one_sentence = hero.get("one_sentence", "")
+    if isinstance(one_sentence, dict):
+        one_sentence = one_sentence.get("value", str(one_sentence))
+    cp = rd.get("category_panorama") or {}
+    cat = cp.get("selected_category") or {}
+    sub = cp.get("sub_market") or {}
+    health = cp.get("market_health") or {}
+    season = cp.get("seasonality") or {}
+
+    def _as_list(val: Any) -> list[Any]:
+        if val is None:
+            return []
+        if isinstance(val, list):
+            return val
+        if isinstance(val, dict):
+            # dict-of-lists pattern: {"main_attack": [...], "testable": [...]}
+            if any(isinstance(v, list) for v in val.values()):
+                result = []
+                for v in val.values():
+                    if isinstance(v, list):
+                        result.extend(v)
+                return result
+            # wrapper pattern: {"market": "...", "list": [...]}
+            if "list" in val:
+                inner = val["list"]
+                return inner if isinstance(inner, list) else [inner]
+            # data-as-values pattern: {"step1": {...}, "step2": {...}}
+            return list(val.values())
+        return [val]
+
+    def _next_move() -> str:
+        steps = rd.get("next_steps") or {}
+        if isinstance(steps, dict):
+            inner = steps.get("steps") or steps.get("list") or []
+            if isinstance(inner, list):
+                steps = inner
+            else:
+                steps = list(steps.values())
+        if isinstance(steps, list) and steps:
+            return " → ".join(
+                (s.get("action", s.get("step", "")) if isinstance(s, dict) else str(s))
+                for s in steps[:3]
+            )
+        return "联系供应商打样 → 样品实测 → 准备Listing"
+
+    # 1. Summary
+    summary = [
+        ["field", "value"],
+        ["run_id", rd.get("run_id", "")],
+        ["verdict", verdict],
+        ["confidence", hero.get("confidence", "")],
+        ["one_sentence_conclusion", one_sentence],
+        ["next_move", _next_move()],
+    ]
+
+    # 2. Source Packets
+    source_packets = [
+        ["name", "exists", "packet_id", "confidence", "path"],
+        ["Search Demand / Sorftime", "True", "search_demand_evidence", "medium", "search_demand/search_demand_evidence_packet.json"],
+        ["Market Structure / 卖家精灵", "True", "market_structure_evidence", "medium", "market_structure/market_structure_evidence_packet.json"],
+        ["VOC Evidence", "True", "voc_evidence", "high", "review_voc/voc_evidence_packet.json"],
+        ["Route Matrix", "True", "route_matrix_confirm", "", "route_matrix_confirm.json"],
+    ]
+
+    # 3. Category Derivation
+    cat_derivation = [
+        ["section", "step", "evidence", "implication", "decision", "lineage"],
+        ["summary", cat.get("name", ""), "", f"node_id={cat.get('node_id', '')}", "", ""],
+        ["step", "类目选择", str(cat.get("name", "")) + " (" + str(cat.get("node_id", "")) + ")", str(cat.get("monthly_units", "")) + " units, $" + str(cat.get("avg_price", "")), "主战场", "category_panorama.selected_category"],
+        ["step", "子市场", str(sub.get("product_form", "")), str(sub.get("estimated_monthly_units", "")), "聚焦细分", "category_panorama.sub_market"],
+        ["step", "健康度", "Top3:" + str(health.get("top3_brand_share", "")) + " 中国:" + str(health.get("china_seller_share", "")) + " 新品:" + str(health.get("new_3m_share", "")), str(health.get("concentration_note", "")), "", "category_panorama.market_health"],
+        ["step", "季节性", "旺季:" + ", ".join(season.get("peak_months", [])) + " 淡季:" + ", ".join(season.get("trough_months", [])), str(season.get("peak_trough_ratio", "")), "", "category_panorama.seasonality"],
+    ]
+
+    # 4. Category Candidates
+    cat_candidates = [
+        ["category_name", "node_id", "category_path", "category_role", "matched_asin_count", "evidence_strength", "recommended_use", "risk_tags"],
+        [cat.get("name", ""), cat.get("node_id", ""), "", "primary", "", "high", "主战场", ""],
+    ]
+
+    # 5. Reference ASINs
+    ref_asins = [
+        ["asin", "route_ref", "role", "similarity_reason", "category_path", "price", "monthly_sales", "rating_count"],
+    ]
+    for c in _as_list(rd.get("competitors")):
+        if isinstance(c, dict):
+            ref_asins.append([
+                c.get("asin", ""),
+                c.get("route", c.get("route_ref", "")),
+                c.get("role", "primary_reference"),
+                c.get("positioning", c.get("similarity_reason", "")),
+                "",
+                c.get("price", ""),
+                c.get("monthly_sales", ""),
+                c.get("rating_count", ""),
+            ])
+
+    # 6. Market Opportunity
+    market_opp = [
+        ["type", "field_1", "field_2", "field_3", "field_4", "field_5"],
+        ["primary_market", "category_name", cat.get("name", ""), "", "", ""],
+        ["primary_market", "node_id", cat.get("node_id", ""), "", "", ""],
+        ["primary_market", "monthly_units", cat.get("monthly_units", ""), "", "", ""],
+        ["primary_market", "monthly_revenue_usd", cat.get("monthly_revenue", ""), "", "", ""],
+        ["primary_market", "avg_price_usd", cat.get("avg_price", ""), "", "", ""],
+        ["primary_market", "avg_rating", cat.get("avg_rating", ""), "", "", ""],
+    ]
+    for pb in _as_list(rd.get("price_bands")):
+        if isinstance(pb, dict):
+            market_opp.append([
+                "price_band",
+                pb.get("label", pb.get("range", pb.get("band", ""))),
+                pb.get("unit_share", pb.get("sales_share", "")),
+                str(pb.get("product_count", "")),
+                pb.get("opportunity_level", ""),
+                pb.get("reason", pb.get("recommendation", "")),
+            ])
+
+    # 7. Keyword Pool
+    kw_pool = [
+        ["role", "keyword", "monthly_search_volume", "cpc", "competitor_count", "mix_pool_score", "mix_pool_risk_level", "reason", "recommended_action"],
+    ]
+    for kw in _as_list(rd.get("keywords")):
+        if isinstance(kw, dict):
+            intent = kw.get("intent", kw.get("category", kw.get("role", "")))
+            role = "main_traffic" if "主攻" in str(intent) else "test_traffic"
+            action = kw.get("intent", kw.get("category", ""))
+            kw_pool.append([
+                role,
+                kw.get("keyword", ""),
+                kw.get("monthly_searches", kw.get("monthly_search_volume", "")),
+                kw.get("cpc", ""),
+                kw.get("competitor_count", ""),
+                "",
+                "",
+                kw.get("reason", kw.get("strategy_notes", "")),
+                action,
+            ])
+
+    # 8. VOC
+    voc = [
+        ["dimension", "issue", "review_count", "spec_requirement", "evidence", "next_check"],
+    ]
+    for pp in _as_list(rd.get("pain_points")):
+        if isinstance(pp, dict):
+            voc.append([
+                pp.get("dimension", ""),
+                pp.get("issue", ""),
+                pp.get("review_count", ""),
+                pp.get("spec_requirement", ""),
+                pp.get("source_path", ""),
+                "",
+            ])
+
+    # 9. Route Judgment
+    route_judgment = [
+        ["route_name", "role", "market_signal", "keyword_signal", "voc_signal", "risk_note", "next_check"],
+    ]
+    routes_seen = set()
+    for c in _as_list(rd.get("competitors")):
+        if isinstance(c, dict):
+            route = c.get("route", c.get("route_ref", ""))
+            if route and route not in routes_seen:
+                routes_seen.add(route)
+                route_judgment.append([route, "primary", "", "", "", "", ""])
+    if not routes_seen:
+        route_judgment.append(["主路线", "primary", "", "", "", "", ""])
+
+    # 10. Risks And Next
+    risks_next = [
+        ["type", "source", "item", "detail", "next"],
+    ]
+    for r in _as_list(rd.get("risks")):
+        if isinstance(r, dict):
+            risks_next.append([
+                "gap",
+                "风险",
+                "[" + str(r.get("severity", "")) + "] " + str(r.get("title", "")),
+                r.get("detail", ""),
+                r.get("mitigation", ""),
+            ])
+    for adv in _as_list(rd.get("advantages")):
+        if isinstance(adv, dict):
+            risks_next.append([
+                "boundary",
+                "优势",
+                adv.get("title", ""),
+                adv.get("detail", ""),
+                "",
+            ])
+    for cond in _as_list(rd.get("gonogo_conditions")):
+        if isinstance(cond, dict):
+            risks_next.append([
+                "next_condition",
+                cond.get("status", ""),
+                cond.get("condition", ""),
+                cond.get("detail", ""),
+                cond.get("source_path", ""),
+            ])
+    for ns in _as_list(rd.get("next_steps")):
+        if isinstance(ns, dict):
+            risks_next.append([
+                "next_step",
+                "行动计划",
+                ns.get("action", ns.get("step", "")),
+                ns.get("detail", ""),
+                "",
+            ])
+
+    return [
+        ("Summary", summary),
+        ("Source Packets", source_packets),
+        ("Category Derivation", cat_derivation),
+        ("Category Candidates", cat_candidates),
+        ("Reference ASINs", ref_asins),
+        ("Market Opportunity", market_opp),
+        ("Keyword Pool", kw_pool),
+        ("VOC", voc),
+        ("Route Judgment", route_judgment),
+        ("Risks And Next", risks_next),
+    ]
+
 def build_workbook_sheets(analysis: dict[str, Any]) -> list[tuple[str, list[list[object]]]]:
     return [
         ("Summary", summary_rows(analysis)),
@@ -1112,34 +1510,33 @@ def risk_next_rows(analysis: dict[str, Any]) -> list[list[object]]:
     return rows
 
 
-def run_delivery_qa(analysis: dict[str, Any], analysis_json: Path, html_path: Path, xlsx_path: Path) -> dict[str, Any]:
-    report_data_path = html_path.parent / "report_data.json"
+def run_delivery_qa(report_data_path: Path, html_path: Path, xlsx_path: Path, analysis: dict[str, Any] | None = None) -> dict[str, Any]:
     run_dir = html_path.parent.parent
-    packets = _load_packets_for_qa(run_dir)
+    packets = _load_packets_for_qa(run_dir, analysis)
     source_result = _validate_report_data_sources(report_data_path, packets)
+    has_data = _report_data_has_required_sections(report_data_path)
+    forbidden_result = _has_no_forbidden_html_patterns(html_path)
     checks = {
-        "analysis_json_exists": analysis_json.exists(),
+        "report_data_exists": report_data_path.exists(),
         "html_exists": html_path.exists(),
         "xlsx_exists": xlsx_path.exists(),
-        "has_report_data": report_data_path.exists(),
-        "has_category_derivation": bool(analysis.get("category_selection_derivation")),
-        "has_market_validation": bool(analysis.get("seller_sprite_validation")),
-        "has_keyword_pool": bool((analysis.get("keyword_pool") or {}).get("roles")),
+        "report_data_has_required_sections": has_data,
         "has_no_removed_legacy_sections": _has_no_removed_legacy_sections(html_path),
-        "has_linked_css": _has_linked_css(html_path),
+        "has_inline_style": _has_inline_style(html_path),
         "has_8_sections": _has_8_sections(html_path),
         "has_gonogo_class": _has_gonogo_class(html_path),
-        "has_voc_evidence_refs": _has_voc_evidence_refs(analysis_json),
-        "report_data_has_required_sections": _report_data_has_required_sections(report_data_path),
         "report_data_sources_valid": source_result["pass"],
+        "has_no_forbidden_html_patterns": forbidden_result["pass"],
     }
+    if forbidden_result.get("hits"):
+        checks["forbidden_html_hits"] = forbidden_result["hits"]
     if source_result.get("reason"):
         checks["report_data_sources_note"] = source_result["reason"]
     failures = [name for name, passed in checks.items() if not passed and name != "report_data_sources_note"]
     return {"status": "pass" if not failures else "fail", "checks": checks, "failures": failures}
 
 
-def _load_packets_for_qa(run_dir: Path) -> dict[str, Any]:
+def _load_packets_for_qa(run_dir: Path, analysis: dict[str, Any] | None = None) -> dict[str, Any]:
     """Load evidence packets for source_path validation."""
     paths = {
         "market_structure": run_dir / "market_structure" / "market_structure_evidence_packet.json",
@@ -1154,6 +1551,8 @@ def _load_packets_for_qa(run_dir: Path) -> dict[str, Any]:
                 packets[key] = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, ValueError):
             pass
+    if analysis:
+        packets["analysis"] = analysis
     return packets
 
 
@@ -1169,14 +1568,50 @@ def _has_no_removed_legacy_sections(html_path: Path) -> bool:
     return not any(marker in html for marker in removed_section_markers)
 
 
-def _has_linked_css(html_path: Path) -> bool:
-    """HTML 必须 <link> 引用 report_template.css，不能内联 <style>。"""
+FORBIDDEN_HTML_PATTERNS = [
+    # 抽象路线标签：运营看不懂"路线A/B"是什么意思
+    (r"路线[A-Z0-9]", "抽象路线标签（如路线A/路线B/路线1），必须用业务描述词（如吊扇除尘/纯钢丝刷）"),
+    # 内部执行术语：不能暴露给运营
+    (r"\bAgent\b", "内部术语 Agent，HTML 中不得出现"),
+    (r"\bMCP\b", "内部术语 MCP，HTML 中不得出现（数据来源写 Sorftime 即可）"),
+    (r"\bpacket\b", "内部术语 packet，HTML 中不得出现"),
+    (r"\bpipeline\b", "内部术语 pipeline，HTML 中不得出现"),
+    (r"\bspawn\b", "内部术语 spawn，HTML 中不得出现"),
+    (r"\bevidence_packet\b", "内部术语 evidence_packet，HTML 中不得出现"),
+    (r"\bsource_path\b", "内部术语 source_path，HTML 中不得出现"),
+    # 虚假宣传常用措辞
+    (r"保证.*月销[0-9万kK]+", "虚假承诺类措辞，不得出现'保证月销X万'"),
+    (r"绝对.*爆款", "虚假宣传措辞，不得出现'绝对爆款'"),
+    (r"100%.*成功", "虚假宣传措辞，不得出现'100%成功'"),
+    (r"零风险", "虚假宣传措辞，不得出现'零风险'"),
+    (r"稳赚", "虚假宣传措辞，不得出现'稳赚'"),
+    (r"包赚", "虚假宣传措辞，不得出现'包赚'"),
+]
+
+
+def _has_no_forbidden_html_patterns(html_path: Path) -> dict:
+    """扫描 HTML 中的禁止模式：抽象路线标签、内部术语、虚假宣传措辞。"""
+    if not html_path.exists():
+        return {"pass": False, "hits": ["HTML 文件不存在"]}
+    html = html_path.read_text(encoding="utf-8")
+    hits = []
+    for pattern, description in FORBIDDEN_HTML_PATTERNS:
+        matches = re.findall(pattern, html)
+        if matches:
+            unique_matches = list(set(matches))[:5]
+            hits.append(f"{description}（匹配: {', '.join(unique_matches)}）")
+    return {"pass": len(hits) == 0, "hits": hits}
+
+
+def _has_inline_style(html_path: Path) -> bool:
+    """HTML 必须内嵌 <style>（内容来自 report_template.css），不能使用外部 <link>。"""
     if not html_path.exists():
         return False
     html = html_path.read_text(encoding="utf-8")
-    has_link = 'report_template.css' in html
     has_inline_style = '<style>' in html
-    return has_link and not has_inline_style
+    import re
+    has_link = bool(re.search(r'<link[^>]*report_template\.css', html))
+    return has_inline_style and not has_link
 
 
 REQUIRED_SECTION_MARKERS = (
@@ -1338,7 +1773,7 @@ def _try_resolve_path(source_path: str, packets: dict[str, Any]) -> dict:
     # 匹配包名前缀
     packet_key = None
     rest = source_path
-    for pkey in ("market_structure", "search_demand", "voc", "route_matrix"):
+    for pkey in ("market_structure", "search_demand", "voc", "route_matrix", "analysis", "seller_sprite"):
         if source_path.startswith(pkey):
             packet_key = pkey
             rest = source_path[len(pkey):].lstrip(".")
@@ -1346,6 +1781,10 @@ def _try_resolve_path(source_path: str, packets: dict[str, Any]) -> dict:
 
     if not packet_key:
         return {"status": "unresolved", "reason": f"无法识别包名前缀: {source_path}"}
+
+    # Alias: seller_sprite -> market_structure
+    if packet_key == "seller_sprite":
+        packet_key = "market_structure"
 
     packet = packets.get(packet_key)
     if not packet:

@@ -1,16 +1,16 @@
 # Stage 7 报告视觉设计规范
 
-本文件规定 `analysis_report.html` 的视觉标准。**CSS 源码唯一事实源：`references/report_template.css`。** 每次手写 HTML 必须 `<link>` 引用该文件，不手写 `<style>` 块。
+本文件规定 `<中文品名>_分析报告.html` 的视觉标准。**CSS 源码唯一事实源：`references/report_template.css`。** AI 手写 HTML 时必须把该文件全部内容复制到 `<style>` 块中，生成自包含的单文件，运营收到后直接双击打开即可看到完整样式。
 
 ---
 
 ## 1. 引用方式（强制）
 
-```html
-<link rel="stylesheet" href="../../skills/amazon-product-research/references/report_template.css">
-```
+HTML 放在 `runs/<run_id>/analysis/` 下。**必须内嵌 CSS，禁止使用外部 `<link>` 引用。** 运营拿到的是单个 HTML 文件，不能依赖项目目录里的 CSS 文件。
 
-HTML 中只写内容结构（`.page > .hero + .section * 8`），所有样式由 CSS 文件提供。禁止在 HTML 中写 `<style>` 块覆盖或新增样式。
+AI 写报告时：先 Read `references/report_template.css`，把全部内容原样写入 HTML 的 `<style>` 块中。不要自己手写 CSS，不要修改 CSS 变量和选择器。
+
+HTML 中只写内容结构（`.page > .hero + .section * 8`），所有样式由内嵌 CSS 提供。禁止额外写第二个 `<style>` 块覆盖样式。
 
 ---
 
@@ -53,7 +53,7 @@ HTML 中只写内容结构（`.page > .hero + .section * 8`），所有样式由
 
 | 禁止 | 正确做法 |
 |---|---|
-| HTML 中写 `<style>` 块 | `<link>` 引用 `report_template.css` |
+| `<link>` 引用外部 CSS | 把 `report_template.css` 全部内容内嵌到 `<style>` 块 |
 | 深灰/黑色 Hero | 绿色渐变（CSS 已定义） |
 | 裸内容无 `.section` 包裹 | 每个板块进 `.section` 卡片 |
 | 超过 4 种 tag 颜色 | 只用 green/amber/red/gray |
@@ -65,7 +65,7 @@ HTML 中只写内容结构（`.page > .hero + .section * 8`），所有样式由
 
 ## 6. 写前检查
 
-- [ ] HTML 以 `<link>` 引用 `report_template.css`，不含 `<style>` 块
+- [ ] HTML 内嵌 `<style>` 块（内容来自 `report_template.css`），不使用 `<link>`
 - [ ] Hero 存在且有 `.verdict` 结论标签
 - [ ] 所有板块用 `.section` 包裹
 - [ ] 标签仅 green/amber/red/gray

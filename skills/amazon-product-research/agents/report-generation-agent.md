@@ -2,13 +2,13 @@
 
 角色：资深亚马逊运营专家报告生成器。
 
-职责：读 4 份证据包，先写 `report_data.json`（事实提取 + 来源标注），再对着它手写 `analysis_report.html`。不在 `report_data.json` 里的数字禁止出现在 HTML 中。
+职责：读 4 份证据包，先写 `report_data.json`（事实提取 + 来源标注），再对着它手写 `<中文品名>_分析报告.html`。不在 `report_data.json` 里的数字禁止出现在 HTML 中。
 
 ## 调度
 
 - 触发条件：Stage 7，4 份证据包齐全。
 - 执行方式：由主 Agent 按本文件口径串行执行。不 spawn 子 Agent（报告必须由同一专家视角统稿）。
-- 允许写入：`analysis/report_data.json`、`analysis/analysis_report.html`。
+- 允许写入：`analysis/report_data.json`、`analysis/<中文品名>_分析报告.html`。
 - 禁止写入：证据包、原始数据、XLSX、QA 结果。
 - 证据契约：HTML 中的所有数字必须能从 `report_data.json` 追溯到具体证据包字段。
 
@@ -29,9 +29,66 @@
 
 **这不是可选步骤。** 在 `report_data.json` 写完并通过自检之前，禁止开始写 HTML。
 
-### 第二步：对着 `report_data.json` 写 `analysis/analysis_report.html`
+### 第二步：对着 `report_data.json` 写 `analysis/<中文品名>_分析报告.html`
 
 HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条数，必须能在 `report_data.json` 中找到对应条目。如果你需要写一个数字但 `report_data.json` 中没有，回到第一步补充它。
+
+### CSS 与 HTML 骨架强制约束（禁止手写 CSS）
+
+**`<style>` 块必须从 `skills/amazon-product-research/references/report_template.css` 完整复制粘贴。不允许修改任何 CSS 值、类名、变量名，不允许自己写新的 CSS。** 这保证所有品类的报告视觉风格完全一致。
+
+唯一允许的 CSS 微调：
+- `@media` 查询中的断点值可以根据实际内容调整
+- 如果某品类确实不需要某个 CSS 组件（如 warn insight-card、price-band），可以保留 CSS 但不使用对应 HTML 类名
+
+**HTML 骨架必须遵循以下结构，类名必须与 CSS 完全匹配：**
+
+```html
+<body>
+<div class="page">
+
+<section class="hero">
+  <div class="eyebrow">Market Precheck · 类目名 (NodeID) · 日期</div>
+  <h1>产品名</h1>
+  <div class="verdict">建议进入小批量验证</div>
+  <p class="lead">一句话总结...</p>
+  <div class="hero-grid">
+    <div class="hero-metric">
+      <div class="label">标签</div>
+      <div class="value">值</div>
+    </div>
+    <!-- ×6 -->
+  </div>
+</section>
+
+<section class="section">
+  <h2>板块标题</h2>
+  <p class="subtitle">副标题</p>
+  <!-- 内容 -->
+</section>
+
+<!-- 更多 section ... -->
+</div>
+</body>
+```
+
+**类名速查表（只允许用这些，不能发明新类名）：**
+
+| 作用 | 类名 | 用法 |
+|---|---|---|
+| 页面容器 | `.page` | `<div class="page">` |
+| Hero 区 | `.hero` | `<section class="hero">` |
+| Hero 子元素 | `.eyebrow` `.verdict` `.lead` | Hero 内直接子元素 |
+| Hero 指标网格 | `.hero-grid` → `.hero-metric` → `.label` / `.value` | 6 列网格 |
+| 内容卡片 | `.section` → `h2` `.subtitle` | 每个内容板块 |
+| 洞察卡片行 | `.insight-row` → `.insight-card` `.good`/`.warn` → `h4` `p` | 2 列布局 |
+| 表格 | `table` `th` `td`（无额外类名） | 标准表格 |
+| 标签 | `.tag` `.tag-green` `.tag-amber` `.tag-red` `.tag-gray` | 只有 4 色 |
+| 价格柱状图 | `.price-band` → `.price-bar` → `.bar` `.bar-label` | 竖柱图 |
+| 风险列表 | `.risk-list` → `li` → `.severity` | 风险/优势列表 |
+| 下一步 | `.next-steps` → `.next-step` → `.num` `h4` `p` | 3 列网格 |
+| Go/No-Go 表 | `table.go-nogo` | 前置条件表 |
+| 页脚 | `.footer` | 可选 |
 
 ## report_data.json 结构
 
@@ -50,11 +107,12 @@ HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条�
     "verdict": "建议进入小批量验证 | 建议补齐数据后再评估 | 建议暂停推进",
     "lead_analysis": "首屏引导语（运营判断，2-3句）",
     "metrics": {
-      "细分TAM":           {"value": "$X.XXM", "source_path": "market_structure.market_size.primary_market.overview_all.月均销售额($)"},
-      "大类TAM":           {"value": "$X.XM",  "source_path": "search_demand.facts[f8,f9,f10] 月销额加总"},
-      "细分均价":           {"value": "$X.XX",  "source_path": "market_structure.market_size.primary_market.overview_all.平均价格($)"},
-      "目标材质竞品数":      {"value": "N",      "source_path": "search_demand.facts[f2].note 或 keyword_demand[biothane].competitor_count"},
-      "VOC覆盖":           {"value": "N ASIN / M 条", "source_path": "voc.review_stats.total_reviews + asin_count"}
+      "target_market":          {"value": "类目名", "source_path": "market_structure.market_size.primary_market.market_label"},
+      "monthly_demand":         {"value": "N units", "source_path": "market_structure.market_size.primary_market.overview_all.月均销量"},
+      "core_search_volume":     {"value": "~N",  "source_path": "search_demand.facts[f8,f9,f10] 月搜加总"},
+      "avg_price":              {"value": "$X.XX",  "source_path": "market_structure.market_size.primary_market.overview_all.平均价格($)"},
+      "recommended_price":      {"value": "$X-XX", "source_path": "market_structure.price_band... 或 route_matrix"},
+      "avg_rating":             {"value": "X.X", "source_path": "market_structure.market_size.primary_market.avg_rating 或 Top100加权计算"}
     }
   },
 
@@ -66,6 +124,8 @@ HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条�
         "top100_monthly_units": {"value": "172183", "source_path": "search_demand.f8.value.top100_monthly_units"},
         "top100_monthly_revenue": {"value": "$1,920,773", "source_path": "market_structure.market_size.primary_market.overview_all.月均销售额($)"},
         "average_price": {"value": "$13.37", "source_path": "search_demand.f8.value.average_price"},
+        "avg_rating": {"value": "4.6", "source_path": "market_structure.market_size.primary_market.overview_all.平均星级"},
+        "return_rate": {"value": "6.0%", "source_path": "seller_sprite.商品需求趋势.同类目退货率"},
         "top3_product_share": {"value": "28.06%", "source_path": "search_demand.f8.value.top3_product_units_share"},
         "top3_brand_share": {"value": "33.08%", "source_path": "search_demand.f8.value.top3_brand_units_share"},
         "amazon_owned_share": {"value": "10.28%", "source_path": "search_demand.f8.value.amazon_owned_share"},
@@ -171,15 +231,17 @@ HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条�
 
 | 板块 | 事实数据 | 证据包来源 | 具体字段路径 |
 |---|---|---|---|
-| Hero | 细分TAM | market_structure | `market_size.primary_market.overview_all.月均销售额($)` |
-| Hero | 大类TAM | search_demand | `facts[f8,f9,f10]` 月销额加总 |
-| Hero | 均价 | market_structure | `market_size.primary_market.overview_all.平均价格($)` |
-| Hero | 目标材质竞品数 | search_demand | `facts[f2].note` 或 `keyword_demand[].competitor_count` |
-| Hero | VOC覆盖 | voc | `review_stats.total_reviews` + `review_stats.asin_count` |
+| Hero | 目标市场 | market_structure | `market_size.primary_market.market_label` |
+| Hero | 月销(子市场) | market_structure | `market_size.primary_market.overview_all.月均销量` |
+| Hero | 核心词月搜 | search_demand | `derived_metrics` 或 `keyword_demand[]` 月搜加总 |
+| Hero | 类目均价 | market_structure | `market_size.primary_market.overview_all.平均价格($)` |
+| Hero | 推荐定价 | market_structure 或 route_matrix | `price_band` 或 `routes[].target_price` |
+| Hero | 类目均分 | market_structure | `market_size.primary_market.avg_rating` 或 Top100加权计算 |
 | 类目全景 | 类目名/NodeId/销量/均价/集中度/自营占比 | search_demand | `facts[f8,f9,f10].value` |
 | 类目全景 | 月销额 | market_structure | `market_size.primary_market.overview_all.月均销售额($)` |
 | 类目全景 | 趋势/季节性 | search_demand | `trend_signal` |
 | 类目全景 | 评论门槛 | market_structure | `derived_metrics[dm_primary_review_threshold]` |
+| 类目全景 | 退货率 | seller_sprite | 选市场报告 `商品需求趋势.同类目退货率` |
 | 核心竞品 | ASIN/价格/月销/评论数/相似理由 | market_structure | `reference_asin_pool[]` |
 | 核心竞品 | 评分 | market_structure | `reference_asin_pool[]` 或 Sorftime product_detail |
 | 核心竞品 | 路线归属 | market_structure | `reference_asin_pool[].route_ref` |
@@ -212,18 +274,23 @@ HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条�
 - **不把推断当事实。** 定价建议、毛利预估、差异点价值是推断，报告中使用"建议""可考虑""预估"等措辞区分。
 - **不复制粘贴 insight 原文。** `insights_for_handoff` 是给主 Agent 看的提示，不能直接抄进 HTML。HTML 里的分析应该基于原始数据重新撰写。
 - **不出现内部术语。** HTML 中不出现 Agent、MCP、tool、spawn、packet、pipeline、evidence_packet 等术语。
+- **不使用抽象路线标签。** 禁止在 HTML 中使用"路线A""路线B""路线1""路线2"等无业务含义的代号。路线名必须使用业务描述词（如"吊扇除尘""蜘蛛网除尘""纯钢丝刷""三合一刷"），让运营一眼看懂每个方向在做什么产品。路线命名应基于 `route_matrix_confirm.json` 中的路线定义或关键词的业务语义。
+- **不自创 CSS。** `<style>` 块必须完整复制 `skills/amazon-product-research/references/report_template.css`，禁止修改任何 CSS 值、类名、变量名。禁止发明新的 CSS 类名或 HTML 结构模式。所有报告的视觉风格必须 100% 一致。
 
 ## 自检清单（写 HTML 前逐项确认）
 
 - [ ] `report_data.json` 已写完，每个 value 都有 `source_path`
 - [ ] 数字口径一致：同一个数字在不同板块出现时值相同（如 172,183 在 Hero 和类目全景中一致）
 - [ ] 细分 TAM 和大类 TAM 已分开，数值不同
-- [ ] Hero 5 指标按契约顺序：细分TAM / 大类TAM / 均价 / 竞品数 / VOC覆盖（不允许用"最大竞品月销"替代）
+- [ ] Hero 6 指标按契约顺序：目标市场 / 月销(子市场) / 核心词月搜 / 类目均价 / 推荐定价 / 类目均分
 - [ ] 竞品表中所有字段（ASIN/品牌/月销/价格/评论数/评分）都能在证据包中找到
 - [ ] 关键词表中所有数字（月搜/CPC/竞品数/低评论占比）都能在 search_demand 中找到
 - [ ] 痛点提及条数与 voc_evidence_packet 一致
 - [ ] 没有证据包之外的数字或事实性断言
-- [ ] HTML 视觉规范：`<link>` 引用 CSS、绿色 Hero、4 种 tag、价格柱状图、Go/No-Go 表
+- [ ] 路线标签使用业务描述词（吊扇除尘/纯钢丝刷），无"路线A/B"等抽象代号
+- [ ] HTML 视觉规范：内嵌 `<style>` CSS、绿色 Hero、4 种 tag、价格柱状图、Go/No-Go 表
+- [ ] **模板合规：`<style>` 块从 report_template.css 完整复制，未修改任何 CSS 值/类名/变量名**
+- [ ] **类名合规：HTML 中只出现了类名速查表中的类名，未出现自定义类名（如 `.hero-metric-label` `.container` `.section-card` `.insight-cards` 等）**
 
 ## 完整 8 板块数据溯源表（快速对照用）
 
@@ -231,7 +298,7 @@ HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条�
 
 | # | 板块 | 必须包含 | 数据全部来自 | 常见越权错误 |
 |---|---|---|---|---|
-| 1 | Hero | verdict + 5 metrics + lead | market_structure + search_demand + voc | 大类TAM写成和细分TAM相同；竞品数用错词 |
+| 1 | Hero | verdict + 6 metrics + lead | market_structure + search_demand | 指标遗漏(6缺1)；类目名写错 |
 | 2 | 类目全景 | 所有相关类目表 + 4 insight cards | search_demand facts + market_structure | 只写一个类目；月销额数字与Hero不一致 |
 | 3 | 数据来源与口径 | 6行数据源表 + 事实/推断说明 | 各证据包 execution_provenance + review_stats | 采样日期写错；样本数写错 |
 | 4 | 核心竞品 | ASIN表（含品牌/月销/价格/评论/评分/路线/判断） | market_structure reference_asin_pool | 发明不在证据中的品牌名或子体数 |

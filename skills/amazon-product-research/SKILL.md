@@ -57,11 +57,12 @@ Web 页面只作为后续外壳，底层链路未跑通前不继续扩展 Web。
 - **给出结论**：每个阶段结束都有明确推荐和理由，不把数据摆出来让运营自己猜。
 - **运营式调研顺序**：种子词只作入口，不能直接定义市场；系统必须先建立相似竞品 ASIN 池，再反推大小类目、反查关键词、整理运营式分层词表、判断价格带/集中度/新品机会。
 - **Sorftime 完整采集优先**：Sorftime 调用以判断质量优先，不以积分节省为主要约束；Stage 1 快探、Stage 5.1 评论前轻量路线校准和 Stage 7 深扫都应围绕候选类目、参考 ASIN、词表分层和类目趋势补齐对应阶段所需证据。
-- **专家分析前提**：Stage 7 最终报告由 AI 以资深亚马逊运营专家（5 年以上经验）视角直接手写 `analysis_report.html`。先读 3 份证据包（搜索需求、市场结构、VOC）+ 路线配置，再做判断，最后写报告。脚本只负责生成 `analysis_report.xlsx` 和 QA 校验。
+- **专家分析前提**：Stage 7 最终报告由 AI 以资深亚马逊运营专家（5 年以上经验）视角直接手写 `<中文品名>_分析报告.html`。先读 3 份证据包（搜索需求、市场结构、VOC）+ 路线配置，再做判断，最后写报告。脚本只负责生成 `<中文品名>_数据回表.xlsx` 和 QA 校验。
 - **多路线深挖前置**：候选池出来后，必须先拆产品路线（主线 / 升级 / 旁支 / 排除），每条保留路线都要做路线级小深挖，再决定哪 1-2 条进入完整深挖。不能等运营提醒才补分支路线。
 - **运营采集指令完整**：本项目需要运营手动导出/采集的数据只分两类：卖家精灵和评价。卖家精灵要按 `docs/卖家精灵导出指令完整性规范.md` 列清报表入口和导出对象；评价按 `docs/评论VOC导出指令完整性规范.md` 只给可复制 ASIN 清单、建议站点、存放目录和导入命令。
 - **禁止通用模板硬编码**：Skill、Agent、脚本、报告模板和 QA 规则不得写死当前品类、ASIN、关键词、类目或价格；所有示例只能作为测试样例或附录，不能进入通用判断逻辑。每次修改通用流程、Agent、脚本、报告模板或 QA 后，必须运行 `python3 scripts/check_generic_redlines.py`。
 - **运行状态必须可盘点**：每个 run 都应能通过 `python3 scripts/audit_run_status.py runs/<run_id>` 看清当前阶段、阻塞缺口、下一步动作、数据质量、混池检查和证据引用状态。
+- **断点恢复机制**：AI 必须在每个关键节点（数据导入完成、候选池生成、路线确认、VOC 完成、报告交付）以及**任何等待运营回复的时刻**，更新 `runs/<run_id>/progress.json`。运营重新连接后说"继续"，AI 先读 `progress.json` 确认进度和待确认问题，再读已完成的产物文件重建数据认知。Schema 见 `references/progress_schema.md`。
 
 ---
 
@@ -74,15 +75,15 @@ Web 页面只作为后续外壳，底层链路未跑通前不继续扩展 Web。
 | Market Structure Agent | 市场结构分析师 | 卖家精灵 | `market_structure_evidence` |
 | Search Demand Agent | 搜索需求分析师 | Sorftime MCP | `search_demand_evidence` |
 | VOC Evidence Agent | 用户痛点产品经理 | 评论插件 | `voc_evidence` |
-| Report Generation Agent | 报告生成器 | 4 份证据包 | `report_data.json` → `analysis_report.html` |
+| Report Generation Agent | 报告生成器 | 4 份证据包 | `report_data.json` → `<中文品名>_分析报告.html` |
 | Delivery QA Agent | 交付质检员 | 最终产物和校验结果 | 交付状态、证据边界问题、缺口清单 |
 
 协作顺序：
 
 ```text
 各数据源专家 Agent 产出 Evidence Packet（Stage 0-6）
--> Stage 7：AI 以资深运营专家身份读证据包，手写 analysis_report.html
--> 脚本生成 analysis_report.xlsx + QA 校验
+-> Stage 7：AI 以资深运营专家身份读证据包，手写 `<中文品名>_分析报告.html`
+-> 脚本生成 `<中文品名>_数据回表.xlsx` + QA 校验
 ```
 
 硬边界：
@@ -91,7 +92,7 @@ Web 页面只作为后续外壳，底层链路未跑通前不继续扩展 Web。
 - AI 手写报告时不新增原始数字；所有关键数字必须来自 Evidence Packet 或脚本生成的结构化数据。
 - 报告 HTML 是 AI 以资深运营专家视角手写的分析，不是模板字段拼接。结构固定（8 个板块），内容品品不同。
 - Delivery QA Agent 不改商业判断，只检查交付是否完整、证据是否可追溯、是否存在越权。
-- `research_package.json` 仍是正式报告唯一事实源；Evidence Packet 是协作口径，不替代现有产物。
+- `analysis/report_data.json` 是 Stage 7 唯一数据中枢，HTML 和 XLSX 均从此文件生成。Evidence Packet 是前置数据源，不替代 report_data.json。
 - 当运行环境支持真实子 Agent，Stage 6 以后优先按 `multi_agent_dispatch.md` 启动对应专家 Agent；Stage 0-5 默认不 spawn，除非用户明确要求并行或路线过多需要拆分。
 - 若未启动真实子 Agent，主 Agent 必须说明本轮只是按对应 agent 口径串行执行。
 
@@ -396,11 +397,11 @@ python3 scripts/build_review_voc_from_plugin_export.py \
 Stage 7 是当前主链路的正式交付阶段。最终交付物只有两份：
 
 ```text
-<run_dir>/analysis/analysis_report.html   ← AI 以资深运营专家视角手写，给人看
-<run_dir>/analysis/analysis_report.xlsx   ← 脚本生成，给数字溯源
+<run_dir>/analysis/<中文品名>_分析报告.html   ← AI 以资深运营专家视角手写，给人看
+<run_dir>/analysis/<中文品名>_数据回表.xlsx   ← 脚本生成，给数字溯源
 ```
 
-中间产物（`analysis_evidence_packet.json`、`delivery_qa_result.json`）由脚本自动生成，不要求运营 review。
+中间产物（`report_data.json`、`delivery_qa_result.json`）由脚本自动生成，不要求运营 review。
 
 #### 7.1 Sorftime 深扫（证据补齐）
 
@@ -426,11 +427,11 @@ Stage 7 必须围绕已确认路线、参考 ASIN Top5/Top10、候选大小类�
 
 **第一步：生成 `analysis/report_data.json`** — 从 4 份证据包提取所有将出现在 HTML 中的事实数据，每个数字标注 `source_path` 指向证据包具体字段。写完并通过自检后，才能进入第二步。
 
-**第二步：对着 `report_data.json` 写 `analysis/report_data.html`** — HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条数，必须能在 `report_data.json` 中找到对应条目。不在 `report_data.json` 里的数字禁止写入 HTML。
+**第二步：对着 `report_data.json` 写 `analysis/<中文品名>_分析报告.html`** — HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条数，必须能在 `report_data.json` 中找到对应条目。不在 `report_data.json` 里的数字禁止写入 HTML。
 
 **报告定位：决策建议书，不是数据罗列。** 运营看完要能回答：做不做、做什么样、卖多少钱、主打什么词、风险在哪、下一步干什么。
 
-**质量对标**：`references/report_quality_sample.md` 给出了每个板块"好的写法 vs 差的写法"的对比。**视觉对标**：`references/report_design_spec.md` 固化了组件用法和禁止事项，CSS 源码唯一事实源是 `references/report_template.css`。HTML 必须 `<link>` 引用该 CSS 文件，禁止手写 `<style>` 块。写报告前两份文件必须各过一遍——前者管内容质量，后者管视觉质量。
+**质量对标**：`references/report_quality_sample.md` 给出了每个板块"好的写法 vs 差的写法"的对比。**视觉对标**：`references/report_design_spec.md` 固化了组件用法和禁止事项，CSS 源码唯一事实源是 `references/report_template.css`。HTML 必须内嵌 `<style>` 块（内容来自 `report_template.css`），禁止 `<link>` 外部引用。写报告前两份文件必须各过一遍——前者管内容质量，后者管视觉质量。
 
 **固定结构（8 个板块）：**
 
@@ -463,10 +464,9 @@ python3 -m packages.research_core.pipeline.build_analysis_report <run_dir>
 ```
 
 脚本会：
-- 生成 `analysis_evidence_packet.json`（结构化数据落盘）
-- 生成 `analysis_report.xlsx`（Excel 数据回表，10 个 Sheet）
-- 运行 QA 校验，输出 `delivery_qa_result.json`
-- **新增**：校验 `report_data.json` 是否存在且包含所有必要板块（Layer 3 证据溯源校验）
+- 若 `report_data.json` 不存在，自动从证据包生成 seed 文件，待 AI 增强
+- 从 `report_data.json` 生成 `<中文品名>_数据回表.xlsx`（数据回表，10 个 Sheet）
+- 运行 QA 校验，输出 `delivery_qa_result.json`（含 source_path 溯源校验）
 
 注意：脚本只生成 XLSX + JSON + QA，不生成 HTML。HTML 由 AI 单独手写，两者互不覆盖。
 
@@ -476,7 +476,7 @@ AI 最终自检：
 
 - [ ] `report_data.json` 已生成，每个事实有 `source_path`
 - [ ] HTML 首屏有明确结论（建议进入小批量验证 / 建议补齐数据后再评估 / 建议暂停推进）
-- [ ] HTML 视觉质量符合 `references/report_design_spec.md`（`<link>` 引用 CSS、绿色 Hero、卡片分区、4 种标签、价格柱状图、1100px、无内部术语）
+- [ ] HTML 视觉质量符合 `references/report_design_spec.md`（内嵌 `<style>` CSS、绿色 Hero、卡片分区、4 种标签、价格柱状图、1100px、无内部术语）
 - [ ] 细分 TAM 和大类 TAM 已分开，不混着讲
 - [ ] 竞品表有月销/价格/评论/评分/上架时间，不是”待补”
 - [ ] VOC 痛点已按 P0/P1/P2 排序，每个有规格建议
@@ -585,8 +585,8 @@ AI 最终自检：
 - [ ] Stage 6：评论 VOC 分析已完成（有效评论 >= 30 条，痛点有原文片段支撑）
 - [ ] Stage 7：Sorftime 深扫已完成，Search Demand Agent 产出或串行补齐 `search_demand_evidence`，并包含运营式关键词池
 - [ ] Stage 7：市场、搜索、VOC Evidence Packet 已按 `references/evidence_packet_contract.md` 组织，专家 Agent 未越权输出最终决策
-- [ ] Stage 7：AI 已以资深运营专家身份手写 `analysis_report.html`（8 个板块，决策导向，用词克制）
-- [ ] Stage 7：脚本已生成 `analysis_report.xlsx`（数据回表）并通过 QA 校验
+- [ ] Stage 7：AI 已以资深运营专家身份手写 `<中文品名>_分析报告.html`（8 个板块，决策导向，用词克制）
+- [ ] Stage 7：脚本已生成 `<中文品名>_数据回表.xlsx`（数据回表）并通过 QA 校验
 - [ ] Stage 7：市场机会评分、风险与待验证项、继续研究优先级已写清
 - [ ] 状态盘点：`run_status_audit.json` 或 Stage 7 `run_status_audit` 已展示当前阶段、缺口和下一步动作
 - [ ] 开发验收：通用性红线扫描已通过（`python3 scripts/check_generic_redlines.py`）

@@ -1,5 +1,7 @@
 # Codex 跑通手册
 
+> **LEGACY** — 本文档描述的是旧脚本驱动工作流（依赖 `workflow_state.json`、`import_manifest.json` 等旧产物）。当前主链路已切换为 AI 交互推进模式，产物契约以 `artifact_contract.md` 为准。本文档仅供历史参考。
+
 当前目标：先跑通 Codex 版，不接 Web。
 
 ## 0. 初始对话
@@ -20,10 +22,27 @@ Codex 需要先判断路径：
 ## 1. 建立 run 目录
 
 ```text
-runs/<yyyymmdd>_<direction>/
-├── inputs/seller_sprite/
-├── inputs/reviews/
-└── mcp/
+runs/<yyyymmdd>_<中文品类方向>/
+├── progress.json            # 断点恢复，AI 在关键节点自动写入
+├── inputs/
+│   ├── seller_sprite/       # 运营导出卖家精灵原始文件
+│   └── reviews/             # 运营导出评论原始文件
+├── mcp/                     # Sorftime MCP 快照
+├── candidate_pool.json
+├── route_matrix_confirm.json
+├── market_structure/
+│   └── market_structure_evidence_packet.json
+├── search_demand/
+│   └── search_demand_evidence_packet.json
+├── review_voc/
+│   ├── review_voc_package.json
+│   ├── voc_evidence_packet.json
+│   └── voc_evidence.xlsx
+└── analysis/                # Stage 7 最终交付
+    ├── <中文品名>_分析报告.html
+    ├── <中文品名>_数据回表.xlsx
+    ├── report_data.json
+    └── delivery_qa_result.json
 ```
 
 ## 2. 生成 workflow_state
