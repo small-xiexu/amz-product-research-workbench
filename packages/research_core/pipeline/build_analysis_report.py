@@ -1258,9 +1258,9 @@ def _validate_report_data_sources(report_data_path: Path, packets: dict[str, Any
     """校验 report_data.json 中 source_path 能否在证据包中找到对应字段。
 
     返回 dict 包含 pass/fail 和解析明细。阈值：
-    - 未解析率 > 20% → block（pass=False）
-    - 未解析率 > 5% → warning（pass=True，但记录）
-    - 未解析率 ≤ 5% → pass
+    - 未解析率 > 5% → block（pass=False）
+    - 未解析率 > 2% → warning（pass=True，但记录）
+    - 未解析率 ≤ 2% → pass
     """
     if not report_data_path.exists():
         return {"pass": False, "total": 0, "resolved": 0, "vague": 0, "unresolved": 0, "unresolved_pct": 0.0, "reason": "report_data.json 不存在"}
@@ -1292,12 +1292,12 @@ def _validate_report_data_sources(report_data_path: Path, packets: dict[str, Any
     effective = resolved + vague + len(unresolved)
     unresolved_pct = len(unresolved) / max(effective, 1)
 
-    passed = unresolved_pct <= 0.20
+    passed = unresolved_pct <= 0.05
     reason = ""
-    if unresolved_pct > 0.20:
-        reason = f"未解析率 {unresolved_pct:.0%} 超过 20% 阈值，共 {len(unresolved)}/{effective} 条路径无法溯源"
-    elif unresolved_pct > 0.05:
-        reason = f"未解析率 {unresolved_pct:.0%} 在 5%-20% 之间，共 {len(unresolved)}/{effective} 条路径无法溯源（不阻断）"
+    if unresolved_pct > 0.05:
+        reason = f"未解析率 {unresolved_pct:.0%} 超过 5% 阈值，共 {len(unresolved)}/{effective} 条路径无法溯源"
+    elif unresolved_pct > 0.02:
+        reason = f"未解析率 {unresolved_pct:.0%} 在 2%-5% 之间，共 {len(unresolved)}/{effective} 条路径无法溯源（不阻断）"
 
     return {
         "pass": passed,

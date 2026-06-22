@@ -808,6 +808,19 @@ class RegressionTests(unittest.TestCase):
 
         self.assertTrue(result.ok, result.errors)
 
+    def test_validate_research_outputs_accepts_minimal_analysis_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workflow_dir = Path(tmp)
+            analysis_dir = workflow_dir / "analysis"
+            analysis_dir.mkdir()
+            (analysis_dir / "analysis_report.html").write_text(_minimal_analysis_report_html(), encoding="utf-8")
+            write_xlsx(analysis_dir / "analysis_report.xlsx", _minimal_analysis_delivery_sheets())
+
+            result = validate_workflow_output(workflow_dir)
+
+        self.assertTrue(result.ok, result.errors)
+        self.assertFalse(result.warnings)
+
     def test_contract_validators_reject_missing_handoff_fields(self) -> None:
         with self.assertRaisesRegex(ContractValidationError, "metadata"):
             validate_import_manifest({"files": [], "data_quality": {}})
@@ -1620,6 +1633,39 @@ def _minimal_formal_report_html() -> str:
         '<!doctype html><html lang="zh-CN"><head><title>选品决策报告</title></head>'
         "<body><h1>选品决策报告</h1><h2>一眼看懂</h2><h2>市场机会评分</h2></body></html>"
     )
+
+
+def _minimal_analysis_report_html() -> str:
+    return (
+        '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
+        '<title>钢丝地板刷 · 市场机会报告</title>'
+        '<link rel="stylesheet" href="../../skills/amazon-product-research/references/report_template.css">'
+        "</head><body><div class=\"page\">"
+        "<section class=\"hero\"><div class=\"verdict\">建议进入小批量验证</div></section>"
+        "<section><h2>类目全景</h2></section>"
+        "<section><h2>数据来源与口径</h2></section>"
+        "<section><h2>核心竞品</h2></section>"
+        "<section><h2>用户痛点</h2></section>"
+        "<section><h2>价格带分布</h2></section>"
+        "<section><h2>关键词与流量策略</h2></section>"
+        "<section><h2>风险与下一步</h2><table class=\"go-nogo\"></table></section>"
+        "</div></body></html>"
+    )
+
+
+def _minimal_analysis_delivery_sheets() -> list[tuple[str, list[list[object]]]]:
+    return [
+        ("Summary", [["字段", "值"], ["verdict", "继续看"]]),
+        ("Source Packets", [["packet", "status"], ["market_structure", "ok"]]),
+        ("Category Derivation", [["step", "detail"], ["1", "测试"]]),
+        ("Category Candidates", [["nodeId", "name"], ["123", "测试类目"]]),
+        ("Reference ASINs", [["ASIN", "role"], ["B000000001", "primary_reference"]]),
+        ("Market Opportunity", [["band", "share"], ["$10-20", "30%"]]),
+        ("Keyword Pool", [["keyword", "role"], ["test keyword", "主攻意图词"]]),
+        ("VOC", [["dimension", "count"], ["测试痛点", 5]]),
+        ("Route Judgment", [["route", "judgment"], ["主线", "建议进入"]]),
+        ("Risks And Next", [["type", "detail"], ["risk", "测试风险"]]),
+    ]
 
 
 if __name__ == "__main__":

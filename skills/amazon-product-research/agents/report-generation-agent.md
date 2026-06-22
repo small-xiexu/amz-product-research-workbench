@@ -29,7 +29,7 @@
 
 **这不是可选步骤。** 在 `report_data.json` 写完并通过自检之前，禁止开始写 HTML。
 
-### 第二步：对着 `report_data.json` 写 `analysis/report_data.html`
+### 第二步：对着 `report_data.json` 写 `analysis/analysis_report.html`
 
 HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条数，必须能在 `report_data.json` 中找到对应条目。如果你需要写一个数字但 `report_data.json` 中没有，回到第一步补充它。
 
@@ -218,6 +218,7 @@ HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条�
 - [ ] `report_data.json` 已写完，每个 value 都有 `source_path`
 - [ ] 数字口径一致：同一个数字在不同板块出现时值相同（如 172,183 在 Hero 和类目全景中一致）
 - [ ] 细分 TAM 和大类 TAM 已分开，数值不同
+- [ ] Hero 5 指标按契约顺序：细分TAM / 大类TAM / 均价 / 竞品数 / VOC覆盖（不允许用"最大竞品月销"替代）
 - [ ] 竞品表中所有字段（ASIN/品牌/月销/价格/评论数/评分）都能在证据包中找到
 - [ ] 关键词表中所有数字（月搜/CPC/竞品数/低评论占比）都能在 search_demand 中找到
 - [ ] 痛点提及条数与 voc_evidence_packet 一致

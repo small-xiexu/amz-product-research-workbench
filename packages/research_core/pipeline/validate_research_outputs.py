@@ -140,11 +140,12 @@ def validate_workflow_output(input_dir: Path | str) -> ValidationResult:
 
     if is_analysis_format:
         _check_required_files(result, final_report_dir, REQUIRED_ANALYSIS_FILES, "analysis")
+        # analysis 模式不要求 workflow_summary（Link B 流水线不生成该文件）
+        workflow_summary: dict[str, Any] = {}
     else:
         _check_required_files(result, final_report_dir, REQUIRED_FINAL_FILES, "final_report")
-    _check_required_files(result, workflow_dir, REQUIRED_WORKFLOW_FILES, "workflow")
-
-    workflow_summary = _load_json(workflow_dir / "workflow_summary.json", result)
+        _check_required_files(result, workflow_dir, REQUIRED_WORKFLOW_FILES, "workflow")
+        workflow_summary = _load_json(workflow_dir / "workflow_summary.json", result)
     report_text = _read_text(final_report_dir / ("analysis_report.html" if is_analysis_format else "report.md"))
     report_html = _read_text(final_report_dir / ("analysis_report.html" if is_analysis_format else "report.html"))
 
