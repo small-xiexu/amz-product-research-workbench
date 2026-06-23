@@ -62,6 +62,23 @@
 - 不因为只有 warning 就自动忽略风险，必须说明影响。
 - 不把 QA 发现的问题改写成最终进入结论。
 
+## 反捏造红线（不可逾越）
+
+**运营决策依赖真实数据。任何捏造、估算、或未经证据包验证的数字都会直接误导运营判断，导致错误的选品决策和库存风险。QA 必须将此作为最高优先级检查项。**
+
+| 红线 | 级别 | 判定规则 |
+|---|---|---|
+| 数字无法溯源 | `blocker` | HTML 中出现的任何数字、百分比、金额、销量、评分数，必须能在 `report_data.json` 中找到对应条目；`report_data.json` 中的值必须能通过 `source_path` 追溯到证据包中的原始字段 |
+| 数字与证据不一致 | `blocker` | `report_data.json` 中的值经归一化后与证据包实际值不符（含数量级错误、小数点位移、货币单位混淆） |
+| 证据包无此字段 | `blocker` | `source_path` 指向的路径在证据包中不存在，或路径语法本身无效 |
+| 凭空生成趋势/比例 | `blocker` | 报告中出现的数据变化趋势、市场份额、增长率等如无法在证据包中找到对应时间序列或计算依据 |
+| 跨源混淆 | `blocker` | 将 Sorftime 数据标注为卖家精灵来源，或将不同 ASIN/类目的数据混淆 |
+
+**执行方式**：`build_analysis_report.py::run_delivery_qa()` 已实现自动化校验：
+- `report_data_sources_valid`：`source_path` 能否解析到证据包字段
+- `report_data_values_consistent`：解析后字段值与 `report_data.json` 中的 value 是否一致
+- 两项任一 fail → `delivery_qa_result.status = "fail"` → Stage 7 不可交付
+
 ## 最终报告必查项（legacy，当前主链路以 Stage 7 必查项为准）
 
 - `<中文品名>_分析报告.html` 和 `<中文品名>_数据回表.xlsx` 存在（最终交付物）。
@@ -73,7 +90,7 @@
 
 - `<中文品名>_分析报告.html`、`<中文品名>_数据回表.xlsx` 存在（最终交付物）。
 - `report_data.json`、`delivery_qa_result.json` 存在（中间产物）。
-- **`analysis/report_data.json` 存在且包含所有必要板块**（`hero`、`category_panorama`、`competitors`、`pain_points`、`price_bands`、`keywords`、`risks`、`advantages`、`gonogo_conditions`、`next_steps`）。这是 AI 写 HTML 前的事实提取中间层，缺失即为跳过两步流程。
+- **`analysis/report_data.json` 存在且包含所有必要声明和板块**（声明：`run_id`、`evidence_sources`；11 个板块：`hero`、`category_panorama`、`data_sources`、`competitors`、`pain_points`、`price_bands`、`keywords`、`risks`、`advantages`、`gonogo_conditions`、`next_steps`）。这是 AI 写 HTML 前的事实提取中间层，缺失即为跳过两步流程。
 - HTML 8 个板块完整：Hero、市场全貌、数据来源与口径、核心竞品、用户痛点→产品规格、价格带分布、关键词与流量策略、风险与下一步。
 - HTML 首屏有明确结论（建议进入小批量验证 / 建议补齐数据后再评估 / 建议暂停推进）。
 - HTML 全篇用词克制，事实和推断可区分，不出现 Agent/MCP/tool/spawn/packet/source_path 等内部术语，也未使用"路线A/B""路线1/2"等抽象路线代号。
@@ -89,9 +106,11 @@
 | 检查项 | 级别 | 判定规则 |
 |---|---|---|
 | `report_data.json` 缺失 | `blocker` | 文件不存在即表示 AI 跳过了两步流程的第一步，报告中的数字未经溯源标注 |
-| 必填板块缺失 | `error` | `hero`、`category_panorama`、`competitors`、`pain_points`、`price_bands`、`keywords` 任一缺失 |
+| 必填声明或板块缺失 | `error` | `run_id`、`evidence_sources`、`hero`、`category_panorama`、`data_sources`、`competitors`、`pain_points`、`price_bands`、`keywords`、`risks`、`advantages`、`gonogo_conditions`、`next_steps` 任一缺失 |
 | 事实条目无 `source_path` | `warning` | `report_data.json` 中 `value` 所在对象缺少 `source_path` 字段，该数字无法追溯到证据包 |
-| `source_path` 为空字符串 | `error` | 标注了溯源但路径为空，形同虚设 |
+| `source_path` 为空字符串 | `blocker` | 空 `""` 表示 AI 未填充溯源路径，属于遗漏。代码自动归入 `unresolved` 并阻断 |
+| `source_path` 为 `__ai_pending__` | `warning` | Seed 占位标记，表示数据需 AI 增强后填充。未替换前不阻断但需提示 |
+| `report_data` 值与证据包不一致 | `blocker` | 通过 `_validate_values_against_sources()` 抽查，归一化后值不匹配直接阻断 |
 | HTML 数字与 `report_data.json` 不一致 | `error` | 同一个数字在 HTML 和 report_data.json 中值不同（需人工抽查重点板块） |
 
 `source_path` 解析状态：代码已通过 `_validate_report_data_sources()` 自动校验 `source_path` 是否能解析到证据包中的真实字段，`delivery_qa_result.json` 中 `report_data_sources_valid` 字段反映校验结果。未解析的路径会记录在 `report_data_sources_note` 中。

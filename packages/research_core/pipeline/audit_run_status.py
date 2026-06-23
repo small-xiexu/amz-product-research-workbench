@@ -27,7 +27,7 @@ def audit_run_status(run_dir: Path | str) -> dict[str, Any]:
     source_quality = build_source_quality(run_path)
     stage_checks = build_stage_checks(artifacts, report_data, qa_result)
     current_stage = infer_current_stage(stage_checks)
-    blockers = build_blockers(source_quality, stage_checks, qa_result)
+    blockers = build_blockers(source_quality, stage_checks, qa_result, artifacts)
     next_actions = build_next_actions(blockers, stage_checks)
 
     return {
@@ -133,7 +133,20 @@ def build_stage_checks(
     has_route = artifacts["route_matrix_confirm"]["exists"]
     has_voc = artifacts["review_voc_packet"]["exists"]
     has_report = artifacts["analysis_report_data"]["exists"] and bool(report_data.get("hero"))
+    has_html = artifacts["analysis_html"]["exists"]
+    has_xlsx = artifacts["analysis_xlsx"]["exists"]
     qa_passed = qa_result.get("status") == "pass"
+    stage_7_artifacts_exist = has_report and has_html and has_xlsx
+    stage_7_done = stage_7_artifacts_exist and qa_passed
+
+    if qa_passed:
+        stage_7_evidence = "市场分析报告已生成并通过 QA"
+    elif stage_7_artifacts_exist:
+        # QA 文件缺失或未通过：artifact 存在但不满足交付标准
+        qa_exists = bool(qa_result)
+        stage_7_evidence = "市场分析报告已生成（QA 未通过）" if qa_exists else "市场分析报告已生成（QA 未执行，请运行 build_analysis_report.py）"
+    else:
+        stage_7_evidence = ""
 
     return [
         stage_check(
@@ -162,8 +175,8 @@ def build_stage_checks(
         ),
         stage_check(
             "stage_7_analysis",
-            has_report and qa_passed,
-            "市场分析报告已生成并通过 QA",
+            stage_7_done,
+            stage_7_evidence,
             "运行 build_analysis_report.py 或 AI 手写报告。",
         ),
     ]
@@ -210,6 +223,7 @@ def build_blockers(
     source_quality: dict[str, Any],
     stage_checks: list[dict[str, Any]],
     qa_result: dict[str, Any],
+    artifacts: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
     blockers: list[dict[str, Any]] = []
     if source_quality.get("level") == "blocked":
@@ -231,16 +245,58 @@ def build_blockers(
                 "next_step": check["next_step"],
                 "source": check["stage"],
             })
-    if qa_result and qa_result.get("status") != "pass":
+    qa_exists = artifacts.get("delivery_qa", {}).get("exists", False)
+    # 检查 stage 7 是否已有产出（report/html/xlsx）
+    stage_7_has_artifacts = (
+        artifacts.get("analysis_report_data", {}).get("exists", False)
+        and artifacts.get("analysis_html", {}).get("exists", False)
+        and artifacts.get("analysis_xlsx", {}).get("exists", False)
+    )
+    if qa_exists and qa_result:
+        qa_version = qa_result.get("qa_rule_version", "")
+        if not qa_version:
+            blockers.append({
+                "type": "qa_stale",
+                "severity": "blocking",
+                "item": "QA 结果缺少规则版本号（旧格式，可能遗漏值一致性校验等检查项）",
+                "impact": "旧 QA 文件不包含新增检查项（值一致性、禁止模式等），应重跑 QA。",
+                "next_step": "运行 build_analysis_report.py 重新生成 QA 结果。",
+                "source": "analysis/delivery_qa_result.json",
+            })
+        elif qa_version != _current_qa_version():
+            blockers.append({
+                "type": "qa_stale",
+                "severity": "blocking",
+                "item": f"QA 规则版本过期 (当前: {_current_qa_version()}, 文件: {qa_version})",
+                "impact": "旧规则可能遗漏新增检查项（如值一致性校验、禁止模式等），需按当前规则重新 QA。",
+                "next_step": "运行 build_analysis_report.py 重新生成 QA 结果。",
+                "source": "analysis/delivery_qa_result.json",
+            })
+        elif qa_result.get("status") != "pass":
+            blockers.append({
+                "type": "qa_failure",
+                "severity": "blocking",
+                "item": f"QA 校验未通过: {qa_result.get('failures', [])}",
+                "impact": "报告存在质量问题，需修复后重新 QA。",
+                "next_step": "查看 delivery_qa_result.json 中的失败项并修复。",
+                "source": "analysis/delivery_qa_result.json",
+            })
+    elif stage_7_has_artifacts and not qa_exists:
+        # 产出已生成但 QA 文件缺失 → 阻断
         blockers.append({
-            "type": "qa_failure",
+            "type": "qa_missing",
             "severity": "blocking",
-            "item": f"QA 校验未通过: {qa_result.get('failures', [])}",
-            "impact": "报告存在质量问题，需修复后重新 QA。",
-            "next_step": "查看 delivery_qa_result.json 中的失败项并修复。",
+            "item": "Stage 7 产出已存在但 QA 文件缺失（delivery_qa_result.json）",
+            "impact": "报告质量未经校验，无法确认是否满足交付标准。",
+            "next_step": "运行 build_analysis_report.py 完成 QA 校验。",
             "source": "analysis/delivery_qa_result.json",
         })
     return blockers[:20]
+
+
+def _current_qa_version() -> str:
+    from packages.research_core.pipeline.build_analysis_report import QA_RULE_VERSION
+    return QA_RULE_VERSION
 
 
 def build_next_actions(

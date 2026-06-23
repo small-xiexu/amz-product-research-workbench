@@ -16,6 +16,8 @@ from packages.research_core.rules.market_structure_rules import build_market_str
 from packages.research_core.adapters import SellerSpriteAdapter, SorftimeAdapter
 from packages.research_core.adapters.merge_strategy import merge_products, sorftime_only_warnings
 
+from packages.research_core.pipeline.ai_review_sheets import apply_overrides
+
 from packages.research_core.ingestion.seller_sprite_reader import (
     clean_cell, to_float, to_int, slugify, contains_chinese, display_keyword,
     clean_task_name, derive_market_name, read_records,
@@ -1067,7 +1069,11 @@ def merge_sorftime_signals(candidate: dict[str, Any], sorftime_verification: dic
     return candidate
 
 
-def build_candidate_pool(manifest: dict[str, Any], sorftime_verification: dict[str, Any] | None = None) -> dict[str, Any]:
+def build_candidate_pool(manifest: dict[str, Any], sorftime_verification: dict[str, Any] | None = None, sheet_overrides: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    if sheet_overrides:
+        applied = apply_overrides(manifest, sheet_overrides)
+        if applied:
+            print(f"Applied {applied} AI-reviewed sheet override(s)")
     candidate = build_candidate(manifest)
     if sorftime_verification:
         candidate = merge_sorftime_signals(candidate, sorftime_verification)
@@ -1136,16 +1142,21 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Optional Sorftime verification JSON path to merge into candidate_pool.",
     )
+    parser.add_argument(
+        "--sheet-overrides",
+        default="",
+        help="Optional AI-reviewed sheet overrides JSON (corrected_role + column_remap for unmatched sheets).",
+    )
     return parser.parse_args()
 
 
-def _load_optional_json(path_text: str) -> dict[str, Any] | None:
+def _load_optional_json(path_text: str) -> Any | None:
     path_text = path_text.strip()
     if not path_text:
         return None
     path = Path(path_text).expanduser().resolve()
     if not path.exists():
-        raise SystemExit(f"Sorftime verification not found: {path}")
+        raise SystemExit(f"File not found: {path}")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -1154,7 +1165,8 @@ def main() -> None:
     manifest_path = Path(args.manifest).expanduser().resolve()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     sorftime_verification = _load_optional_json(args.sorftime_verification)
-    candidate_pool = build_candidate_pool(manifest, sorftime_verification)
+    sheet_overrides = _load_optional_json(args.sheet_overrides)
+    candidate_pool = build_candidate_pool(manifest, sorftime_verification, sheet_overrides)
     output = Path(args.output).expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(candidate_pool, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

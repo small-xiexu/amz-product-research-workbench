@@ -85,6 +85,7 @@ ANALYSIS_MODE_SECTION_HINTS = {
     "数据点 -> 含义 -> 行动建议": "Executive Summary / 当前结论",
 }
 from packages.report_renderer.constants import FORMAL_REPORT_SECTION_TITLES
+from packages.research_core.pipeline.build_analysis_report import QA_RULE_VERSION
 INTERACTIVE_REPORT_REQUIRED_TERMS = (
     "交互式流程状态",
     "交互式下一步动作",
@@ -177,6 +178,7 @@ def validate_workflow_output(input_dir: Path | str) -> ValidationResult:
 
     if is_analysis_format:
         _check_analysis_html_sections(result, report_html)
+        _check_delivery_qa(result, final_report_dir)
     else:
         _check_report_terms(result, report_text)
         _check_report_html(result, report_html)
@@ -734,6 +736,34 @@ def _check_analysis_html_sections(result: ValidationResult, report_html: str) ->
     import re
     if re.search(r'<link[^>]*report_template\.css', report_html):
         result.errors.append("analysis_report.html 含外部 <link> 引用 report_template.css，应使用内联 <style>")
+
+
+def _check_delivery_qa(result: ValidationResult, analysis_dir: Path) -> None:
+    """分析模式下必须校验 delivery_qa_result.json 状态，防止证据失败但结构通过的假绿灯。"""
+    qa_path = analysis_dir / "delivery_qa_result.json"
+    if not qa_path.exists():
+        result.errors.append("analysis/delivery_qa_result.json 缺失，QA 未执行")
+        return
+    try:
+        qa = json.loads(qa_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, ValueError):
+        result.errors.append("analysis/delivery_qa_result.json 格式无效")
+        return
+    qa_version = qa.get("qa_rule_version", "")
+    if not qa_version:
+        result.errors.append("Delivery QA 规则版本缺失（旧格式，可能遗漏值一致性校验），请重跑 build_analysis_report.py")
+        return
+    if qa_version != QA_RULE_VERSION:
+        result.errors.append(
+            f"Delivery QA 规则版本过期 (当前: {QA_RULE_VERSION}, 文件: {qa_version})，"
+            "旧规则可能遗漏值一致性、禁止模式等新增检查项，请重跑 build_analysis_report.py"
+        )
+        return
+    if qa.get("status") != "pass":
+        failures = qa.get("failures", [])
+        result.errors.append(f"Delivery QA 未通过: {', '.join(failures) if failures else '未知失败项'}")
+    else:
+        result.notes.append(f"Delivery QA 通过 (规则版本: {qa_version})")
 
 
 if __name__ == "__main__":

@@ -274,12 +274,47 @@ python3 scripts/inspect_manual_exports.py <导出文件夹> <输出目录>
 
 暂停点 3：**Top100 明细不完整时暂停**，要求补导出。不用不完整数据出结论。
 
+### Stage 3.5 · AI 审核未匹配 Sheet
+
+`inspect_manual_exports.py` 生成 manifest 后，**必须**检查 manifest 中**所有导入文件**的**所有 sheet** 是否存在脚本无法自动识别的：
+
+```python
+from packages.research_core.pipeline.ai_review_sheets import find_review_candidates
+candidates = find_review_candidates(manifest)
+```
+
+这会遍历搜索结果、市场分析、关键词反查、ABA 等所有导出类型中的全部 sheet，找出 `detected_role == "unknown"` 或缺必需字段的条目。
+
+如果 `candidates` 非空，逐条审核并生成 `sheet_overrides.json`：
+
+- 看 **sheet 名称 + 列头 + 样本数据**，判断该 sheet 的真实角色
+- 如果列名与 `SHEET_RULES` 中定义的名称不完全一致（如卖家精灵将"月销量"改为"月度销量"），在 `column_remap` 中建立映射
+- 如果该 sheet 是无关数据，标记 `corrected_role: "skip"`
+- 可选角色列表：`market_overview, product_concentration, brand_concentration, seller_concentration, seller_type_distribution, seller_location_distribution, a_plus_video_distribution, market_demand_signal, listing_age_distribution, listing_year_distribution, rating_count_distribution, rating_value_distribution, price_distribution, market_keyword_trend, market_sales_trend, brand_summary, seller_summary, reverse_asin_keywords, aba_keywords, aba_keyword_trend, unique_words, skip`
+
+**overrides 格式**：
+
+```json
+[
+  {
+    "file_name": "市场分析.xlsx",
+    "sheet_name": "商品需求趋势",
+    "corrected_role": "market_demand_signal",
+    "column_remap": {}
+  }
+]
+```
+
+审核完成后写入 `sheet_overrides.json`，Stage 4 构建候选池时通过 `--sheet-overrides` 传入。
+
+如果 `candidates` 为空，跳过此步骤，Stage 4 无需传 `--sheet-overrides`。
+
 ### Stage 4 · 数据分层 + 候选池
 
 生成候选池：
 
 ```bash
-python3 scripts/build_candidate_pool_from_import_manifest.py <manifest.json> <候选池输出目录> [--sorftime-verification <sorftime_verification.json>]
+python3 scripts/build_candidate_pool_from_import_manifest.py <manifest.json> <候选池输出目录> [--sorftime-verification <sorftime_verification.json>] [--sheet-overrides <sheet_overrides.json>]
 ```
 
 数据分层交叉分析：

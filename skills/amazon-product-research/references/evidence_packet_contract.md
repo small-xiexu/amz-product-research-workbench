@@ -200,7 +200,7 @@ Route Matrix、workflow_state 等非 Evidence Packet 文件不强制 `executed_b
 - 专家 Agent 不输出 `final_decision`、`route_priority`。
 - 专家 Agent 可以写 `evidence_strength`，不能写“建议立项”。
 - 主 Agent 不新增原始数字；需要数字时必须引用 Evidence Packet、MCP 快照、结构化中间文件或 `research_package.json`。
-- Stage 7 的 `report_data.json` 可以包含 `继续看 / 谨慎继续 / 暂缓` 判词，但必须说明数据缺口和结论边界。
+- Stage 7 的内部 `analysis_packet` 可以使用 `继续看 / 谨慎继续 / 暂缓` 短判词；写入 `report_data.json` 时必须映射为 `hero.verdict` 的正式三值，并说明数据缺口和结论边界。
 - QA Agent 不改商业判断，只判断是否有证据、是否违反边界、是否可交付。
 - 任一证据包 `confidence=low` 时，主 Agent 必须在最终判断里说明影响。
 
@@ -235,11 +235,16 @@ Stage 7 真实多 Agent 执行时还必须满足：
 
 `report_data.json` 必须声明：
 
+- `packet_id = "report_data"`
 - `run_id` 与 run 目录名一致
+- `generated_at` 使用 ISO 时间戳
 - `hero.verdict` 只能是 `建议进入小批量验证`、`建议补齐数据后再评估` 或 `建议暂停推进`
-- `evidence_sources` 列出全部读取的 Evidence Packet 和关键输入文件
+- 顶层 `evidence_sources` 列出全部读取的 Evidence Packet 和关键输入文件，至少包含 `name`、`path`、`exists`、`packet_id`、`confidence`、`execution_mode`、`provenance_note`
 - `hero.lead_analysis` 明确回答市场需求、竞争切入、产品形态、VOC 到规格和为什么还不能强结论
-- 10 个必填板块：`hero`、`category_panorama`、`data_sources`、`competitors`、`pain_points`、`price_bands`、`keywords`、`risks`、`advantages`、`gonogo_conditions`、`next_steps`
+- `hero.evidence_sources` 列出支撑 Hero 判断的来源名称
+- `category_panorama.categories[]` 使用 `category_landscape` 统一字段：`category_name`、`node_id`、`category_path`、`top100_monthly_sales`、`top100_monthly_revenue`、`product_count_in_category`、`representative_asins`、`avg_price`、`category_role`、`reason`、`lineage`
+- `data_sources` 列出本轮报告读取的数据包、关键输入文件、数据缺口和口径说明
+- 11 个必填板块：`hero`、`category_panorama`、`data_sources`、`competitors`、`pain_points`、`price_bands`、`keywords`、`risks`、`advantages`、`gonogo_conditions`、`next_steps`
 - 所有事实值必须标注 `source_path`，可追溯到证据包具体字段
 
 ## 与运行时和现有产物关系

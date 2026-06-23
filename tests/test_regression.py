@@ -815,6 +815,9 @@ class RegressionTests(unittest.TestCase):
             analysis_dir.mkdir()
             (analysis_dir / f"{workflow_dir.name}_分析报告.html").write_text(_minimal_analysis_report_html(), encoding="utf-8")
             write_xlsx(analysis_dir / f"{workflow_dir.name}_数据回表.xlsx", _minimal_analysis_delivery_sheets())
+            (analysis_dir / "delivery_qa_result.json").write_text(
+                json.dumps({"status": "pass", "qa_rule_version": "2026-06-23-v2"}), encoding="utf-8"
+            )
 
             result = validate_workflow_output(workflow_dir)
 

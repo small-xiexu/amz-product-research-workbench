@@ -150,7 +150,12 @@ def load_role_records(manifest: dict[str, Any], source_type: str, role: str) -> 
     for file_item in file_entries(manifest, source_type):
         for sheet in sheet_entries(file_item, role):
             xlsx_path = source_folder / file_item["relative_path"]
+            column_remap: dict[str, str] = sheet.get("column_remap", {})
             for record in read_records(xlsx_path, sheet["sheet_name"], int(sheet["header_row"])):
+                if column_remap:
+                    for old_key, new_key in column_remap.items():
+                        if old_key in record:
+                            record[new_key] = record.pop(old_key)
                 record["__source_file"] = file_item["file_name"]
                 record["__source_sheet"] = sheet["sheet_name"]
                 records.append(record)

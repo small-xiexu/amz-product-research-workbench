@@ -20,6 +20,7 @@ from packages.research_core.pipeline.build_analysis_report import (
     build_analysis_packet,
     seed_report_data_from_analysis,
     xlsx_sheets_from_report_data,
+    run_delivery_qa,
 )
 
 EVAL_DIR = Path(__file__).resolve().parent
@@ -30,14 +31,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "check",
         nargs="?",
-        default="build_minimal_analysis_packet",
-        choices=("build_minimal_analysis_packet",),
+        default="all",
+        choices=("all", "build_minimal_analysis_packet", "stage7_qa_pipeline"),
     )
     args = parser.parse_args(argv)
 
-    if args.check == "build_minimal_analysis_packet":
-        return _run_minimal_analysis_packet_eval()
-    raise ValueError(f"unsupported eval check: {args.check}")
+    failures = 0
+    if args.check in ("all", "build_minimal_analysis_packet"):
+        if _run_minimal_analysis_packet_eval() != 0:
+            failures += 1
+    if args.check in ("all", "stage7_qa_pipeline"):
+        if _run_stage7_qa_pipeline_eval() != 0:
+            failures += 1
+    if failures:
+        print(f"\n{failures} eval(s) failed")
+    return failures
 
 
 def _run_minimal_analysis_packet_eval() -> int:
@@ -58,9 +66,89 @@ def _run_minimal_analysis_packet_eval() -> int:
 
         assert report_data_path.exists(), "report_data.json not written"
         assert xlsx_path.exists(), "analysis_report.xlsx not written"
-        assert seed.get("hero", {}).get("verdict") in ("继续看", "谨慎继续", "暂缓"), f"unexpected verdict: {seed.get('hero', {}).get('verdict')}"
+        assert seed.get("hero", {}).get("verdict") in (
+            "建议进入小批量验证",
+            "建议补齐数据后再评估",
+            "建议暂停推进",
+        ), f"unexpected verdict: {seed.get('hero', {}).get('verdict')}"
         print(f"generated: {report_data_path}")
         print(f"generated: {xlsx_path}")
+        print("eval_ok")
+    return 0
+
+
+def _run_stage7_qa_pipeline_eval() -> int:
+    """验证 Stage 7 QA 管线：source_path 校验 + 值一致性 + 禁止模式。"""
+    with tempfile.TemporaryDirectory(prefix="amz_skill_eval_qa_") as tmp:
+        run_dir = Path(tmp)
+        analysis_dir = run_dir / "analysis"
+        analysis_dir.mkdir(parents=True, exist_ok=True)
+        _write_minimal_evidence_packets(run_dir)
+
+        # 构建最小可用的 analysis 和 report_data
+        packets = _load_packets(run_dir)
+        analysis = build_analysis_packet(run_dir, packets)
+        report_data_path = analysis_dir / "report_data.json"
+        html_path = analysis_dir / "eval_分析报告.html"
+        xlsx_path = analysis_dir / "eval_数据回表.xlsx"
+
+        # ---- Case 1: 空 source_path 应阻断 QA ----
+        bad_seed = seed_report_data_from_analysis(analysis)
+        # 注入一条空 source_path
+        bad_seed["hero"]["metrics"]["target_market"]["source_path"] = ""
+        report_data_path.write_text(json.dumps(bad_seed, ensure_ascii=False, indent=2), encoding="utf-8")
+        html_path.write_text("<html><style>.hero{}</style><body></body></html>")
+        xlsx_path.write_text("fake")
+
+        qa1 = run_delivery_qa(report_data_path, html_path, xlsx_path, analysis)
+        assert qa1["status"] == "fail", f"qa1 should fail on empty source_path, got {qa1['status']}"
+        assert not qa1["checks"]["report_data_sources_valid"], "report_data_sources_valid should be False"
+        print("  [PASS] Case 1: empty source_path → QA fail")
+
+        # ---- Case 2: __ai_pending__ 应允许通过 ----
+        clean_seed = seed_report_data_from_analysis(analysis)
+        report_data_path.write_text(json.dumps(clean_seed, ensure_ascii=False, indent=2), encoding="utf-8")
+        qa2 = run_delivery_qa(report_data_path, html_path, xlsx_path, analysis)
+        # seed 只有 __ai_pending__，无空字符串，应 pass（或在仅有其他非 source 相关失败时也合理）
+        src_valid = qa2["checks"]["report_data_sources_valid"]
+        assert src_valid, f"qa2 source validation should pass with __ai_pending__, got note: {qa2['checks'].get('report_data_sources_note', '')}"
+        print(f"  [PASS] Case 2: __ai_pending__ → source_valid={src_valid}")
+
+        # ---- Case 3: 值一致性校验 ----
+        # 构造值不匹配的场景：source_path 指向可解析的标量字段，value 故意写错
+        mismatch_seed = seed_report_data_from_analysis(analysis)
+        # analysis.seller_sprite_validation.primary_market.label 一定是标量字符串
+        mismatch_seed["hero"]["metrics"]["target_market"] = {
+            "label": "目标市场", "value": "WRONG_MARKET_NAME",
+            "source_path": "analysis.seller_sprite_validation.primary_market.label",
+        }
+        report_data_path.write_text(json.dumps(mismatch_seed, ensure_ascii=False, indent=2), encoding="utf-8")
+        qa3 = run_delivery_qa(report_data_path, html_path, xlsx_path, analysis)
+        values_consistent = qa3["checks"].get("report_data_values_consistent", True)
+        assert not values_consistent, (
+            f"Case 3: value mismatch MUST be detected, but report_data_values_consistent={values_consistent}"
+            f" (note: {qa3['checks'].get('report_data_values_note', 'N/A')})"
+        )
+        print(f"  [PASS] Case 3: value mismatch correctly detected (values_consistent={values_consistent})")
+
+        # ---- Case 4: 禁止模式检查 ----
+        html_bad = html_path.read_text() + "source_path: should be caught"
+        html_path.write_text(html_bad)
+        qa4 = run_delivery_qa(report_data_path, html_path, xlsx_path, analysis)
+        assert not qa4["checks"]["has_no_forbidden_html_patterns"], "forbidden pattern 'source_path' should be caught"
+        print(f"  [PASS] Case 4: forbidden HTML pattern detected")
+
+        # ---- Case 5: delivery_qa_result.json 结构完整 ----
+        required_checks = [
+            "report_data_exists", "html_exists", "xlsx_exists",
+            "report_data_has_required_sections", "report_data_sources_valid",
+            "report_data_values_consistent", "has_no_forbidden_html_patterns",
+            "has_inline_style", "has_8_sections", "has_gonogo_class",
+        ]
+        missing = [k for k in required_checks if k not in qa4["checks"]]
+        assert not missing, f"delivery_qa_result missing checks: {missing}"
+        print(f"  [PASS] Case 5: delivery_qa_result has all {len(required_checks)} required checks")
+
         print("eval_ok")
     return 0
 
