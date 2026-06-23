@@ -85,7 +85,7 @@ ANALYSIS_MODE_SECTION_HINTS = {
     "数据点 -> 含义 -> 行动建议": "Executive Summary / 当前结论",
 }
 from packages.report_renderer.constants import FORMAL_REPORT_SECTION_TITLES
-from packages.research_core.pipeline.build_analysis_report import QA_RULE_VERSION
+from packages.research_core.pipeline.constants import QA_RULE_VERSION
 INTERACTIVE_REPORT_REQUIRED_TERMS = (
     "交互式流程状态",
     "交互式下一步动作",

@@ -295,7 +295,7 @@ def build_blockers(
 
 
 def _current_qa_version() -> str:
-    from packages.research_core.pipeline.build_analysis_report import QA_RULE_VERSION
+    from packages.research_core.pipeline.constants import QA_RULE_VERSION
     return QA_RULE_VERSION
 
 
