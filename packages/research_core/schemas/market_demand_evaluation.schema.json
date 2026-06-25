@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/market_demand_evaluation.schema.json",
+  "title": "MarketDemandEvaluation",
+  "type": "object",
+  "required": ["schema_version", "packet_id", "stage", "score", "rating", "confidence", "key_reasons", "risks", "required_followups", "evidence_refs", "execution_provenance"],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "packet_id": { "type": "string", "const": "market_demand_evaluation" },
+    "stage": { "type": "string", "const": "evaluation" },
+    "score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "rating": { "type": "string", "enum": ["strong", "watch", "weak", "blocked"] },
+    "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+    "key_reasons": { "type": "array", "items": { "type": "string" } },
+    "risks": { "type": "array", "items": { "type": ["string", "object"] } },
+    "required_followups": { "type": "array", "items": { "type": ["string", "object"] } },
+    "evidence_refs": { "type": "array", "items": { "type": "string" } },
+    "execution_provenance": {
+      "type": "object",
+      "required": ["executed_by_agent", "agent_role", "execution_mode"],
+      "properties": {
+        "executed_by_agent": { "type": "boolean" },
+        "agent_role": { "type": "string" },
+        "execution_mode": { "type": "string" },
+        "subagent_id": { "type": "string" },
+        "note": { "type": "string" }
+      }
+    }
+  },
+  "additionalProperties": true
+}

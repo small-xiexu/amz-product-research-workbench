@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/integrated_operator_judgment.schema.json",
+  "title": "IntegratedOperatorJudgment",
+  "type": "object",
+  "required": ["schema_version", "packet_id", "stage", "run_id", "final_verdict", "verdict_reason", "recommended_route", "rejected_routes", "biggest_opportunity", "biggest_risk", "required_next_actions", "constraints_applied", "evidence_refs", "confidence", "execution_provenance", "generated_at"],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "packet_id": { "type": "string", "const": "integrated_operator_judgment" },
+    "stage": { "type": "string", "const": "stage_9_report" },
+    "run_id": { "type": "string" },
+    "final_verdict": { "type": "string", "enum": ["go", "watch", "no_go", "blocked"] },
+    "verdict_reason": { "type": "string" },
+    "recommended_route": { "type": ["string", "object"] },
+    "rejected_routes": { "type": "array", "items": { "type": ["string", "object"] } },
+    "biggest_opportunity": { "type": ["string", "object"] },
+    "biggest_risk": { "type": ["string", "object"] },
+    "required_next_actions": { "type": "array", "items": { "type": ["string", "object"] } },
+    "constraints_applied": { "type": "array", "items": { "type": ["string", "object"] } },
+    "evidence_refs": { "type": "array", "items": { "type": "string" } },
+    "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+    "generated_at": { "type": "string" },
+    "execution_provenance": {
+      "type": "object",
+      "required": ["executed_by_agent", "agent_role", "execution_mode"],
+      "properties": {
+        "executed_by_agent": { "type": "boolean" },
+        "agent_role": { "type": "string" },
+        "execution_mode": { "type": "string" },
+        "subagent_id": { "type": "string" },
+        "note": { "type": "string" }
+      }
+    }
+  },
+  "additionalProperties": true
+}

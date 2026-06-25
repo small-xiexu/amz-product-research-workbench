@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/evaluation_summary.schema.json",
+  "title": "EvaluationSummary",
+  "type": "object",
+  "required": ["schema_version", "packet_id", "stage", "dimension_results", "blocked_dimensions", "low_confidence_dimensions", "cross_dimension_tensions", "operator_judgment_constraints", "recommended_final_verdict_range"],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "packet_id": { "type": "string", "const": "evaluation_summary" },
+    "stage": { "type": "string", "const": "evaluation_summary" },
+    "dimension_results": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/dimension_result" }
+    },
+    "blocked_dimensions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "low_confidence_dimensions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "cross_dimension_tensions": {
+      "type": "array",
+      "items": { "type": ["string", "object"] }
+    },
+    "operator_judgment_constraints": {
+      "type": "array",
+      "items": { "type": ["string", "object"] }
+    },
+    "recommended_final_verdict_range": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["go", "watch", "no_go", "blocked"] }
+    }
+  },
+  "definitions": {
+    "dimension_result": {
+      "type": "object",
+      "required": ["score", "rating", "confidence", "key_reasons", "risks", "required_followups", "evidence_refs"],
+      "properties": {
+        "score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "rating": { "type": "string", "enum": ["strong", "watch", "weak", "blocked"] },
+        "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+        "key_reasons": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "risks": {
+          "type": "array",
+          "items": { "type": ["string", "object"] }
+        },
+        "required_followups": {
+          "type": "array",
+          "items": { "type": ["string", "object"] }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": { "$ref": "evidence_packet.schema.json#/definitions/evidence_ref" }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

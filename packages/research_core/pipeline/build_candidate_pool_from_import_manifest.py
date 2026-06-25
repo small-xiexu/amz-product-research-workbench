@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Build a first candidate_pool from inspected manual export files."""
+"""LEGACY FALLBACK — MCP 主路径已替代此入口，仅在 MCP 不可用时使用。
+
+Build a first candidate_pool from inspected manual export files."""
 
 from __future__ import annotations
 

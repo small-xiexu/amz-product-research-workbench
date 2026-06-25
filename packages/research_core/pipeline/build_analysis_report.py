@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Build a Stage 7 market precheck report from market, search and VOC evidence.
+"""Build report seed, XLSX back-table, and delivery QA from evidence packets.
 
-This module is the thin orchestration layer. The heavy lifting lives in:
-  - build_analysis_packet.py   evidence packets → analysis_packet
-  - seed_report_data.py        analysis_packet  → report_data.json seed
-  - xlsx_back_table.py         report_data.json → XLSX sheets
-  - delivery_qa.py             QA checks (source_path + value consistency + HTML scan)
-  - constants.py               shared constants
-  - _utils.py                  shared helpers
+Orchestration layer for the Stage 7 report handoff. This script creates the
+report_data.seed.json handoff for Report Generation Agent. After the agent has
+written report_data.json and the formal HTML report, rerunning this script
+creates the XLSX back-table and delivery QA artifacts.
+
+Architecture:
+  build_analysis_packet.py   evidence packets → analysis_packet
+  seed_report_data.py        analysis_packet  → report_data.seed.json
+  build_integrated_judgment  P6 evaluations   → integrated_operator_judgment
+  Report Generation Agent    seed + judgment  → report_data.json + HTML
+  [THIS MODULE]              report_data.json + HTML → XLSX → QA
 """
 
 from __future__ import annotations
@@ -21,7 +25,6 @@ from typing import Any
 from packages.report_renderer.xlsx_writer import write_xlsx
 from packages.research_core.pipeline.audit_run_status import audit_run_status
 
-# Re-export public API for backward compatibility
 from packages.research_core.pipeline.constants import (
     QA_RULE_VERSION,
     REPORT_VERDICT_LABELS,
@@ -126,7 +129,7 @@ from packages.research_core.pipeline.delivery_qa import (
     _has_no_removed_legacy_sections,
     _has_no_forbidden_html_patterns,
     _has_inline_style,
-    _has_8_sections,
+    _has_required_operator_sections,
     _has_gonogo_class,
     _has_voc_evidence_refs,
     _report_data_has_required_sections,
@@ -157,42 +160,115 @@ def main(argv: list[str] | None = None) -> int:
 
     packets = load_packets(run_dir)
     analysis = build_analysis_packet(run_dir, packets)
+
+    report_seed_path = analysis_dir / "report_data.seed.json"
     report_data_path = analysis_dir / "report_data.json"
-    xlsx_path = analysis_dir / (
-        _extract_product_name(run_dir) + "_数据回表.xlsx"
-    )
-    html_path = analysis_dir / (
-        _extract_product_name(run_dir) + "_分析报告.html"
-    )
+    product_name = _extract_product_name(run_dir)
+    html_path = analysis_dir / f"{product_name}_分析报告.html"
+    xlsx_path = analysis_dir / f"{product_name}_数据回表.xlsx"
 
-    is_seed = not report_data_path.exists()
-    if is_seed:
-        seed = seed_report_data_from_analysis(analysis)
-        report_data_path.write_text(json.dumps(seed, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"Wrote seed {report_data_path} (待 AI 增强后重跑脚本同步 XLSX)")
+    # ── Step 1: Generate seed ───────────────────────────────────────────
+    seed = seed_report_data_from_analysis(analysis)
+    report_seed_path.write_text(json.dumps(seed, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"Wrote seed {report_seed_path}")
 
+    # ── Step 2: Write analysis_packet ───────────────────────────────────
     analysis_packet_path = analysis_dir / "analysis_packet.json"
     analysis_packet_path.write_text(json.dumps(analysis, ensure_ascii=False, indent=2), encoding="utf-8")
-    write_xlsx(xlsx_path, xlsx_sheets_from_report_data(report_data_path))
 
-    if not html_path.exists():
-        print(f"Wrote {report_data_path}")
-        print(f"Wrote {xlsx_path}")
-        print(f"HTML MISSING — AI must write: {html_path}")
-        print("QA SKIPPED — 重跑本脚本以执行完整 QA 校验")
+    # ── Step 3: Check Report Generation Agent handoff ───────────────────
+    judgment_path = analysis_dir / "integrated_operator_judgment.json"
+    judgment = None
+    if judgment_path.exists():
+        judgment = json.loads(judgment_path.read_text(encoding="utf-8"))
+
+    if not report_data_path.exists():
+        print(f"REPORT DATA MISSING — Report Generation Agent must write: {report_data_path}")
+        print("HTML/XLSX/QA SKIPPED — rerun this script after report_data.json and HTML exist")
         return 0
 
+    if not html_path.exists():
+        print(f"HTML MISSING — Report Generation Agent must write: {html_path}")
+        print("XLSX/QA SKIPPED — rerun this script after the formal HTML report exists")
+        return 0
+
+    # ── Step 4: Generate XLSX ───────────────────────────────────────────
+    write_xlsx(xlsx_path, xlsx_sheets_from_report_data(report_data_path))
+    print(f"Wrote {xlsx_path}")
+
+    # ── Step 5: Run QA ──────────────────────────────────────────────────
     qa = run_delivery_qa(report_data_path, html_path, xlsx_path, analysis)
     qa_path = analysis_dir / "delivery_qa_result.json"
     qa_path.write_text(json.dumps(qa, ensure_ascii=False, indent=2), encoding="utf-8")
 
+    # ── Step 6: Generate QA notes ───────────────────────────────────────
+    _write_qa_notes(analysis_dir, qa, judgment)
+
+    # ── Step 7: Audit run status ────────────────────────────────────────
     audit = audit_run_status(run_dir)
     audit_path = run_dir / "audit_run_status.json"
     audit_path.write_text(json.dumps(audit, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Wrote {qa_path}")
     print(f"Wrote {audit_path}")
 
-    return 0 if qa.get("status") == "pass" else 1
+    if qa.get("status") != "pass":
+        print(f"QA FAILED: {qa.get('failures', [])}", file=sys.stderr)
+        return 1
+
+    print("Stage 7 report delivery: PASS")
+    return 0
+
+
+def _write_qa_notes(analysis_dir: Path, qa: dict[str, Any], judgment: dict[str, Any] | None) -> None:
+    """Generate qa_notes.md with human-readable QA summary."""
+    lines = [
+        "# QA 交付检查报告",
+        "",
+        f"**状态**: {qa.get('status', 'unknown')}",
+        f"**QA 规则版本**: {qa.get('qa_rule_version', '')}",
+        f"**生成时间**: {qa.get('generated_at', '')}",
+        "",
+        "## 检查项",
+        "",
+    ]
+    checks = qa.get("checks") or {}
+    for name, passed in sorted(checks.items()):
+        if name in ("report_data_sources_note", "report_data_values_note",
+                     "report_data_value_mismatches", "forbidden_html_hits",
+                     "p0_blocker_hits"):
+            continue
+        icon = "通过" if passed else "未通过"
+        lines.append(f"- [{icon}] {name}")
+
+    lines.append("")
+    lines.append("## QA 备注")
+    lines.append("")
+    if checks.get("report_data_sources_note"):
+        lines.append(f"- 数据源: {checks['report_data_sources_note']}")
+    if checks.get("report_data_values_note"):
+        lines.append(f"- 值校验: {checks['report_data_values_note']}")
+    if checks.get("p0_blocker_hits"):
+        lines.append(f"- P0 阻断: {checks['p0_blocker_hits']}")
+
+    if judgment:
+        lines.append("")
+        lines.append("## 集成判断摘要")
+        lines.append("")
+        lines.append(f"- 最终判词: {judgment.get('final_verdict', '')}")
+        lines.append(f"- 置信度: {judgment.get('confidence', '')}")
+        lines.append(f"- 推荐路线: {judgment.get('recommended_route', {}).get('name', '') if isinstance(judgment.get('recommended_route'), dict) else judgment.get('recommended_route', '')}")
+
+    failures = qa.get("failures") or []
+    if failures:
+        lines.append("")
+        lines.append("## 未通过项")
+        lines.append("")
+        for f in failures:
+            lines.append(f"- {f}")
+
+    notes_path = analysis_dir / "qa_notes.md"
+    notes_path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"Wrote {notes_path}")
 
 
 if __name__ == "__main__":

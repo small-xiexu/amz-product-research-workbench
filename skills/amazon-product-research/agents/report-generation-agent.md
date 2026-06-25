@@ -2,7 +2,9 @@
 
 角色：资深亚马逊运营专家报告生成器。
 
-职责：读 4 份证据包，先写 `report_data.json`（事实提取 + 来源标注），再对着它手写 `<中文品名>_分析报告.html`。不在 `report_data.json` 里的数字禁止出现在 HTML 中。
+职责：读取脚本生成的 `analysis/report_data.seed.json` 和上游证据包，增强为正式 `analysis/report_data.json`（事实提取 + 后台溯源标注），再对着它手写 `analysis/<中文品名>_分析报告.html`。不在 `report_data.json` 里的数字禁止出现在 HTML 中。
+
+Stage 7 使用 P0 三段式：脚本先生成 `report_data.seed.json`；Report Generation Agent 增强 `report_data.json` 并手写 HTML；脚本再基于 `report_data.json` + HTML 生成 XLSX 和 `delivery_qa_result.json`。
 
 ## 反捏造红线（最高优先级）
 
@@ -10,7 +12,7 @@
 
 | # | 禁令 | 说明 |
 |---|---|---|
-| 1 | **禁止凭空编造数字** | HTML 中每一个数字、百分比、金额、销量、评分数、搜索量，必须能在 `report_data.json` 中找到对应条目，进而通过 `source_path` 追溯到证据包原始字段。推导型估算（如“预计月销约 3000”）必须标注推断依据和计算逻辑。 |
+| 1 | **禁止凭空编造数字** | HTML 中每一个数字、百分比、金额、销量、评分数、搜索量，必须能在 `report_data.json` 中找到对应条目，进而在后台通过 `source_path` 追溯到证据包原始字段。推导型估算必须标注推断依据和计算逻辑。 |
 | 2 | **禁止篡改来源数据** | 不得对证据包中的数值进行四舍五入、放大缩小、或选择性引用。如需归一化（如单位换算），必须保留原始值和换算方式。 |
 | 3 | **禁止模糊溯源** | `source_path` 必须指向证据包中的具体字段（如 `market_structure.market_size.primary_market.overview_all.月均销量`），不允许笼统指向整个包或板块。 |
 | 4 | **禁止遗漏占位符替换** | Seed 中的 `"source_path": "__ai_pending__"` 应尽量替换为真实路径。若证据包确实无对应数据，允许保留 `__ai_pending__`（QA 记 warning），但禁止改为空字符串 `""`（会触发阻断）。 |
@@ -20,26 +22,27 @@
 
 ## 调度
 
-- 触发条件：Stage 7，4 份证据包齐全。
+- 触发条件：Stage 7，`analysis/report_data.seed.json` 与必要证据包齐全。
 - 执行方式：由主 Agent 按本文件口径串行执行。不 spawn 子 Agent（报告必须由同一专家视角统稿）。
 - 允许写入：`analysis/report_data.json`、`analysis/<中文品名>_分析报告.html`。
 - 禁止写入：证据包、原始数据、XLSX、QA 结果。
-- 证据契约：HTML 中的所有数字必须能从 `report_data.json` 追溯到具体证据包字段。
+- 证据契约：HTML 中的所有数字必须能从 `report_data.json` 追溯到具体证据包字段；`source_path`、证据包路径和冲突复核过程只允许留在 `report_data.json` / XLSX / QA 后台链路。
 
 ## 输入
 
 | 输入 | 路径 | 用途 |
 |---|---|---|
+| 报告数据 seed | `analysis/report_data.seed.json` | 脚本生成的初始数据结构，待增强为正式 `report_data.json` |
 | 路线配置 | `route_matrix_confirm.json` | Hero 路线名、竞品表路线分组 |
 | 市场结构证据 | `market_structure/market_structure_evidence_packet.json` | 类目数据、竞品池、价格带 |
 | 搜索需求证据 | `search_demand/search_demand_evidence_packet.json` | 类目全景、关键词数据、趋势 |
 | VOC 证据 | `review_voc/voc_evidence_packet.json` | 痛点、亮点、机会假设 |
 
-## 两步生成流程（强制执行）
+## Agent 两步生成流程（强制执行）
 
 ### 第一步：生成 `analysis/report_data.json`
 
-从 4 份证据包中提取所有将出现在 HTML 中的事实数据，写入 `report_data.json`。每个事实必须标注 `source_path`（JSON 路径，指向证据包中的具体字段）。
+以 `analysis/report_data.seed.json` 为初始结构，从证据包中提取所有将出现在 HTML 中的事实数据，增强写入 `report_data.json`。每个事实必须标注 `source_path`（JSON 路径，指向证据包中的具体字段）。
 
 **这不是可选步骤。** 在 `report_data.json` 写完并通过自检之前，禁止开始写 HTML。
 
@@ -48,6 +51,8 @@
 ### 第二步：对着 `report_data.json` 写 `analysis/<中文品名>_分析报告.html`
 
 HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条数，必须能在 `report_data.json` 中找到对应条目。如果你需要写一个数字但 `report_data.json` 中没有，回到第一步补充它。
+
+HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目全景、风险与下一步等业务板块中自然表达“样本边界 / 判断口径”，但不得固定展示“数据来源与口径”板块，不得暴露 MCP、Agent、tool、packet、source_path、冲突复核过程或内部数据来源分歧。
 
 ### CSS 与 HTML 骨架强制约束（禁止手写 CSS）
 
@@ -260,7 +265,9 @@ HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条�
 }
 ```
 
-## 数据溯源表（每个板块写什么，从哪个证据包取）
+## 后台数据溯源表（每个运营板块写什么，从哪个证据包取）
+
+此表用于增强 `report_data.json`、生成 XLSX 和 QA 溯源，不是 HTML 固定板块清单。HTML 只呈现运营可读结论；样本边界、事实/推断、判断口径只能自然嵌入业务板块。
 
 | 板块 | 事实数据 | 证据包来源 | 具体字段路径 |
 |---|---|---|---|
@@ -294,20 +301,20 @@ HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条�
 
 - 以资深运营专家视角解读数据，给出有依据的判断和建议。
 - 对证据包中的事实做运营化翻译（如"CPC $0.96"翻译为"投产比高的广告靶词"）。
-- 在 report_data.json 中标注每个事实的 `source_path`。
+- 在 report_data.json 中标注每个事实的 `source_path`，供 XLSX 和 QA 后台链路使用。
 - 基于 VOC 痛点推导产品规格建议。
 - 判断关键词的运营意图分类（主攻/可测/否定）。
 
 ## 不可以做
 
-- **不新增数字。** HTML 中的每一个数字、百分比、金额、计数必须有对应的 `source_path`，能在证据包中定位到具体字段。
+- **不新增数字。** HTML 中的每一个数字、百分比、金额、计数必须在 `report_data.json` 中有对应后台 `source_path`，能在证据包中定位到具体字段。
 - **不新增竞品信息。** 竞品的品牌名、子体数、产地、材质细节等如不在证据包中，不得写入 HTML。如果证据包中只有 ASIN 和品牌名，就只能写这两个。
 - **不发明痛点。** VOC 痛点只能来自 `voc_evidence_packet.json` 的 `pain_points_by_dimension`，不能根据"行业常识"补充未在证据中出现的痛点。
 - **不推测缺失数据。** 如果某个竞品的评分不在证据包中，写"待补"或不写，不能猜一个数字。
 - **不把推断当事实。** 定价建议、毛利预估、差异点价值是推断，报告中使用"建议""可考虑""预估"等措辞区分。
 - **不复制粘贴 insight 原文。** `insights_for_handoff` 是给主 Agent 看的提示，不能直接抄进 HTML。HTML 里的分析应该基于原始数据重新撰写。
-- **不出现内部术语。** HTML 中不出现 Agent、MCP、tool、spawn、packet、pipeline、evidence_packet 等术语。
-- **不使用抽象路线标签。** 禁止在 HTML 中使用"路线A""路线B""路线1""路线2"等无业务含义的代号。路线名必须使用业务描述词（如"吊扇除尘""蜘蛛网除尘""纯钢丝刷""三合一刷"），让运营一眼看懂每个方向在做什么产品。路线命名应基于 `route_matrix_confirm.json` 中的路线定义或关键词的业务语义。
+- **不出现内部术语。** HTML 中不出现 Agent、MCP、tool、spawn、packet、pipeline、evidence_packet、source_path、冲突复核过程或内部数据来源分歧。
+- **不使用抽象路线标签。** 禁止在 HTML 中使用"路线A""路线B""路线1""路线2"等无业务含义的代号。路线名必须使用业务描述词，让运营一眼看懂每个方向在做什么产品。路线命名应基于 `route_matrix_confirm.json` 中的路线定义或关键词的业务语义。
 - **不自创 CSS。** `<style>` 块必须完整复制 `skills/amazon-product-research/references/report_template.css`，禁止修改任何 CSS 值、类名、变量名。禁止发明新的 CSS 类名或 HTML 结构模式。所有报告的视觉风格必须 100% 一致。
 
 ## 自检清单（写 HTML 前逐项确认）
@@ -320,22 +327,21 @@ HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条�
 - [ ] 关键词表中所有数字（月搜/CPC/竞品数/低评论占比）都能在 search_demand 中找到
 - [ ] 痛点提及条数与 voc_evidence_packet 一致
 - [ ] 没有证据包之外的数字或事实性断言
-- [ ] 路线标签使用业务描述词（吊扇除尘/纯钢丝刷），无"路线A/B"等抽象代号
+- [ ] 路线标签使用业务描述词，无"路线A/B"等抽象代号
 - [ ] HTML 视觉规范：内嵌 `<style>` CSS、绿色 Hero、4 种 tag、价格柱状图、Go/No-Go 表
 - [ ] **模板合规：`<style>` 块从 report_template.css 完整复制，未修改任何 CSS 值/类名/变量名**
 - [ ] **类名合规：HTML 中只出现了类名速查表中的类名，未出现自定义类名（如 `.hero-metric-label` `.container` `.section-card` `.insight-cards` 等）**
 
-## 完整 8 板块数据溯源表（快速对照用）
+## 运营必备板块后台溯源表（快速对照用）
 
-写每个板块时对照此表，确保不遗漏、不多写：
+写每个业务板块时对照此表，确保不遗漏、不多写。此表不代表 HTML 固定板块顺序；HTML 不单独展示内部数据来源、`source_path` 或冲突复核过程。
 
 | # | 板块 | 必须包含 | 数据全部来自 | 常见越权错误 |
 |---|---|---|---|---|
 | 1 | Hero | verdict + 6 metrics + lead | market_structure + search_demand | 指标遗漏(6缺1)；类目名写错 |
 | 2 | 类目全景 | 所有相关类目表 + 4 insight cards | search_demand facts + market_structure | 只写一个类目；月销额数字与Hero不一致 |
-| 3 | 数据来源与口径 | 6行数据源表 + 事实/推断说明 | 各证据包 execution_provenance + review_stats | 采样日期写错；样本数写错 |
-| 4 | 核心竞品 | ASIN表（含品牌/月销/价格/评论/评分/路线/判断） | market_structure reference_asin_pool | 发明不在证据中的品牌名或子体数 |
-| 5 | 用户痛点→产品规格 | P0/P1/P2排序 + 竞品问题 + 产品规格 | voc pain_points_by_dimension | 发明新痛点；修改提及条数 |
-| 6 | 价格带分布 | 柱状图 + 价格带表 | market_structure price_band | 硬编码柱高或颜色（必须用 bar_height + opportunity_level）；修改占比数字；发明代表竞品 |
-| 7 | 关键词与流量策略 | 主攻/可测/否定三分 + 策略说明 | search_demand keyword_demand + facts | 修改月搜量或CPC；遗漏否定词 |
-| 8 | 风险与下一步 | 风险/优势双栏 + Go/No-Go表 + 3步骤 | voc data_gaps + market_structure + 运营判断 | 风险无证据支撑；步骤写空话 |
+| 3 | 核心竞品 | ASIN表（含品牌/月销/价格/评论/评分/路线/判断） | market_structure reference_asin_pool | 发明不在证据中的品牌名或子体数 |
+| 4 | 用户痛点→产品规格 | P0/P1/P2排序 + 竞品问题 + 产品规格 | voc pain_points_by_dimension | 发明新痛点；修改提及条数 |
+| 5 | 价格带分布 | 柱状图 + 价格带表 | market_structure price_band | 硬编码柱高或颜色（必须用 bar_height + opportunity_level）；修改占比数字；发明代表竞品 |
+| 6 | 关键词与流量策略 | 主攻/可测/否定三分 + 策略说明 | search_demand keyword_demand + facts | 修改月搜量或CPC；遗漏否定词 |
+| 7 | 风险与下一步 | 风险/优势双栏 + Go/No-Go表 + 3步骤；可自然嵌入样本边界和判断口径 | voc data_gaps + market_structure + 运营判断 | 风险无证据支撑；步骤写空话；把内部采集分歧写进 HTML |

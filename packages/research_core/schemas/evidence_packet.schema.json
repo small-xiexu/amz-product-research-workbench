@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/evidence_packet.schema.json",
+  "title": "EvidencePacket",
+  "type": "object",
+  "required": ["schema_version", "packet_id", "stage", "depth", "source_type", "collected_at", "data_window", "confidence", "facts", "derived_metrics", "metric_basis", "data_gaps", "evidence_refs", "execution_provenance"],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "packet_id": { "type": "string" },
+    "stage": { "type": "string" },
+    "depth": { "type": "string", "enum": ["quick", "deep", "conflict", "evaluation", "final"] },
+    "source_type": { "type": "string" },
+    "collected_at": { "type": "string" },
+    "data_window": { "type": ["string", "object"] },
+    "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+    "facts": { "type": "object", "additionalProperties": true },
+    "derived_metrics": { "type": "object", "additionalProperties": true },
+    "metric_basis": { "$ref": "#/definitions/metric_basis" },
+    "data_gaps": {
+      "type": "array",
+      "items": { "type": ["string", "object"] }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/evidence_ref" }
+    },
+    "execution_provenance": {
+      "type": "object",
+      "required": ["execution_mode"],
+      "properties": {
+        "execution_mode": {
+          "type": "string",
+          "enum": ["real_subagent_spawn", "serial_simulation", "script_generated", "legacy_fallback"]
+        },
+        "agent_role": { "type": "string" },
+        "tool_names": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "source_snapshot_paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "definitions": {
+    "metric_basis": {
+      "type": "object",
+      "required": ["marketplace", "currency", "data_window", "aggregation_unit", "sample_scope", "collected_at"],
+      "properties": {
+        "marketplace": { "type": "string" },
+        "currency": { "type": "string" },
+        "data_window": { "type": "string" },
+        "aggregation_unit": {
+          "type": "string",
+          "enum": ["asin", "parent_asin", "keyword", "category", "route", "review", "mixed"]
+        },
+        "sample_scope": { "type": "string" },
+        "collected_at": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "evidence_ref": {
+      "type": "string",
+      "pattern": "^.+#.+$"
+    }
+  },
+  "additionalProperties": true
+}

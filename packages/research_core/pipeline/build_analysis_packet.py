@@ -209,6 +209,7 @@ def build_analysis_packet(run_dir: Path, packets: dict[str, Any]) -> dict[str, A
             "run_dir": str(run_dir),
             "source_packet_paths": {key: str(path) for key, path in paths.items()},
             "output_paths": {
+                "report_data_seed": str(run_dir / "analysis" / "report_data.seed.json"),
                 "report_data": str(run_dir / "analysis" / "report_data.json"),
                 "html": str(run_dir / "analysis" / f"{_extract_product_name(run_dir)}_分析报告.html"),
                 "xlsx": str(run_dir / "analysis" / f"{_extract_product_name(run_dir)}_数据回表.xlsx"),
@@ -1180,4 +1181,3 @@ def confidence_from_counts(reference_asins: list[dict[str, Any]], categories: li
     if score >= 2:
         return "medium"
     return "low"
-

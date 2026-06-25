@@ -1,4 +1,9 @@
-"""报告共享常量（从 render_report.py R2 抽离）。"""
+"""Legacy report renderer constants.
+
+这些常量服务旧 `report.md` / `report.html` renderer 链路，不作为 CLI P0
+新 Stage 7 HTML 报告契约依据。CLI P0 required operator sections 以
+`packages.research_core.pipeline.constants.REQUIRED_SECTION_MARKERS` 为准。
+"""
 
 FORMAL_REPORT_SECTION_TITLES = (
     "Executive Summary / 当前结论",

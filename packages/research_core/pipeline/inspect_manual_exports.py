@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Inspect manual SellerSprite/Amazon exports and build an import manifest."""
+"""LEGACY FALLBACK — MCP 主路径已替代此入口，仅在 MCP 不可用时使用。
+
+Inspect manual SellerSprite/Amazon exports and build an import manifest."""
 
 from __future__ import annotations
 

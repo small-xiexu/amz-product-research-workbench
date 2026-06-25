@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/quick_packet.schema.json",
+  "title": "QuickEvidencePacket",
+  "type": "object",
+  "required": ["schema_version", "packet_id", "stage", "depth", "source_type", "support_level", "blocking_gaps", "mixed_pool_level", "demand_signal_level", "price_band_health", "category_boundary_clarity", "facts", "metric_basis", "evidence_refs", "confidence"],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "packet_id": { "type": "string" },
+    "stage": { "type": "string", "const": "market_quick_check" },
+    "depth": { "type": "string", "const": "quick" },
+    "source_type": { "type": "string", "enum": ["sellersprite_mcp", "sorftime_mcp"] },
+    "support_level": { "type": "string", "enum": ["strong", "moderate", "weak", "negative", "unknown"] },
+    "blocking_gaps": {
+      "type": "array",
+      "items": { "type": ["string", "object"] }
+    },
+    "mixed_pool_level": { "type": "string", "enum": ["none", "mild", "material", "blocking", "unknown"] },
+    "demand_signal_level": { "type": "string", "enum": ["strong", "moderate", "weak", "negative", "blocking", "unknown"] },
+    "price_band_health": { "type": "string", "enum": ["strong", "moderate", "weak", "blocking", "unknown"] },
+    "category_boundary_clarity": { "type": "string", "enum": ["clear", "moderate", "weak", "blocking", "unknown"] },
+    "facts": { "type": "object", "additionalProperties": true },
+    "metric_basis": { "$ref": "evidence_packet.schema.json#/definitions/metric_basis" },
+    "evidence_refs": {
+      "type": "array",
+      "items": { "$ref": "evidence_packet.schema.json#/definitions/evidence_ref" }
+    },
+    "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+    "data_gaps": {
+      "type": "array",
+      "items": { "type": ["string", "object"] }
+    }
+  },
+  "additionalProperties": true
+}

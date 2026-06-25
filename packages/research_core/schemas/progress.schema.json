@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/progress.schema.json",
+  "title": "WorkflowProgress",
+  "type": "object",
+  "required": ["schema_version", "current_stage", "stages", "updated_at", "global_blockers", "next_action", "completed_artifacts"],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "current_stage": { "type": "string" },
+    "stages": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/stage_state" }
+    },
+    "updated_at": { "type": "string" },
+    "global_blockers": {
+      "type": "array",
+      "items": { "type": ["string", "object"] }
+    },
+    "next_action": {
+      "type": "object",
+      "required": ["type", "description"],
+      "properties": {
+        "type": { "type": "string" },
+        "description": { "type": "string" },
+        "stage_id": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "completed_artifacts": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "definitions": {
+    "stage_state": {
+      "type": "object",
+      "required": ["status", "attempts", "input_artifacts", "output_artifacts", "validation_checks", "resume_policy"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["pending", "running", "done", "blocked", "failed", "needs_user"]
+        },
+        "attempts": { "type": "integer", "minimum": 0 },
+        "input_artifacts": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "output_artifacts": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "validation_checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "pass"],
+            "properties": {
+              "name": { "type": "string" },
+              "pass": { "type": "boolean" },
+              "detail": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "last_error": { "type": ["string", "object"] },
+        "next_required_user_action": { "type": ["string", "object"] },
+        "resume_policy": {
+          "type": "object",
+          "required": ["reuse_existing_artifacts", "allow_repeat_mcp_call"],
+          "properties": {
+            "reuse_existing_artifacts": { "type": "boolean" },
+            "allow_repeat_mcp_call": { "type": "boolean" },
+            "force_refresh": { "type": "boolean" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/quick_gate.schema.json",
+  "title": "QuickMarketGate",
+  "type": "object",
+  "required": ["schema_version", "packet_id", "stage", "gate_result", "support_summary", "rule_hits", "gate_reasons", "next_action", "evidence_refs"],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "packet_id": { "type": "string", "const": "quick_market_gate" },
+    "stage": { "type": "string", "const": "market_quick_check" },
+    "gate_result": { "type": "string", "enum": ["continue", "watch", "stop"] },
+    "support_summary": {
+      "type": "object",
+      "required": ["sellersprite", "sorftime"],
+      "properties": {
+        "sellersprite": { "$ref": "#/definitions/source_summary" },
+        "sorftime": { "$ref": "#/definitions/source_summary" }
+      },
+      "additionalProperties": true
+    },
+    "rule_hits": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "gate_reasons": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "next_action": { "type": "string" },
+    "evidence_refs": {
+      "type": "array",
+      "items": { "$ref": "evidence_packet.schema.json#/definitions/evidence_ref" }
+    }
+  },
+  "definitions": {
+    "source_summary": {
+      "type": "object",
+      "required": ["support_level", "mixed_pool_level", "demand_signal_level", "price_band_health", "category_boundary_clarity"],
+      "properties": {
+        "support_level": { "type": "string" },
+        "mixed_pool_level": { "type": "string" },
+        "demand_signal_level": { "type": "string" },
+        "price_band_health": { "type": "string" },
+        "category_boundary_clarity": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

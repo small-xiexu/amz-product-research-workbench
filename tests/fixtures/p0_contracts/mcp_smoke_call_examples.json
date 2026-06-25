@@ -1,0 +1,87 @@
+{
+  "schema_version": "p0-contract-v1",
+  "collected_at": "<ISO8601>",
+  "note": "This fixture records MCP smoke-call shapes only. Real run facts must stay under runs/<run_id>/.",
+  "sellersprite": {
+    "tool_name": "mcp__sellersprite_mcp.product_node",
+    "params": {
+      "request": {
+        "marketplace": "US",
+        "keyword": "<seed_keyword>",
+        "returnFields": "nodeId,nodeIdPath,nodeName,nodeNamePath,products"
+      }
+    },
+    "success_shape": {
+      "code": "OK",
+      "message": "<message>",
+      "data": [
+        {
+          "nodeName": "<nullable string>",
+          "nodeIdPath": "<string>",
+          "nodeId": "<nullable string>",
+          "nodeNamePath": "<nullable string>",
+          "products": "<number>"
+        }
+      ]
+    }
+  },
+  "sorftime": {
+    "tool_name": "mcp__sorftime_server.keyword_detail",
+    "params": {
+      "keyword": "<seed_keyword>",
+      "keywordSupportSite": "US"
+    },
+    "success_shape": {
+      "关键词": "<keyword>",
+      "周搜索量": "<string-number>",
+      "月搜索量": "<string-number>",
+      "推荐cpc竞价": "<string-number>",
+      "搜索结果竞品数量": "<string-number>",
+      "搜索结果首页统计": "<text>",
+      "近15日前3页自然位销量Top100产品统计": {
+        "top5_product": [
+          {
+            "asin": "<asin>",
+            "price": "<number>",
+            "title": "<title>",
+            "monthly_sales": "<text>",
+            "brand": "<brand>",
+            "seller": "<seller>",
+            "url": "<url>"
+          }
+        ],
+        "top5_brand": [],
+        "top5_seller": []
+      }
+    }
+  },
+  "standard_empty_result": {
+    "status": "empty",
+    "errors": [],
+    "data_gaps": [
+      {
+        "type": "empty_result",
+        "impact": "No comparable evidence can be derived from this call."
+      }
+    ]
+  },
+  "standard_failure_result": {
+    "status": "error",
+    "errors": [
+      {
+        "type": "timeout",
+        "message": "<error message>",
+        "tool_name": "<tool name>",
+        "params_summary": {},
+        "retry_after": "<duration or null>",
+        "fallback_action": "<retry or block>"
+      }
+    ],
+    "data_gaps": [
+      {
+        "type": "tool_failure",
+        "impact": "The stage cannot be marked done until a reusable snapshot exists."
+      }
+    ]
+  }
+}

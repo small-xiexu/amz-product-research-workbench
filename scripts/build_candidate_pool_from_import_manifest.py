@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""CLI 薄壳：业务逻辑见 packages/research_core/pipeline/build_candidate_pool_from_import_manifest.py。"""
+"""LEGACY FALLBACK — MCP 主路径已替代此入口，仅在 MCP 不可用时使用。
+
+CLI 薄壳：业务逻辑见 packages/research_core/pipeline/build_candidate_pool_from_import_manifest.py。"""
 
 import sys
 from pathlib import Path

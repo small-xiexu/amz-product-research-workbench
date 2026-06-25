@@ -21,6 +21,7 @@ from packages.research_core.contracts import (
     validate_research_package_chapters,
     validate_workflow_state,
 )
+from packages.research_core.pipeline.build_route_matrix_confirmation import P3ContractError
 from packages.research_core.workflows import DecisionRecord, advance_stage, create_initial_state
 from packages.research_core.pipeline.build_route_matrix_confirm import build_route_matrix_confirm
 from packages.research_core.pipeline.build_candidate_pool_from_import_manifest import build_candidate_pool
@@ -31,6 +32,7 @@ from packages.research_core.pipeline.parse_top100_dimensions import parse_top100
 from packages.research_core.pipeline.audit_run_status import audit_run_status
 from packages.research_core.pipeline.validate_research_outputs import validate_workflow_output
 from packages.report_renderer.constants import FORMAL_REPORT_SECTION_TITLES
+from packages.research_core.pipeline.constants import QA_RULE_VERSION
 from packages.research_core.pipeline.build_analysis_report import build_analysis_packet, build_workbook_sheets
 
 
@@ -49,7 +51,7 @@ def _load_generic_redline_module():
 
 
 class RegressionTests(unittest.TestCase):
-    def test_route_matrix_confirm_is_derived_from_run_packets(self) -> None:
+    def test_route_matrix_confirm_compat_path_requires_candidate_pool(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             run_dir = Path(tmpdir) / "generic_route_run"
             (run_dir / "market_structure").mkdir(parents=True)
@@ -117,13 +119,8 @@ class RegressionTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            packet = build_route_matrix_confirm(run_dir)
-
-        self.assertEqual(packet["packet_id"], "route_matrix_confirm")
-        self.assertEqual(packet["selected_route"], "手动整理工具")
-        self.assertEqual(packet["route_matrix"][0]["representative_asins"], ["ASIN001"])
-        self.assertIn("manual organizer", packet["route_matrix"][0]["keyword_refs"])
-        self.assertEqual(packet["category_selection_derivation"]["rejected_alternatives"][0]["name"], "电动工具")
+            with self.assertRaises(P3ContractError):
+                build_route_matrix_confirm(run_dir)
 
     def test_generic_redline_flags_case_specific_terms_in_reusable_assets(self) -> None:
         checker = _load_generic_redline_module()
@@ -816,7 +813,7 @@ class RegressionTests(unittest.TestCase):
             (analysis_dir / f"{workflow_dir.name}_分析报告.html").write_text(_minimal_analysis_report_html(), encoding="utf-8")
             write_xlsx(analysis_dir / f"{workflow_dir.name}_数据回表.xlsx", _minimal_analysis_delivery_sheets())
             (analysis_dir / "delivery_qa_result.json").write_text(
-                json.dumps({"status": "pass", "qa_rule_version": "2026-06-23-v2"}), encoding="utf-8"
+                json.dumps({"status": "pass", "qa_rule_version": QA_RULE_VERSION}), encoding="utf-8"
             )
 
             result = validate_workflow_output(workflow_dir)
@@ -1648,7 +1645,6 @@ def _minimal_analysis_report_html() -> str:
         "</head><body><div class=\"page\">"
         "<section class=\"hero\"><div class=\"verdict\">建议进入小批量验证</div></section>"
         "<section><h2>类目全景</h2></section>"
-        "<section><h2>数据来源与口径</h2></section>"
         "<section><h2>核心竞品</h2></section>"
         "<section><h2>用户痛点</h2></section>"
         "<section><h2>价格带分布</h2></section>"

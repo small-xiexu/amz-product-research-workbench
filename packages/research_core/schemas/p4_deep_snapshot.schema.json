@@ -1,0 +1,106 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/p4_deep_snapshot.schema.json",
+  "title": "P4DeepMcpSnapshot",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "snapshot_id",
+    "run_id",
+    "source_name",
+    "source_doc_refs",
+    "route_refs",
+    "selected_routes",
+    "tool_calls",
+    "tool_results",
+    "errors",
+    "data_gaps",
+    "created_at",
+    "retry_policy",
+    "force_refresh",
+    "input_lineage"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "p4-deep-contract-v1" },
+    "snapshot_id": { "type": "string", "minLength": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "source_name": { "type": "string", "enum": ["sellersprite", "sorftime"] },
+    "source_doc_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "route_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "selected_routes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "tool_calls": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/tool_call" }
+    },
+    "tool_results": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/tool_result" }
+    },
+    "errors": {
+      "type": "array",
+      "items": { "type": ["string", "object"] }
+    },
+    "data_gaps": {
+      "type": "array",
+      "items": { "type": ["string", "object"] }
+    },
+    "created_at": { "type": "string", "minLength": 1 },
+    "retry_policy": { "type": "object", "additionalProperties": true },
+    "force_refresh": { "type": "boolean" },
+    "input_lineage": { "type": "object", "additionalProperties": true }
+  },
+  "definitions": {
+    "tool_call": {
+      "type": "object",
+      "required": ["call_id", "tool_name", "params", "status", "started_at", "finished_at"],
+      "properties": {
+        "call_id": { "type": "string", "minLength": 1 },
+        "tool_name": { "type": "string", "minLength": 1 },
+        "params": { "type": "object", "additionalProperties": true },
+        "status": { "type": "string", "enum": ["success", "empty", "error"] },
+        "started_at": { "type": "string", "minLength": 1 },
+        "finished_at": { "type": "string", "minLength": 1 },
+        "duration_ms": { "type": "number" },
+        "errors": {
+          "type": "array",
+          "items": { "type": ["string", "object"] }
+        }
+      },
+      "additionalProperties": true
+    },
+    "tool_result": {
+      "type": "object",
+      "required": ["result_id", "call_id", "tool_name", "status"],
+      "properties": {
+        "result_id": { "type": "string", "minLength": 1 },
+        "call_id": { "type": "string", "minLength": 1 },
+        "tool_name": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "enum": ["success", "empty", "error"] },
+        "raw_result_ref": { "type": "string" },
+        "raw_result": { "type": ["object", "array", "string", "number", "boolean", "null"] },
+        "normalized_preview": { "type": ["object", "array"] }
+      },
+      "anyOf": [
+        { "required": ["raw_result_ref"] },
+        { "required": ["raw_result"] },
+        { "required": ["normalized_preview"] }
+      ],
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

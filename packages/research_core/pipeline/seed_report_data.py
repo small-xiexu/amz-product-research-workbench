@@ -276,6 +276,7 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
         })
 
     return {
+        "schema_version": "report-data-v1",
         "packet_id": "report_data",
         "run_id": run_id,
         "generated_at": analysis.get("created_at", ""),

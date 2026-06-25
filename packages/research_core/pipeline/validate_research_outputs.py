@@ -705,7 +705,6 @@ def _check_report_sections(result: ValidationResult, report_text: str) -> None:
 
 ANALYSIS_HTML_SECTION_MARKERS = (
     "类目全景",
-    "数据来源与口径",
     "核心竞品",
     "用户痛点",
     "价格带分布",
@@ -728,7 +727,7 @@ def _check_analysis_html_sections(result: ValidationResult, report_html: str) ->
         result.errors.append(f"analysis_report.html Hero 首屏缺失或不完整，缺少标记：{', '.join(missing_hero)}")
     if missing or missing_hero:
         return
-    result.notes.append("analysis_report.html 8 板块完整（含 Hero）")
+    result.notes.append("analysis_report.html 必备运营板块完整（含 Hero）")
     if 'class="go-nogo"' not in report_html and "class='go-nogo'" not in report_html:
         result.warnings.append("analysis_report.html Go/No-Go 表缺少 .go-nogo class")
     if "<style>" not in report_html:

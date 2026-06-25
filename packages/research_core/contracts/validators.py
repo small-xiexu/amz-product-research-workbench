@@ -18,6 +18,7 @@ VALID_RESEARCH_VERDICTS = {"GO", "CONDITIONAL GO", "HOLD", "WAIT", "NO-GO"}
 
 
 def validate_import_manifest(manifest: dict[str, Any]) -> None:
+    """LEGACY: validate import_manifest.json structure. 仅用于 MCP 不可用时的 fallback 路径。"""
     _require_dict(manifest, "import_manifest")
     _require_dict(manifest.get("metadata"), "import_manifest.metadata")
     _require_list(manifest.get("files"), "import_manifest.files")

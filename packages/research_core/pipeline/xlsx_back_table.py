@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from packages.research_core.pipeline._utils import (
-    _report_value, as_list,
+    _report_value, as_list, join_text,
 )
 
 def xlsx_sheets_from_report_data(report_data_path: Path) -> list[tuple[str, list[list[object]]]]:
@@ -374,4 +374,3 @@ def risk_next_rows(analysis: dict[str, Any]) -> list[list[object]]:
     for item in as_list(analysis.get("next_stage_entry_conditions")):
         rows.append(["next_condition", item.get("status", ""), item.get("condition", ""), item.get("why", ""), ""])
     return rows
-

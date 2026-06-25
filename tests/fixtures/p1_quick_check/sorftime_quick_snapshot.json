@@ -1,0 +1,64 @@
+{
+  "schema_version": "mcp-snapshot-v1",
+  "snapshot_id": "sorftime_quick_snapshot_fixture",
+  "stage": "market_quick_check",
+  "depth": "quick",
+  "source_type": "sorftime_mcp",
+  "marketplace": "US",
+  "currency": "USD",
+  "data_window": "15d",
+  "collected_at": "2026-06-24T00:00:00+00:00",
+  "execution_mode": "script_generated",
+  "tool_calls": [
+    {
+      "call_id": "sorftime_quick_call_1",
+      "tool_name": "mcp__sorftime_server.keyword_detail",
+      "params": {
+        "marketplace": "US",
+        "query": "<seed_keyword>"
+      },
+      "status": "success",
+      "started_at": "2026-06-24T00:00:00+00:00",
+      "finished_at": "2026-06-24T00:00:01+00:00",
+      "duration_ms": 1000,
+      "response_shape": {
+        "root": "object",
+        "keyword": "object"
+      },
+      "normalized_preview": {
+        "quick_signals": {
+          "support_level": "moderate",
+          "mixed_pool_level": "mild",
+          "demand_signal_level": "moderate",
+          "price_band_health": "moderate",
+          "category_boundary_clarity": "moderate",
+          "confidence": "medium",
+          "facts": {
+            "search_signal": "present",
+            "candidate_seeds": [
+              {
+                "type": "keyword",
+                "label": "<generic_keyword_seed>"
+              }
+            ],
+            "required_deep_dive": [
+              {
+                "type": "search_demand",
+                "target": "<generic_keyword_seed>"
+              }
+            ]
+          },
+          "derived_metrics": {
+            "quick_search_demand_signal": "positive"
+          }
+        }
+      },
+      "errors": []
+    }
+  ],
+  "raw_results": {},
+  "normalized_preview": {},
+  "errors": [],
+  "rate_limit": {},
+  "data_gaps": []
+}

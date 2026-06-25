@@ -6,27 +6,53 @@
 
 ```text
 runs/<yyyymmdd>_<中文品类方向>/
-├── progress.json                      # 断点恢复（AI 自动维护）
+├── progress.json
+├── run_manifest.json
+├── mcp_snapshots/
+│   ├── sellersprite_quick_snapshot.json
+│   ├── sorftime_quick_snapshot.json
+│   ├── sellersprite_deep_snapshot.json
+│   └── sorftime_deep_snapshot.json
+├── quick_check/
+│   ├── sellersprite_quick_evidence_packet.json
+│   ├── sorftime_quick_evidence_packet.json
+│   └── quick_market_gate.json
 ├── inputs/
 │   ├── seller_sprite/                 # 卖家精灵原始导出（只读，不修改）
 │   └── reviews/                       # 评论原始导出（只读，不修改）
 ├── mcp/
-│   └── sorftime_verification.json     # Sorftime 采集快照
-├── candidate_pool.json                # 候选品池
-├── route_matrix_confirm.json          # 路线确认配置
+│   └── sorftime_verification.json
+├── candidate_pool.json
+├── route_matrix_confirm.json
 ├── market_structure/
 │   └── market_structure_evidence_packet.json
 ├── search_demand/
 │   └── search_demand_evidence_packet.json
+├── conflict_review/
+│   └── conflict_resolution_packet.json
 ├── review_voc/
 │   ├── review_voc_package.json
 │   ├── voc_evidence_packet.json
-│   └── voc_evidence.xlsx
+│   ├── voc_evidence.xlsx
+│   └── voc_gate.json
+├── evaluations/
+│   ├── market_demand_evaluation.json
+│   ├── competition_evaluation.json
+│   ├── price_profit_evaluation.json
+│   ├── voc_opportunity_evaluation.json
+│   ├── risk_evaluation.json
+│   ├── data_quality_evaluation.json
+│   └── evaluation_summary.json
 └── analysis/
-    ├── <中文品名>_分析报告.html       ← 最终交付：AI 手写决策报告
-    ├── <中文品名>_数据回表.xlsx       ← 最终交付：脚本生成数据回表
-    ├── report_data.json                ← 唯一数据中枢
-    └── delivery_qa_result.json         ← QA 校验结果
+    ├── integrated_operator_judgment.json
+    ├── <中文品名>_分析报告.html
+    ├── <中文品名>_数据回表.xlsx
+    ├── report_data.seed.json
+    ├── report_data.json
+    ├── delivery_qa_result.json
+    ├── qa_notes.md
+    ├── qa_notes.round1.md
+    └── qa_notes.round2.md
 ```
 
 **关键约束：**
@@ -63,8 +89,8 @@ Stage 7 市场机会报告和最终报告都必须校验。最终正式报告以
 Stage 7 最低要求：
 
 - `<中文品名>_分析报告.html`、`<中文品名>_数据回表.xlsx` 存在（最终交付物）
-- `report_data.json`、`delivery_qa_result.json` 存在（脚本生成）
-- `<中文品名>_分析报告.html` 由 AI 以资深运营专家视角手写，8 个板块完整，用词克制，决策导向
+- `report_data.seed.json`、`report_data.json`、`delivery_qa_result.json` 存在；`report_data.seed.json` 只是脚本初始草稿，`report_data.json` 才是正式数据中枢
+- `<中文品名>_分析报告.html` 由 AI 以资深运营专家视角手写，覆盖运营必备板块，用词克制，决策导向
 - HTML 包含资深亚马逊运营专家综合分析，不只是多源摘要拼接
 - HTML/Excel 是用户可读报告，不能展示 Agent、MCP、tool、internal execution、spawn、packet 等内部执行术语
 - Excel 能回表到 Sorftime、卖家精灵、VOC 和证据审计，但 Sheet/标题使用用户可理解名称
@@ -82,17 +108,20 @@ Stage 7 最低要求：
 
 `analysis/` 是多数据源市场机会报告的用户 review 主入口：
 
-- `<中文品名>_分析报告.html`：**最终交付**。AI 以资深亚马逊运营专家视角手写的决策建议书，8 个板块，给人看。
+- `report_data.seed.json`：**脚本初始草稿**。只提供字段骨架和可自动提取的数据，不是正式交付数据底座，不作为 HTML / XLSX 的最终依据。
+- `report_data.json`：**正式数据中枢**。Report Generation Agent 基于 seed 和证据包增强生成；HTML 和 XLSX 均以此文件为准，所有数据声明通过 `source_path` 可追溯到证据包。
+- `<中文品名>_分析报告.html`：**最终交付**。AI 以资深亚马逊运营专家视角手写的决策建议书，给人看。HTML 不固定展示“数据来源与口径”板块，可在业务板块中自然表达“样本边界 / 判断口径”。
 - `<中文品名>_数据回表.xlsx`：**最终交付**。脚本自动生成的数据回表，10 个 Sheet，给数字溯源。
-- `report_data.json`：**唯一数据中枢**。HTML 和 XLSX 均从此文件生成，所有数据声明通过 `source_path` 可追溯到证据包。
 - `delivery_qa_result.json`：**中间产物**。QA Agent 对证据边界、硬缺口和报告完整性的检查。
 
 职责边界：
 
 - 数据源专家 Agent 只产 evidence、缺口、置信度和待补动作，不输出最终报告。
-- AI 主 Agent 以资深亚马逊运营专家身份，读全部证据包后直接手写 `<中文品名>_分析报告.html`。
-- 脚本只负责生成 `report_data.json`（seed/重写）、`<中文品名>_数据回表.xlsx` 和 QA 校验，不生成 HTML。
-- HTML 由 AI 单独手写，与脚本产物互不覆盖。
+- 脚本先生成 `analysis/report_data.seed.json`。
+- Report Generation Agent 以资深亚马逊运营专家身份，基于 seed 增强 `analysis/report_data.json`，再手写 `<中文品名>_分析报告.html`。
+- 脚本基于 `analysis/report_data.json` + HTML 生成 `<中文品名>_数据回表.xlsx` 和 `delivery_qa_result.json`。
+- 脚本不手写正式 HTML，不重写 Report Generation Agent 产出的正式 `report_data.json`。
+- HTML 不暴露 MCP、Agent、tool、packet、source_path、冲突复核过程或内部数据来源分歧；后台 `report_data.json` 和 XLSX 继续保留 source_path 与证据链。
 
 通用模板只能写章节、字段和数据映射，不能写死当前品类、ASIN、关键词或类目。
 
