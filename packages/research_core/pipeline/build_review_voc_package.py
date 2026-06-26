@@ -24,7 +24,7 @@ from packages.research_core.pipeline.build_review_voc_from_plugin_export import 
     read_review_excel,
     read_reviews_from_json,
 )
-from packages.research_core.pipeline._utils import as_list, first_text, load_json
+from packages.research_core.pipeline._utils import as_list, first_text, load_json, _run_id, _relative_path
 
 
 P5_SCHEMA_VERSION = "p5-voc-gate-v1"
@@ -294,19 +294,6 @@ def _validate_inputs(run_path: Path) -> None:
 
 # ── Helpers ────────────────────────────────────────────────────────────
 
-def _run_id(workflow_state: dict[str, Any], run_path: Path) -> str:
-    wid = first_text(workflow_state.get("workflow_id"))
-    if wid:
-        return wid
-    return run_path.name if run_path else "unknown"
-
-
-def _relative_path(target: Path, base: Path) -> str:
-    try:
-        rel = target.resolve().relative_to(base.resolve())
-        return str(rel)
-    except ValueError:
-        return str(target)
 
 
 # ── CLI ────────────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -252,3 +253,38 @@ def dedupe_rows(rows: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
     return result
 
 
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _write_json(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _unique_texts(values: list[Any]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        text = first_text(value)
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+    return result
+
+
+def _run_id(workflow_state: dict[str, Any], run_path: Path | None = None) -> str:
+    wid = first_text(workflow_state.get("workflow_id"))
+    if wid:
+        return wid
+    if run_path:
+        return run_path.name
+    return "unknown"
+
+
+def _relative_path(target: Path, base: Path) -> str:
+    try:
+        return str(target.resolve().relative_to(base.resolve()))
+    except ValueError:
+        return str(target)

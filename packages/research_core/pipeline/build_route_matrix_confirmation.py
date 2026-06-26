@@ -6,13 +6,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from packages.research_core.contracts import validate_candidate_pool, validate_workflow_state
 from packages.research_core.contracts.p0_contracts import P0_SCHEMA_VERSION
-from packages.research_core.pipeline._utils import as_list, compact_list, first_dict, first_text, join_text, load_json, numeric_value, public_text
+from packages.research_core.pipeline._utils import as_list, compact_list, first_dict, first_text, join_text, load_json, numeric_value, public_text, _now_iso, _write_json, _unique_texts
 from packages.research_core.pipeline.build_mcp_candidate_pool import QUICK_CHECK_DIR, SOURCE_CONFIG
 from packages.research_core.pipeline.quick_market_check import validate_progress, validate_quick_gate, validate_quick_packet
 
@@ -1110,18 +1109,6 @@ def _collect_refs(value: Any) -> list[str]:
     return [str(item) for item in _flatten_list(value) if str(item).strip()]
 
 
-def _unique_texts(values: list[Any]) -> list[str]:
-    seen: set[str] = set()
-    result: list[str] = []
-    for value in values:
-        text = first_text(value)
-        if not text or text in seen:
-            continue
-        seen.add(text)
-        result.append(text)
-    return result
-
-
 def _unique_any(values: list[Any]) -> list[Any]:
     seen: set[str] = set()
     result: list[Any] = []
@@ -1138,15 +1125,6 @@ def _require_fields(data: dict[str, Any], fields: list[str], name: str) -> None:
     for field in fields:
         if field not in data:
             raise P3ContractError(f"{name}.{field} is required")
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-
-def _write_json(path: Path, data: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def _write_failure_progress(run_path: Path, progress_path: Path, error: str) -> None:

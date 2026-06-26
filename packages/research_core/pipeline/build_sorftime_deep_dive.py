@@ -6,10 +6,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import shutil
 import sys
 from copy import deepcopy
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +20,7 @@ from packages.research_core.contracts import (
     validate_p4_preconditions,
 )
 from packages.research_core.contracts.p0_contracts import P0_SCHEMA_VERSION
-from packages.research_core.pipeline._utils import as_list, first_text, load_json, numeric_value
+from packages.research_core.pipeline._utils import as_list, first_text, load_json, numeric_value, _now_iso, _write_json, _unique_texts
 from packages.research_core.pipeline.quick_market_check import validate_progress
 
 
@@ -932,18 +930,6 @@ def _normalize_tool_status(value: Any) -> str:
     return "success"
 
 
-def _unique_texts(values: list[Any]) -> list[str]:
-    seen: set[str] = set()
-    result: list[str] = []
-    for value in values:
-        text = first_text(value)
-        if not text or text in seen:
-            continue
-        seen.add(text)
-        result.append(text)
-    return result
-
-
 def _dedupe_dicts(values: list[Any]) -> list[Any]:
     seen: set[str] = set()
     result: list[Any] = []
@@ -956,10 +942,5 @@ def _dedupe_dicts(values: list[Any]) -> list[Any]:
     return result
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def _write_json(path: Path, data: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

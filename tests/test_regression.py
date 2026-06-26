@@ -21,10 +21,7 @@ from packages.research_core.contracts import (
 )
 from packages.research_core.pipeline.build_route_matrix_confirmation import P3ContractError
 from packages.research_core.workflows import DecisionRecord, advance_stage, create_initial_state
-# LEGACY REMOVED: from packages.research_core.pipeline.build_route_matrix_confirm import build_route_matrix_confirm
 from packages.research_core.pipeline.build_candidate_pool_from_import_manifest import build_candidate_pool
-# LEGACY REMOVED: from packages.research_core.pipeline.build_research_data_packet import build_research_data_packet
-# LEGACY REMOVED: from packages.research_core.pipeline.build_research_package_from_candidate import build_research_package
 from packages.research_core.pipeline.cross_analysis import build_cross_analysis
 from packages.research_core.pipeline.parse_top100_dimensions import parse_top100_dimensions
 from packages.research_core.pipeline.audit_run_status import audit_run_status
@@ -433,7 +430,6 @@ class RegressionTests(unittest.TestCase):
                 encoding="utf-8",
             )
             (run_dir / "candidate_pool.json").write_text(json.dumps({"candidates": []}), encoding="utf-8")
-            (run_dir / "candidate_pool.json").write_text(json.dumps({"candidates": []}), encoding="utf-8")
             (run_dir / "research_package.json").write_text(json.dumps({}), encoding="utf-8")
             (run_dir / "mcp").mkdir()
             (run_dir / "mcp" / "route_sorftime_calibration.json").write_text("{}", encoding="utf-8")
@@ -835,107 +831,6 @@ def _workflow_state_for_test(base, stage: str):
             decision_log=base.decision_log,
         )
     )
-
-
-def _sample_workflow_state() -> dict:
-    return {
-        "workflow_id": "workflow-001",
-        "mode": "targeted_deep_dive",
-        "stage": "seller_sprite_request",
-        "initial_intent": "窗户刮水器二合一工具",
-        "site": "US",
-        "known_inputs": {"confirmed_boundary": "刮条 + 海绵/布垫 + 窗户清洁组合工具"},
-        "missing_inputs": ["卖家精灵搜索结果", "市场分析 Top100"],
-        "decision_required": False,
-        "operator_question": "请按 2 个主关键词导出搜索结果和市场分析。",
-        "next_actions": [
-            {
-                "stage": "seller_sprite_request",
-                "decision_required": False,
-                "question": "请导出卖家精灵数据。",
-                "recommended_action": {
-                    "type": "operator_export",
-                    "label": "导出卖家精灵搜索结果和市场分析",
-                    "reason": "运营已确认产品边界，需要真实 Top100 数据进入候选池。",
-                },
-                "options": [
-                    {"id": "export_now", "label": "立即导出", "impact": "进入数据盘点"},
-                ],
-                "evidence_refs": [
-                    {"ref_type": "decision", "ref_id": "decision-001", "path": "", "note": "边界确认"},
-                ],
-            }
-        ],
-        "evidence_refs": [
-            {"ref_type": "selection_brief", "ref_id": "brief-001", "path": "/tmp/brief.json", "note": "初始意图"},
-        ],
-        "decision_log": [
-            {
-                "decision_id": "decision-001",
-                "stage": "intent_intake",
-                "actor": "operator",
-                "decision": "确认主线为窗户清洁组合工具",
-                "rationale": "排除单独清洁液，保留长杆和替换布垫。",
-                "evidence_refs": [
-                    {"ref_type": "conversation", "ref_id": "turn-001", "path": "", "note": "运营确认"},
-                ],
-                "created_at": "2026-06-12T00:00:00+00:00",
-            }
-        ],
-        "updated_at": "2026-06-12T00:05:00+00:00",
-    }
-
-
-def _minimal_import_manifest(source_folder: Path) -> dict:
-    return {
-        "metadata": {
-            "site": "US",
-            "task_name": "窗户刮水器二合一工具",
-            "generated_at": "2026-06-13T00:00:00+00:00",
-            "manifest_id": "manifest-test",
-            "source_folder": str(source_folder),
-        },
-        "files": [],
-        "data_quality": {
-            "available_source_types": ["sorftime"],
-            "missing_source_types": [],
-            "warnings": [],
-        },
-    }
-
-
-def _sample_sorftime_verification() -> dict:
-    return {
-        "verified_at": "2026-06-13",
-        "category_report_snapshot": {
-            "category_name": "Squeegees",
-            "nodeId": "2245500011",
-            "products": [
-                {
-                    "asin": "B0SF000001",
-                    "title": "2 in 1 Window Squeegee",
-                    "brand": "BrandA",
-                    "price": 19.99,
-                    "monthly_sales": 1200,
-                    "monthly_revenue": 23988,
-                    "rating": 4.5,
-                    "rating_count": 320,
-                    "listing_days": 120,
-                },
-                {
-                    "asin": "B0SF000002",
-                    "title": "Window Cleaning Kit",
-                    "brand": "BrandB",
-                    "price": 24.99,
-                    "monthly_sales": 800,
-                    "monthly_revenue": 19992,
-                    "rating": 4.3,
-                    "rating_count": 180,
-                    "listing_days": 260,
-                },
-            ],
-        },
-    }
 
 
 def _minimal_delivery_sheets(top100_rows: int, interactive: bool = False) -> list[tuple[str, list[list[object]]]]:

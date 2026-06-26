@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from packages.research_core.pipeline._utils import as_list, compact_list, first_text, load_json
+from packages.research_core.pipeline._utils import as_list, compact_list, first_text, load_json, _run_id, _relative_path
 from packages.research_core.pipeline.constants import VOC_MIN_REVIEW_THRESHOLD
 
 
@@ -638,11 +638,6 @@ def _validate_inputs(run_path: Path) -> None:
             raise P5GateError(f"required input not found: {artifact}")
 
 
-def _run_id(workflow_state: dict[str, Any], run_path: Path) -> str:
-    wid = first_text(workflow_state.get("workflow_id"))
-    if wid:
-        return wid
-    return run_path.name if run_path else "unknown"
 
 
 def _rating(review: dict[str, Any]) -> float:
@@ -688,11 +683,6 @@ def _extract_chinese_ngrams(text: str, min_len: int = 2, max_len: int = 4) -> li
     return ngrams
 
 
-def _relative_path(target: Path, base: Path) -> str:
-    try:
-        return str(target.resolve().relative_to(base.resolve()))
-    except ValueError:
-        return str(target)
 
 
 # ── CLI ────────────────────────────────────────────────────────────────

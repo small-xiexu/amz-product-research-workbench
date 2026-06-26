@@ -15,7 +15,7 @@ from typing import Any
 
 from packages.research_core.contracts import validate_candidate_pool, validate_workflow_state
 from packages.research_core.contracts.p0_contracts import P0_SCHEMA_VERSION
-from packages.research_core.pipeline._utils import as_list, first_text, load_json, public_text
+from packages.research_core.pipeline._utils import as_list, first_text, load_json, public_text, _now_iso, _write_json, _unique_texts
 from packages.research_core.pipeline.quick_market_check import (
     SOURCE_CONFIG,
     validate_quick_gate,
@@ -381,13 +381,6 @@ def _load_progress_template(workflow_state: dict[str, Any], progress_path: Path)
     progress.setdefault("updated_at", _now_iso())
     progress["workflow_ref"] = progress.get("workflow_ref") or first_text(workflow_state.get("workflow_id"), workflow_state.get("run_id"), "")
     return progress
-
-
-def _load_quick_packet(run_path: Path, source_name: str) -> dict[str, Any]:
-    packet_path = run_path / QUICK_CHECK_DIR / SOURCE_CONFIG[source_name]["packet_name"]
-    packet = load_json(packet_path)
-    validate_quick_packet(packet, source_name)
-    return packet
 
 
 def _load_quick_gate(run_path: Path) -> dict[str, Any]:
@@ -1055,18 +1048,6 @@ def _unique_any(*values: Any) -> list[Any]:
     return result
 
 
-def _unique_texts(values: list[Any]) -> list[str]:
-    seen: set[str] = set()
-    result: list[str] = []
-    for value in values:
-        text = first_text(value)
-        if not text or text in seen:
-            continue
-        seen.add(text)
-        result.append(text)
-    return result
-
-
 def _merge_gate_packet_lists(
     packets: dict[str, dict[str, Any]],
     gate: dict[str, Any],
@@ -1094,10 +1075,6 @@ def _missing_data_strings(data_gaps: list[Any], required_deep_dive: list[Any]) -
     return rows
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-
 def _load_json(path: Path, required: bool = True) -> dict[str, Any]:
     data = load_json(path, required=required)
     return data if isinstance(data, dict) else {}
@@ -1115,11 +1092,6 @@ def _load_quick_gate(run_path: Path) -> dict[str, Any]:
     gate = _load_json(gate_path)
     validate_quick_gate(gate)
     return gate
-
-
-def _write_json(path: Path, data: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import Counter, defaultdict
 from typing import Any
 
 from packages.research_core.rules.market_structure.shared import *  # noqa: F401,F403
@@ -10,58 +9,6 @@ from packages.research_core.rules.market_structure.tagging import *  # noqa: F40
 from packages.research_core.rules.market_structure.quality import *  # noqa: F401,F403
 from packages.research_core.rules.market_structure.opportunity import *  # noqa: F401,F403
 from packages.research_core.rules.market_structure.distribution import *  # noqa: F401,F403
-from packages.research_core.rules.market_structure.shared import (
-    tag_value,
-    avg,
-    round_number,
-    to_float,
-    is_blank,
-    safe_rate,
-    format_percent,
-    compact_text,
-    REQUIRED_PRODUCT_FIELDS,
-)
-from packages.research_core.rules.market_structure.tagging import (
-    tag_product,
-    attribute_definitions,
-    price_band,
-    review_band,
-    rating_band,
-    listing_age_band,
-    monthly_units_band,
-    variant_band,
-    lqs_band,
-    yes_no_tag,
-    product_route,
-    feature_tags,
-    tag_confidence,
-    tag_notes,
-)
-from packages.research_core.rules.market_structure.quality import (
-    build_data_quality,
-    abnormal_items,
-    quality_score,
-    quality_level,
-)
-from packages.research_core.rules.market_structure.opportunity import (
-    opportunity_clues,
-    opportunity_type,
-    build_opportunity_judgments,
-    opportunity_judgment_summary,
-    next_check_for_opportunity,
-    pending_label_items,
-)
-from packages.research_core.rules.market_structure.distribution import (
-    build_attribute_distributions,
-    distribution_for,
-    build_cross_analysis,
-    cross_dimension,
-    build_summary,
-    bucket_value,
-    distribution_summary,
-    cross_summary,
-    cell_interpretation,
-)
 
 __all__ = [
     'avg',

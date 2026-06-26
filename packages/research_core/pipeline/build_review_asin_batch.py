@@ -20,7 +20,7 @@ from packages.research_core.contracts import (
     validate_p4_evidence_packet,
     validate_workflow_state,
 )
-from packages.research_core.pipeline._utils import as_list, first_text, load_json, numeric_value
+from packages.research_core.pipeline._utils import as_list, first_text, load_json, numeric_value, _run_id
 
 
 P5_SCHEMA_VERSION = "p5-voc-gate-v1"
@@ -681,13 +681,6 @@ def _update_progress_blocked(
 
 # ── Helpers ────────────────────────────────────────────────────────────
 
-def _run_id(workflow_state: dict[str, Any], run_path: Path | None) -> str:
-    wid = first_text(workflow_state.get("workflow_id"))
-    if wid:
-        return wid
-    if run_path:
-        return run_path.name
-    return "unknown"
 
 
 def _site(workflow_state: dict[str, Any]) -> str:

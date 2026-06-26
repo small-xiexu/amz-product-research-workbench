@@ -2,20 +2,12 @@
 
 from __future__ import annotations
 
-from collections import Counter, defaultdict
 from typing import Any
 
-from packages.research_core.rules.market_structure.shared import *  # noqa: F401,F403
 from packages.research_core.rules.market_structure.shared import (
-    tag_value,
-    avg,
-    round_number,
     to_float,
     is_blank,
-    safe_rate,
-    format_percent,
     compact_text,
-    REQUIRED_PRODUCT_FIELDS,
 )
 
 
