@@ -84,6 +84,18 @@
 
 每个关键词对象至少包含 `keyword`、`keyword_role`、`source_type`、`source_refs`、`route_refs`、`matched_asin_count`、`monthly_search_volume`、`cpc`、`competition_count`、`mix_pool_tags`、`recommended_action`、`reason`、`confidence` 和 `lineage`。
 
+**快照输出（必须）**：写入 evidence packet 的同时，将所有 MCP tool_calls 摘要写入 `mcp_snapshots/sorftime_deep_snapshot.json`：
+```json
+{
+  "tool_calls": [
+    {"tool": "keyword_detail", "params": {"keyword": "..."}, "result_summary": "月搜 12000，CPC $0.85，竞争量中等"},
+    {"tool": "product_traffic_terms", "params": {"asin": "..."}, "result_summary": "返回 15 个流量词"}
+  ],
+  "collected_at": "<ISO 时间戳>"
+}
+```
+若子 Agent 模式下无法生成快照（工具调用在不同格式中），在 evidence packet 的 `execution_provenance` 中标注 `snapshot_unavailable: true`。
+
 ## Stage 6 深扫最低要求
 
 不以节省积分为主要约束。对每条保留路线至少执行或复用：

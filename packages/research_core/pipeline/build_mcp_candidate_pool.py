@@ -45,6 +45,12 @@ _TECHNICAL_KEY_PATTERNS = (
     "route_id", "route_type", "recommended_role", "role",
     "voc_readiness", "data_completeness_ref", "route_matrix_ref",
     "confirmed_boundary", "category_selection_derivation",
+    "appearance_reason", "reason", "route_summary",
+    "note", "notes", "description", "detail", "summary",
+    "statement", "insights_for_handoff",
+    "decision_reason", "selection_reason",
+    "verdict_reason", "biggest_opportunity", "biggest_risk",
+    "recommendation",
 )
 
 _PLACEHOLDER_PATTERN = re.compile(

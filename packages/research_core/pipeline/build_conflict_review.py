@@ -221,8 +221,9 @@ def run_conflict_review(run_dir: Path | str) -> dict[str, Path]:
         data_completeness = load_json(run_path / "data_completeness_check.json")
         progress = load_json(progress_path)
 
-        ss_snapshot = load_json(run_path / SELLERSPRITE_SNAPSHOT)
-        sf_snapshot = load_json(run_path / SORFTIME_SNAPSHOT)
+        ss_snapshot = load_json(run_path / SELLERSPRITE_SNAPSHOT, required=False)
+        sf_snapshot = load_json(run_path / SORFTIME_SNAPSHOT, required=False)
+        snapshot_unavailable = not ss_snapshot or not sf_snapshot
         market_packet = load_json(run_path / MARKET_STRUCTURE_PACKET)
         search_packet = load_json(run_path / SEARCH_DEMAND_PACKET)
 
@@ -231,12 +232,17 @@ def run_conflict_review(run_dir: Path | str) -> dict[str, Path]:
             route_matrix,
             candidate_pool,
             data_completeness,
-            ss_snapshot,
-            sf_snapshot,
+            ss_snapshot or {},
+            sf_snapshot or {},
             market_packet,
             search_packet,
             run_path,
         )
+        if snapshot_unavailable:
+            completeness_check.setdefault("data_gaps", [])
+            completeness_check["data_gaps"].append("snapshot_unavailable")
+            completeness_check["snapshot_unavailable"] = True
+
         validate_deep_data_completeness_check(completeness_check)
 
         conflict_packet = build_conflict_resolution_packet(
@@ -244,8 +250,8 @@ def run_conflict_review(run_dir: Path | str) -> dict[str, Path]:
             route_matrix,
             market_packet,
             search_packet,
-            ss_snapshot,
-            sf_snapshot,
+            ss_snapshot or {},
+            sf_snapshot or {},
             completeness_check,
             run_path,
         )

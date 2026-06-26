@@ -73,6 +73,18 @@
 | `top100_quality` | Top100 完整性、缺失字段、重复 ASIN、异常值 |
 | `data_gaps` | 卖家精灵侧仍缺的字段和影响 |
 
+**快照输出（必须）**：写入 evidence packet 的同时，将所有 MCP tool_calls 摘要写入 `mcp_snapshots/sellersprite_deep_snapshot.json`：
+```json
+{
+  "tool_calls": [
+    {"tool": "market_research", "params": {"marketplace": "US", "nodeIdPath": "..."}, "result_summary": "返回 100 条商品，月销量合计 12 万"},
+    {"tool": "product_research", "params": {"keyword": "..."}, "result_summary": "返回 50 条商品，Top10 平均月销 3000"}
+  ],
+  "collected_at": "<ISO 时间戳>"
+}
+```
+若子 Agent 模式下无法生成快照（工具调用在不同格式中），在 evidence packet 的 `execution_provenance` 中标注 `snapshot_unavailable: true`。
+
 `reference_asin_pool` 中每个 ASIN 至少包含：
 
 | 字段 | 说明 |

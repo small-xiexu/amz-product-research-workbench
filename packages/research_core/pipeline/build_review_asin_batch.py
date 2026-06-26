@@ -744,7 +744,9 @@ def main() -> int:
     args = parse_args()
     try:
         outputs = run_review_asin_batch(args.run_dir)
-        print(f"batch: {outputs['asin_batch']}")
+        batch_path = outputs.get("asin_batch", outputs.get("batch_path"))
+        if batch_path:
+            print(f"batch: {batch_path}")
         print(f"progress: {outputs['progress']}")
     except P5AsinBatchError as exc:
         print(f"error: {exc}", file=sys.stderr)

@@ -137,7 +137,12 @@ python3 scripts/build_quick_market_gate.py <run_dir>
 
 `stop` → 终止流程，不进入后续阶段。
 
-**本阶段执行顺序**：
+**快验阶段铁律（Agent 决策约束）**：
+
+- **Gate 结果是唯一权威**。主 Agent 不得越过 Quick Gate 自行拍板 stop。Gate 说 `watch` 就继续推进，说 `continue` 就直接进 Stage 4。
+- **禁止单指标判死刑**。任一负面信号（搜索量跌、购买率低、混池等）不能单独作为放弃理由。必须至少 3 个独立负面信号同时成立（如：需求弱 + 类目垄断 + 利润不可行），且双源交叉确认，才能判定不值得继续。
+- **三源交叉优先**。判断市场健康度时，类目销量 > 关键词搜索量。搜索量可能因搜索行为迁移而下降，但类目成交额是实打实的市场证据。
+- **"不确定"不等于"不做"**。数据矛盾时默认继续调研，在深挖阶段解决不确定性，而不是在快验阶段猜测结论。
 1. spawn 卖家精灵 Quick Agent + Sorftime Quick Agent（并行）
 2. `fill_quick_packet_contract.py` ×2 — 契约补齐
 3. `build_quick_market_gate.py` — Quick Gate 门控
@@ -190,16 +195,30 @@ python3 scripts/build_mcp_candidate_pool.py <run_dir>
 
 ### Stage 5 · 路线矩阵确认
 
-把候选池拆成产品路线，按产品形态/功能/场景中立归类：
+把候选池拆成**全量产品路线**，按产品形态/功能/场景中立归类。
 
-- 基础款 / 标准形态
-- 功能升级款（更高客单、更强功能）
-- 场景款（明确使用场景）
-- 组合/套装款
-- 材质/设计差异款
-- 排除项
+**铁律：路线矩阵必须展示 ALL 观察到的产品形态，Agent 不得预过滤。** 运营看全貌后做取舍。
 
-**路线标签只描述产品形态差异，不代表调研优先级或最终推荐排序。** 运营确认保留的所有路线，每条必须配参考 ASIN ≥ 2 个、候选类目、补数计划。禁止在路线矩阵阶段就给任何路线分配更少的 ASIN——所有保留路线平等深挖。
+每条路线必须附数据信号摘要：
+
+| 信号 | 来源 |
+|---|---|
+| 搜索量级 | 快验关键词数据 |
+| 销量级/Top ASIN 月销 | 快验竞品数据 |
+| 竞争强度（评论门槛/头部集中度） | 快验市场结构 |
+| 利润空间（价格带/均价） | 快验价格数据 |
+
+三条路线归类：
+
+| 状态 | 含义 | 后续动作 |
+|---|---|---|
+| 🔒 **确认深挖** | 数据信号强，运营确认进入 Stage 6 | 同等深度深挖 |
+| 👀 **观察** | 信号模糊或矛盾，暂不深挖 | 保留至报告附录，标注补数条件 |
+| ❌ **暂不深挖** | 数据明确不支持（市场小/增长跌/壁垒过高） | 保留至报告附录，写明排除理由和数据依据 |
+
+**排除理由必须可追溯到快验数据，不能是主观臆断。** 标注"什么条件变化后会重新考虑"。
+
+运营确认保留的 🔒 路线，每条配参考 ASIN ≥ 2 个、候选类目、补数计划。所有 🔒 路线同等深度——同等的 ASIN 数量、评论采集量、关键词覆盖。路线标签只描述产品形态差异，不预设推荐排序。
 
 ```bash
 python3 scripts/build_route_matrix_confirm.py <run_dir>
@@ -227,10 +246,29 @@ Market Structure Agent（卖家精灵）和 Search Demand Agent（Sorftime）**�
 | Market Structure | Top100 产品结构、类目容量、价格带、销量/销售额结构、Review 分布、商品/品牌/卖家集中度、新品机会、参考 ASIN 池、ABA 信号。**必须覆盖每条保留路线的参考 ASIN，不能只查主路线所在类目。** |
 | Search Demand | 核心关键词、主要流量词、转化优质词、精准长尾词、混池/排除词、ASIN 流量词、竞品自然位、类目趋势、关键词趋势。**必须为每条保留路线独立采集关键词数据，不能只采主路线。** |
 
+**路线分片规则（防止 Agent 超时）：**
+
+保留路线 > 8 条时，单 Agent 无法在上下文中完成全部深挖。必须启用分片：
+- 将路线按 4-4-3 或少于 8 的规则拆成 2-3 组
+- 同一 Agent 角色串行执行各组分片：Agent A 完成第一组 → Agent B 继续第二组 → ...
+- 每个分片 Agent 写入独立的 `route_breakdown_{group}.json` 片段
+- 全部分片完成后，由脚本 `build_deep_evidence_packet.py` 合并成完整 evidence packet
+- 路线 ≤ 8 条时仍可单 Agent 执行
+
+**深挖快照规则（保证 Stage 13 QA 溯源）：**
+
+Agent 写入 evidence packet 的同时，必须将本 Agent 所有 MCP tool_calls 摘要写入快照文件：
+- Market Structure Agent → `mcp_snapshots/sellersprite_deep_snapshot.json`
+- Search Demand Agent → `mcp_snapshots/sorftime_deep_snapshot.json`
+- 格式：`{ "tool_calls": [{ "tool": "...", "params": {...}, "result_summary": "..." }], "collected_at": "..." }`
+- 若子 Agent 模式下快照不可用（JSONL 格式不兼容），在 evidence packet 中标注 `snapshot_unavailable: true`，不阻塞流程
+
 **本阶段执行顺序**：
-1. spawn Market Structure Agent + Search Demand Agent（并行）
-2. `build_deep_snapshot.py` ×2 — 从 Agent tool_calls 生成 Deep Snapshot 契约
-3. `build_deep_evidence_packet.py` ×2 — Agent 自由格式 → P4 Evidence Packet 契约
+1. 检查保留路线数，> 8 条时按分片规则拆组
+2. spawn Agent（单组或第一组分片）
+3. 若分片：Agent 写入 `route_breakdown_{group}.json` → 下一组分片
+4. 全部完成后：`build_deep_evidence_packet.py` ×2 — 合并分片 → P4 Evidence Packet 契约
+5. `build_deep_snapshot.py` ×2 — 从 Agent MCP dump 生成 Deep Snapshot（若可用）
 
 ```bash
 python3 scripts/build_sellersprite_deep_dive.py <run_dir>
@@ -412,6 +450,7 @@ HTML 报告结构（运营必备板块）：
 - **关键词与流量策略** — 按意图分三类：主攻意图词 / 可测词 / 明确否定词
 - **验证路线图** — 按时间线组织的验证计划（每周什么动作、什么标准、不通过怎么办）
 - **风险与 Go/No-Go** — 风险/优势双栏 + Go/No-Go 决策条件表
+- **已评估暂不深挖路线** — 附录表格，列出所有未进入深挖的路线，每条含：排除原因（引用快验数据）、数据信号摘要、什么条件变化后会重新考虑。确保运营看到全貌而非被过滤后的结论
 
 报告铁律：
 - 先给判断再给支撑数据，不列数据让运营猜

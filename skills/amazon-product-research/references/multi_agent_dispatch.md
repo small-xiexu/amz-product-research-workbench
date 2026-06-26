@@ -48,6 +48,18 @@ Stage 1 (意图收集) → Stage 2-3 (快验+门控) → Stage 4 (候选池) →
 
 Market Structure Agent 和 Search Demand Agent 必须同时启动，互不依赖。深挖比快验更完整，覆盖全量 Top100、完整关键词分层、类目趋势。
 
+**路线分片规则**：保留路线 > 8 条时，单 Agent 无法在上下文中完成全部深挖，必须分片：
+- 将路线按每组 4-5 条拆成 2-3 组
+- 同一 Agent 角色串行执行各组分片：Agent A 完成第一组 → Agent B 继续第二组 → ...
+- 每个分片 Agent 写入独立的 `route_breakdown_{group}.json` 片段（如 `route_breakdown_01.json`、`route_breakdown_02.json`）
+- 全部分片完成后，由脚本 `build_deep_evidence_packet.py` 合并成完整 evidence packet
+- 路线 ≤ 8 条时仍可单 Agent 执行
+
+**快照规则**：Agent 写入 evidence packet 的同时，必须将本 Agent 所有 MCP tool_calls 摘要写入快照：
+- Market Structure → `mcp_snapshots/sellersprite_deep_snapshot.json`
+- Search Demand → `mcp_snapshots/sorftime_deep_snapshot.json`
+- 若子 Agent 模式下快照不可用，标注 `snapshot_unavailable: true`，不阻塞流程
+
 ## Stage 9 六维评价并行规则
 
 6 个 Evaluation Agent 可全部并行启动，各自读取对应证据包：
