@@ -31,7 +31,7 @@ REQUIRED_DECISION_FIELDS = [
     "execution_provenance",
 ]
 
-# 10 deep analysis fields — every one must be present and non-empty
+# 9 deep analysis fields — every one must be present and non-empty
 DEEP_ANALYSIS_FIELDS = {
     "route_recommendation": {
         "required_keys": ["routes", "primary_recommendation"],
@@ -48,10 +48,6 @@ DEEP_ANALYSIS_FIELDS = {
     "competitor_weakness_map": {
         "required_sub_keys": ["asin", "fatal_weakness", "my_counter"],
         "description": "竞品弱点地图",
-    },
-    "cold_start_estimate": {
-        "required_keys": ["review_threshold", "cpc_estimate", "timeline", "budget_range"],
-        "description": "冷启动估算",
     },
     "price_band_analysis": {
         "required_sub_keys": ["range", "competitive_meaning", "entry_recommendation"],

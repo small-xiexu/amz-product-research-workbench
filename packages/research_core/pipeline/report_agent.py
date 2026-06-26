@@ -183,17 +183,6 @@ def enhance_seed_to_report_data(
         elif not hero.get("lead_analysis"):
             hero["lead_analysis"] = "基于市场、竞争、价格、VOC、风险和数据质量六维评价的综合判断。"
 
-        # Cold start estimate → hero
-        cold_start = judgment.get("cold_start_estimate") or {}
-        if _is_filled(cold_start.get("review_threshold")):
-            hero["cold_start_summary"] = (
-                f"冷启动估算：{cold_start.get('review_threshold', '')}。"
-                f"CPC预估 {cold_start.get('cpc_estimate', '')}。"
-                f"周期 {cold_start.get('timeline', '')}。"
-                f"预算量级 {cold_start.get('budget_range', '')}。"
-                f"{cold_start.get('confidence_note', '')}"
-            )
-
     # ── Category Panorama ──────────────────────────────────────────────
     cp = rd.setdefault("category_panorama", {})
     insights = cp.get("insights")

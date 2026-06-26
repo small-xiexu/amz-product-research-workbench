@@ -72,7 +72,6 @@ def validate_integrated_judgment(packet: dict[str, Any]) -> None:
             "route_tradeoff",
             "competitor_benchmark",
             "competitor_weakness_map",
-            "cold_start_estimate",
             "price_band_analysis",
             "voc_to_spec",
             "keyword_strategy",
@@ -216,16 +215,6 @@ def validate_integrated_judgment(packet: dict[str, Any]) -> None:
         "integrated_operator_judgment.competitor_weakness_map",
         min_items=0,
     )
-
-    cold_start = _require_dict(
-        packet.get("cold_start_estimate"),
-        "integrated_operator_judgment.cold_start_estimate",
-    )
-    if cold_start.get("budget_range"):
-        _require_non_empty_text(
-            cold_start.get("budget_range"),
-            "integrated_operator_judgment.cold_start_estimate.budget_range",
-        )
 
     _require_list(
         packet.get("validation_roadmap"),

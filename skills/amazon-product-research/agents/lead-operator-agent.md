@@ -67,7 +67,6 @@
 | `voc_to_spec` | Growth & Risk Agent | 验证：痛点推导链是否与 VOC 证据一致 |
 | `keyword_strategy` | Growth & Risk Agent | 验证：关键词策略是否与搜索需求证据一致 |
 | `risk_mitigation` | Growth & Risk Agent | 验证：风险覆盖是否完整，缓解路径是否具体 |
-| `cold_start_estimate` | Growth & Risk Agent | 验证：估算数据是否与证据包一致 |
 | `validation_roadmap` | Growth & Risk Agent | 验证：路线图是否覆盖了关键风险点 |
 
 **若发现矛盾**：在 `verdict_reason` 中记录，以 Stage 10a 分析为准（不重做分析），在 `evidence_refs` 中标注需复核的矛盾点。

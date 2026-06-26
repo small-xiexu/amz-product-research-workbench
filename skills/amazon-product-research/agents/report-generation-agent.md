@@ -52,7 +52,6 @@ Stage 11-12 使用三段式：脚本生成 `report_data.seed.json` → `report_a
   - `competitor_benchmark[].differentiation_direction` → `competitors[].judgment`
   - `competitor_weakness_map[].fatal_weakness` + `.my_counter` → `competitors[].weakness` + `.counter`
   - `route_tradeoff[].gain` + `.lose` + `.best_for` + `.worst_for` → 路线对比表 `tradeoff` 列
-  - `cold_start_estimate.*` → `hero.cold_start_summary` + 报告"冷启动估算"板块
   - `voc_to_spec[].spec_requirement` → `pain_points[].spec_requirement`
   - `keyword_strategy.primary_attack[].strategy_rationale` → `keywords[].strategy`
   - `risk_mitigation[].operational_meaning` → `risks[].description`
@@ -128,8 +127,6 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
   <p>体量、竞争格局、入场壁垒的一句话说透。关键数字加粗，多个指标串成一个判断，不只报数据。</p>
   <h3>机会判断</h3>
   <p>竞品哪里没做好、我做什么能赢、为什么消费者会买单。要把 VOC 痛点翻译成产品机会，说明"需求已教育、供给未跟上"的具体证据。</p>
-  <h3>冷启动估算</h3>
-  <p>不是精准财务，是数量级——评论门槛、CPC预估、冷启动周期、前3个月预算量级。让运营判断自己有没有这个预算和耐心。</p>
   <h3>瓶颈与建议</h3>
   <p>当前最大的数据缺口或风险是什么、缺到什么程度、补数后判断质量能提升多少。诚实直接，不粉饰。</p>
 </section>
@@ -222,7 +219,7 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 <p class="lead">
   <strong>市场：</strong>类目体量、增长趋势、竞争格局的一句话说清。<br>
   <strong>机会：</strong>VOC痛点、差异化方向、可切入的价格段。<br>
-  <strong>瓶颈：</strong>数据缺口、冷启动壁垒、当前不满足Go的条件。
+  <strong>瓶颈：</strong>数据缺口、当前不满足Go的条件。
 </p>
 ```
 
@@ -467,7 +464,7 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 - **不把推断当事实。** 定价建议、毛利预估、差异点价值是推断，报告中使用"建议""可考虑""预估"等措辞区分。
 - **不复制粘贴 insight 原文。** `insights_for_handoff` 是给主 Agent 看的提示，不能直接抄进 HTML。HTML 里的分析应该基于原始数据重新撰写。
 - **不出现内部术语。** HTML 中不出现 Agent、MCP、tool、spawn、packet、pipeline、evidence_packet、source_path、冲突复核过程或内部数据来源分歧。
-- **不使用抽象路线标签。** 禁止在 HTML 中使用"路线A""路线B""路线1""路线2"等无业务含义的代号。路线名必须使用业务描述词，让运营一眼看懂每个方向在做什么产品。路线命名应基于 `route_matrix_confirm.json` 中的路线定义或关键词的业务语义。
+- **不使用抽象路线标签。** 禁止在 HTML 中使用任何非业务描述词的路线标识——包括"路线A/B""路线1/2"等抽象代号，也包括 C01/C02 等内部序号（Stage 5 已从源头使用 kebab-case slug 作为 `route_id`，但即使上游 Agent 错引了 `route_id`，HTML 中也必须替换为中文业务名）。路线名必须使用业务描述词，让运营一眼看懂每个方向在做什么产品。路线命名基于 `route_matrix_confirm.json` 中的 `route_name`。
 - **不自创 CSS。** `<style>` 块必须完整复制 `skills/amazon-product-research/references/report_template.css`，禁止修改任何 CSS 值、类名、变量名。禁止发明新的 CSS 类名或 HTML 结构模式。所有报告的视觉风格必须 100% 一致。
 
 ## 自检清单（写 HTML 前逐项确认）

@@ -101,7 +101,6 @@
 | # | Agent | 阶段 | 职责范围 |
 |---|---|---|---|
 | 12 | Route Strategy Agent | 10a | 路线竞争分析：路线推荐、路线取舍、竞品对标、竞品弱点、价格带解读 |
-| 13 | Growth & Risk Agent | 10a | 增长风控分析：VOC→规格、关键词策略、风险缓解、冷启动、验证路线图 |
 | 14 | Lead Operator Agent | 10b | 跨维度权衡 + 最终 Go/No-Go 决策 + 合并 10a 深度分析 |
 
 ### 报告与质检 Agent（2 个）
@@ -258,7 +257,6 @@
   4. `competitor_weakness_map` — 竞品弱点地图（有 VOC 原文支撑）
   5. `price_band_analysis` — 价格带分布解读
 - **调度**: 与 Growth & Risk Agent 并行 spawn
-- **不可以**: 不做 final_verdict、不涉及关键词/冷启动/风险缓解
 
 ---
 
@@ -271,7 +269,6 @@
   1. `voc_to_spec` — VOC 痛点 → 产品规格推导
   2. `keyword_strategy` — 关键词策略（主攻/可测/否定）
   3. `risk_mitigation` — 风险缓解路径
-  4. `cold_start_estimate` — 冷启动估算（标注假设前提）
   5. `validation_roadmap` — 下一步验证路线图
 - **调度**: 与 Route Strategy Agent 并行 spawn
 - **VOC 降级规则**: 有效评论 < 30 条 → 自动标注 `data_note`，不强推规格结论
@@ -343,8 +340,6 @@
 |---|---|---|
 | 数据采集 Agent | 产出证据、标注缺口和置信度 | 不输出 Go/No-Go、不写正式报告 |
 | 评价 Agent | 打分（0-100）、列风险、给 route_breakdown | 不输出 Go/No-Go、不重算证据包数字 |
-| Route Strategy Agent | 路线竞争分析、竞品对标、价格带解读 | 不输出 final_verdict、不涉及关键词/冷启动 |
-| Growth & Risk Agent | VOC→规格、关键词策略、冷启动、风险缓解 | 不输出 final_verdict、不涉及路线推荐 |
 | Lead Operator Agent | 跨维度权衡 + 最终 Go/No-Go | 不生成 HTML、不重做 10a 深度分析 |
 | Report Generation Agent | 转录判断、手写 HTML | 不新增证据包外数字、不篡改事实 |
 | Delivery QA Agent | 交叉验证、写 qa_notes.md | 不改判断、不改数据、不可降级 |

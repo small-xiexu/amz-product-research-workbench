@@ -43,19 +43,16 @@ from packages.research_core.pipeline.build_sorftime_deep_dive import (
 from packages.research_core.pipeline.build_voc_gate import run_voc_gate
 from packages.research_core.pipeline.quick_market_check import run_quick_market_check
 
-
 ROOT = Path(__file__).resolve().parents[1]
 P1_FIXTURES = ROOT / "tests" / "fixtures" / "p1_quick_check"
 
 _PYTHONPATH = str(ROOT)
-
 
 def _cli_env() -> dict:
     import os
     env = os.environ.copy()
     env["PYTHONPATH"] = _PYTHONPATH + (":" + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
     return env
-
 
 # ── E2E golden path ────────────────────────────────────────────────────────
 
@@ -387,18 +384,6 @@ class P7EndToEndTests(unittest.TestCase):
             self.assertIn("12", entry["data_note"],
                          f"voc_to_spec[{i}].data_note should include review count")
 
-    def test_voc_degradation_adds_voc_data_note_to_cold_start(self) -> None:
-        """When < 30 reviews, cold_start_estimate gets voc_data_note."""
-        run_dir = self._seed_p6_with_review_count(5)
-        judgment = build_integrated_judgment(run_dir)
-        cold_start = judgment.get("cold_start_estimate", {})
-        self.assertIn("voc_data_note", cold_start,
-                     "cold_start_estimate missing voc_data_note in degradation mode")
-        self.assertIn("5", cold_start["voc_data_note"],
-                     "voc_data_note should include review count")
-        self.assertIn("VOC 数据仅", cold_start["voc_data_note"],
-                     "voc_data_note should mention VOC data limitation")
-
     def test_voc_degradation_not_applied_when_reviews_sufficient(self) -> None:
         """When >= 30 reviews, degradation fields are NOT present."""
         run_dir = self._seed_p6_with_review_count(35)
@@ -407,10 +392,6 @@ class P7EndToEndTests(unittest.TestCase):
         for i, entry in enumerate(voc_entries):
             self.assertNotIn("data_note", entry,
                             f"voc_to_spec[{i}] should not have data_note when reviews sufficient")
-        cold_start = judgment.get("cold_start_estimate", {})
-        self.assertNotIn("voc_data_note", cold_start,
-                        "cold_start_estimate should not have voc_data_note when reviews sufficient")
-
     def test_voc_degradation_no_gate_file_no_crash(self) -> None:
         """When voc_gate.json is missing, degradation gracefully defaults (no crash)."""
         run_dir = self._seed_p6_with_review_count(35)
@@ -420,9 +401,6 @@ class P7EndToEndTests(unittest.TestCase):
         # Should still produce valid voc_to_spec without crashing
         voc_entries = judgment.get("voc_to_spec", [])
         self.assertIsInstance(voc_entries, list)
-        cold_start = judgment.get("cold_start_estimate", {})
-        self.assertIsInstance(cold_start, dict)
-
 
 # ── Full chain: P6 → P7 → report seed ─────────────────────────────────────
 
@@ -484,7 +462,6 @@ class P7FullChainTests(unittest.TestCase):
         _write_review_xlsx_file(path, _sample_reviews(count))
         return path
 
-
 # ── Fixtures ───────────────────────────────────────────────────────────────
 
 def _write_agent_evaluations(run_dir: Path) -> None:
@@ -516,7 +493,6 @@ def _write_agent_evaluations(run_dir: Path) -> None:
             json.dumps(ev, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
 
-
 def _workflow_state() -> dict[str, Any]:
     return {
         "workflow_id": "20260625_generic_direction",
@@ -536,7 +512,6 @@ def _workflow_state() -> dict[str, Any]:
         "evidence_refs": [],
         "decision_log": [],
     }
-
 
 def _sample_reviews(count: int = 35) -> list[dict[str, Any]]:
     reviews = []
@@ -572,7 +547,6 @@ def _sample_reviews(count: int = 35) -> list[dict[str, Any]]:
         })
     return reviews
 
-
 def _write_review_xlsx_file(path: Path, reviews: list[dict[str, Any]]) -> None:
     from openpyxl import Workbook
     wb = Workbook()
@@ -597,7 +571,6 @@ def _write_review_xlsx_file(path: Path, reviews: list[dict[str, Any]]) -> None:
             r.get("url"),
         ])
     wb.save(str(path))
-
 
 def _valid_sellersprite_snapshot() -> dict:
     return {
@@ -631,7 +604,6 @@ def _valid_sellersprite_snapshot() -> dict:
         "force_refresh": False,
         "input_lineage": {"route_refs": ["route_matrix_confirm.json#selected_routes[0]"], "selected_routes": ["<generic_route_ref>"], "nodeIdPath": "<generic_node_path>"},
     }
-
 
 def _valid_sorftime_snapshot() -> dict:
     return {

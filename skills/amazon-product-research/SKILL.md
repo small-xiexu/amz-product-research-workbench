@@ -220,6 +220,16 @@ python3 scripts/build_mcp_candidate_pool.py <run_dir>
 
 运营确认保留的 🔒 路线，每条配参考 ASIN ≥ 2 个、候选类目、补数计划。所有 🔒 路线同等深度——同等的 ASIN 数量、评论采集量、关键词覆盖。路线标签只描述产品形态差异，不预设推荐排序。
 
+**`route_id` 命名铁律**：`route_id` 必须使用英文描述词（kebab-case），从 `route_name` 提取核心产品形态。禁止使用抽象序号（C01/C02/C03、R01/R02、路线A/路线B）。示例：
+
+| `route_name` | ✅ 正确 `route_id` | ❌ 错误 `route_id` |
+|---|---|---|
+| 标准尼龙反光牵引绳 | `standard-nylon-reflective` | `C01` |
+| 伸缩牵引绳 (Retractable) | `retractable-tape-cord` | `C03` |
+| 训练长绳 (15-100ft) | `training-long-line` | `R05` |
+
+此规则确保全链路（Stage 6-12）的 Agent 引用 `route_id` 时不会泄漏无意义代号到最终报告。
+
 ```bash
 python3 scripts/build_route_matrix_confirm.py <run_dir>
 ```
@@ -400,14 +410,14 @@ python3 scripts/build_evaluation_summary.py <run_dir>
 
 ### Stage 10a · 深度分析（并行）
 
-Route Strategy Agent 和 Growth & Risk Agent **强制并行 spawn**，互不依赖。两者读取 6 份评价 + 评价汇总 + 原始证据包，各自产出 5 个深度分析字段，写入 `analysis/integrated_operator_judgment.json`。
+Route Strategy Agent 和 Growth & Risk Agent **强制并行 spawn**，互不依赖。两者读取 6 份评价 + 评价汇总 + 原始证据包，各自产出深度分析字段（Route Strategy 5 个、Growth & Risk 4 个），写入 `analysis/integrated_operator_judgment.json`。
 
-| Agent | 职责 | 产出 5 字段 | 必须回查 |
+| Agent | 职责 | 产出字段 | 必须回查 |
 |---|---|---|---|
 | Route Strategy Agent | 路线级竞争分析、竞品对标、价格带解读 | `route_recommendation`、`route_tradeoff`、`competitor_benchmark`、`competitor_weakness_map`、`price_band_analysis` | 市场结构证据（价格带分布、Top100 ASIN）、VOC 证据（差评原文） |
-| Growth & Risk Agent | VOC→规格推导、关键词策略、风险缓解、冷启动估算、验证路线图 | `voc_to_spec`、`keyword_strategy`、`risk_mitigation`、`cold_start_estimate`、`validation_roadmap` | 搜索需求证据（搜索量/CPC）、VOC 证据（评论原文）、市场结构证据（评论数/新品数据） |
+| Growth & Risk Agent | VOC→规格推导、关键词策略、风险缓解、验证路线图 | `voc_to_spec`、`keyword_strategy`、`risk_mitigation`、`validation_roadmap` | 搜索需求证据（搜索量/CPC）、VOC 证据（评论原文）、市场结构证据（评论数/新品数据） |
 
-**并行 spawn 规则**：两个 Agent 必须同时启动。先运行脚本生成字段骨架，再 spawn 两个 Agent 各自填充自己负责的 5 个字段。
+**并行 spawn 规则**：两个 Agent 必须同时启动。先运行脚本生成字段骨架，再 spawn 两个 Agent 各自填充自己负责的字段。
 
 **写入规范（硬约束）**：
 - 必须用 Write 工具写入 Python 脚本文件到 /tmp/，再用 Bash 执行该脚本。
@@ -415,8 +425,8 @@ Route Strategy Agent 和 Growth & Risk Agent **强制并行 spawn**，互不依�
 - 禁止用 Bash + heredoc 方式直接写 JSON（应使用 Write 工具）。
 
 **本阶段执行顺序**：
-1. `build_integrated_judgment.py` — 脚本生成 10 个字段骨架（带 `__ai_judgment__` 占位）
-2. **强制并行 spawn** Route Strategy Agent + Growth & Risk Agent，各自填充 5 个字段
+1. `build_integrated_judgment.py` — 脚本生成 9 个字段骨架（带 `__ai_judgment__` 占位）
+2. **强制并行 spawn** Route Strategy Agent + Growth & Risk Agent，各自填充字段
 
 ```bash
 python3 scripts/build_integrated_judgment.py <run_dir>
@@ -490,8 +500,8 @@ Report Generation Agent 执行两步：
 
 HTML 报告结构（运营必备板块）：
 
-- **Hero** — 一句话结论 + 关键指标 + 冷启动数量级，细分 TAM 和大类 TAM 分开
-- **资深运营评估** — 市场判断 / 机会判断 / 冷启动估算 / 瓶颈与建议，四小节叙事
+- **Hero** — 一句话结论 + 关键指标，细分 TAM 和大类 TAM 分开
+- **资深运营评估** — 市场判断 / 机会判断 / 瓶颈与建议，三小节叙事
 - **产品路线对比** — 路线表格（含 tradeoff"选了它你就放弃了什么"列）+ 推荐策略/搁置双卡片
 - **类目全景** — 目标品类涉及的所有类目，不遗漏
 - **核心竞品** — ASIN 对比表（含致命弱点 + 我的反击列），每条路线至少 2 个代表 ASIN
@@ -507,7 +517,10 @@ HTML 报告结构（运营必备板块）：
 - 事实和推断必须分开
 - 禁止出现 MCP、Agent、tool、spawn、packet、source_path 等内部术语
 - HTML 中每个数字必须在 `report_data.json` 中有对应条目
-- 视觉遵循 `references/report_design_spec.md`（绿色 Hero、卡片分区、4 种标签、1100px）
+- 视觉遵循 `references/report_design_spec.md`（蓝色 Hero、卡片分区、5 种标签、1100px）
+- **禁止内部路线 ID 泄漏**：HTML 中路线名称只显示产品名，格式为 `"中文名（English Name）"` 或纯中文名。VOC 痛点"影响路线"列用简短中文名，斜杠分隔。路线对比表、竞品表、关键词表等所有表格均适用此规则。Stage 5 的 `route_id` 命名铁律已从源头杜绝 C01/C02 式代号，若 Agent 错误引用了 `route_id`（英文 slug），虽非中文名但至少运营可理解，非阻断项
+- **Hero 指标必须运营可理解**：每个 Hero 指标的 label 必须完整说明指标含义，不依赖内部编码或缩写。例如"训练长绳供需比 2.47（品类最优）"而非"最优供需比 (C05) 2.47"，"品类均价 $13.14（同比+15%）"而非"品类均价 YoY $13.14"
+- **价格带 bar 最小可见高度**：`.price-bar .bar` 的 height 取 max(实际比例高度, 28px)，确保占比最小的价格段 bar 仍清晰可见
 
 ```bash
 python3 scripts/run_report_agent.py <run_dir>
@@ -521,7 +534,7 @@ python3 -m packages.research_core.pipeline.build_report_xlsx <run_dir>
 
 **本阶段执行顺序**：
 1. Report Generation Agent — 从 judgment 转录判断文字 → 增强 `report_data.json` → 手写 HTML
-2. `build_report_xlsx.py` — 从 `report_data.json` + `integrated_operator_judgment.json` 生成 `<中文品名>_决策工具包.xlsx`（5 Sheet：路线计分卡、竞品拆解、关键词矩阵、样品检查表、冷启动预算）+ `delivery_qa_result.json`
+2. `build_report_xlsx.py` — 从 `report_data.json` + `integrated_operator_judgment.json` 生成 `<中文品名>_决策工具包.xlsx`（4 Sheet：路线计分卡、竞品拆解、关键词矩阵、样品检查表）+ `delivery_qa_result.json`
 
 ---
 
@@ -579,7 +592,8 @@ pass → 交付。fail → 按失败类型智能打回：
 - **Top100 不完整，不出正式深挖结论**。
 - **所有结论必须能回溯到具体数据来源**，不拍脑袋。
 - **多 Agent 不越权**：专家 Agent 只输出证据包，最终判断只由 Lead Operator Agent 给出。
-- **用户报告不露内部术语**：HTML 禁止展示 Agent、MCP、tool、spawn、packet、pipeline、source_path。
+- **用户报告不露内部术语**：HTML 禁止展示 Agent、MCP、tool、spawn、packet、pipeline、source_path。路线在 HTML 中只用中文产品名，不得出现 `route_id`（无论 slug 还是旧式代号）。
+- **`route_id` 用业务描述词**：Stage 5 定义路线时，`route_id` 必须使用英文 kebab-case 描述词（如 `training-long-line`），禁止使用抽象序号（C01、R02、路线A）。详见 Stage 5 命名铁律。
 - **缺证据不甩锅**：系统未采到写"系统侧待补"，需运营目视判断写"人工 review 待补"。
 - **混池要主动识别**，不把不同产品形态的数据加总分析。
 - **先 ASIN 后关键词**：先建立参考 ASIN 池，再反查关键词。

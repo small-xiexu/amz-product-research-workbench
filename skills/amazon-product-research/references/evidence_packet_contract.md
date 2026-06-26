@@ -173,7 +173,7 @@ Evidence Packet 是多 Agent 协作的交接单位。每个数据源专家 Agent
 
 ### `new_release_opportunity`
 
-用于判断小类目是否适合推新品榜或新品冷启动。
+用于判断小类目是否适合推新品榜。
 
 | 字段 | 必填 | 说明 |
 |---|---|---|

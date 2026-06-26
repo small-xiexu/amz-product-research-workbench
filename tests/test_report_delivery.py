@@ -255,7 +255,7 @@ class XLSXBackTableTests(unittest.TestCase):
         rd_path.write_text(json.dumps(rd, ensure_ascii=False, indent=2), encoding="utf-8")
         sheets = xlsx_sheets_from_report_data(rd_path)
         sheet_names = {s[0] for s in sheets}
-        expected = {"路线计分卡", "竞品拆解", "关键词矩阵", "样品检查表", "冷启动预算"}
+        expected = {"路线计分卡", "竞品拆解", "关键词矩阵", "样品检查表"}
         for name in expected:
             self.assertIn(name, sheet_names, f"Missing XLSX sheet: {name}")
 
@@ -868,8 +868,7 @@ def _write_agent_report_outputs(run_dir: Path) -> None:
         "route_tradeoff": [{"route_name": "主线", "gain": "流量大", "lose": "竞争激烈", "best_for": "有成本优势", "worst_for": "新手"}],
         "competitor_benchmark": [{"asin": "B001", "differentiation_direction": "材质升级", "pricing_anchor": "$19.99", "why_benchmark": "类目销量TOP"}],
         "competitor_weakness_map": [{"asin": "B001", "fatal_weakness": "卡扣易断", "my_counter": "不锈钢卡扣+5000次测试"}],
-        "cold_start_estimate": {"review_threshold": "60条", "cpc_estimate": "$1.2", "timeline": "2个月", "budget_range": "$3000-$5000"},
-        "price_band_analysis": [{"range": "15-25", "competitive_meaning": "主力段", "entry_recommendation": "以此段切入"}],
+                "price_band_analysis": [{"range": "15-25", "competitive_meaning": "主力段", "entry_recommendation": "以此段切入"}],
         "voc_to_spec": [{"dimension": "耐用", "spec_requirement": "拉力≥50kg", "benchmark_gap": "竞品30kg", "differentiation_opportunity": "差异化在耐用"}],
         "keyword_strategy": {"primary_attack": [], "testable": [], "negative": []},
         "risk_mitigation": [{"operational_meaning": "季节波动", "mitigation_path": "提前备货"}],

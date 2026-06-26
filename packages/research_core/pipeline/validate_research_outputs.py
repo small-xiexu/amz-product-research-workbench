@@ -17,7 +17,6 @@ ANALYSIS_REQUIRED_SHEETS = (
     "竞品拆解",
     "关键词矩阵",
     "样品检查表",
-    "冷启动预算",
 )
 REQUIRED_WORKFLOW_FILES = ("workflow_summary.md", "workflow_summary.json")
 BASE_REQUIRED_SHEETS = (

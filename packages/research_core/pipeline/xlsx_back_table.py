@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Generate XLSX decision workbook (5 sheets) from report_data.json + integrated_operator_judgment.json.
+"""Generate XLSX decision workbook (4 sheets) from report_data.json + integrated_operator_judgment.json.
 
 Sheet structure per report_design_spec.md Section 6:
   1. 路线计分卡 — route × 6 dimensions + one-line judgment
   2. 竞品拆解 — full competitor profile with weakness/counter
   3. 关键词矩阵 — keyword × intent × search volume × CPC
   4. 样品检查表 — VOC pain point → test item → pass criteria
-  5. 冷启动预算 — cost item × estimate (operator fills actual)
 """
 
 from __future__ import annotations
@@ -45,9 +44,6 @@ def xlsx_sheets_from_report_data(
 
     # ── Sheet 4: 样品检查表 ─────────────────────────────────────────────
     sheets.append(("样品检查表", _sample_checklist(rd, _rv)))
-
-    # ── Sheet 5: 冷启动预算 ─────────────────────────────────────────────
-    sheets.append(("冷启动预算", _cold_start_budget(judgment, _rv)))
 
     return sheets
 
@@ -219,56 +215,6 @@ def _sample_checklist(rd: dict, _rv) -> list[list[object]]:
             "",  # 运营填写
             "",  # 运营填写
         ])
-    return rows
-
-
-def _cold_start_budget(judgment: dict | None, _rv) -> list[list[object]]:
-    """冷启动预算：数量级估算 + 运营填实际数字。"""
-    header = [
-        "费用项", "预估金额_数量级", "实际金额_运营填", "备注",
-    ]
-    rows = [header]
-
-    if not judgment:
-        rows.append(["无冷启动估算数据", "", "", "请先运行 Stage 10 Lead Operator Agent"])
-        return rows
-
-    cs = judgment.get("cold_start_estimate") or {}
-    confidence_note = _rv(cs.get("confidence_note", "以上为数量级估算，实际取决于产品力、Listing质量和广告效率"))
-
-    # Standard line items
-    items = [
-        ("广告费（前3个月）", cs.get("ad_budget", cs.get("budget_range", ""))),
-        ("Vine评论计划", "$200（亚马逊官方费用）"),
-        ("样品打样费", cs.get("sample_cost", "")),
-        ("FBA物流（前3个月）", cs.get("fba_cost", "")),
-        ("采购库存（首批）", cs.get("inventory_cost", "")),
-        ("Listing拍摄/A+制作", cs.get("listing_cost", "$300-800（拍摄+A+设计）")),
-        ("商标/品牌注册", cs.get("brand_registry_cost", "$225-600（视国家）")),
-    ]
-
-    total_est = ""
-    for label, value in items:
-        display_value = _rv(value) if value else "待估算"
-        if label == "广告费（前3个月）" and cs.get("budget_range"):
-            display_value = _rv(cs["budget_range"])
-        rows.append([label, display_value, "", ""])
-
-    # Total row
-    if cs.get("budget_range"):
-        total_est = _rv(cs["budget_range"])
-    rows.append(["合计（数量级）", total_est, "", confidence_note])
-
-    # Key metrics for reference
-    metrics = [
-        ("评论门槛", cs.get("review_threshold", "")),
-        ("CPC预估", cs.get("cpc_estimate", "")),
-        ("冷启动周期", cs.get("timeline", "")),
-    ]
-    for label, value in metrics:
-        if value:
-            rows.append([f"参考：{label}", _rv(value), "", ""])
-
     return rows
 
 

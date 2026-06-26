@@ -57,7 +57,6 @@ def build_integrated_judgment(run_dir: Path) -> dict[str, Any]:
     route_tradeoff = _build_route_tradeoff(route_matrix)
     competitor_benchmark = _build_competitor_benchmark(run_dir)
     competitor_weakness_map = _build_competitor_weakness_map(run_dir)
-    cold_start_estimate = _build_cold_start_estimate(run_dir)
     price_band_analysis = _build_price_band_analysis(run_dir)
     voc_to_spec = _build_voc_to_spec(run_dir)
     keyword_strategy = _build_keyword_strategy(run_dir)
@@ -83,7 +82,6 @@ def build_integrated_judgment(run_dir: Path) -> dict[str, Any]:
         "route_tradeoff": route_tradeoff,
         "competitor_benchmark": competitor_benchmark,
         "competitor_weakness_map": competitor_weakness_map,
-        "cold_start_estimate": cold_start_estimate,
         "price_band_analysis": price_band_analysis,
         "voc_to_spec": voc_to_spec,
         "keyword_strategy": keyword_strategy,
@@ -96,7 +94,7 @@ def build_integrated_judgment(run_dir: Path) -> dict[str, Any]:
             "execution_mode": "script_generated_skeleton",
             "subagent_id": "",
             "note": (
-                "Script generated judgment skeleton with '__ai_judgment__' placeholders for all 10 deep analysis fields. "
+                "Script generated judgment skeleton with '__ai_judgment__' placeholders for all 9 deep analysis fields. "
                 "Stage 10a: Route Strategy Agent + Growth & Risk Agent (parallel spawn) fill the 10 deep fields. "
                 "Stage 10b: Lead Operator Agent validates the 10 fields, writes decision summary, and merges into final judgment. "
                 "Report Generation Agent must transcribe only filled fields; '__ai_judgment__' placeholders in report_data.json mean 'analysis pending'."
@@ -455,6 +453,8 @@ def _build_competitor_benchmark(run_dir: Path) -> list[dict[str, Any]]:
     if not ms_packet:
         return []
     facts = ms_packet.get("facts") or {}
+    if not isinstance(facts, dict):
+        facts = {}
     top_asins = facts.get("top_asins") or facts.get("reference_asin_pool") or []
     if isinstance(top_asins, dict):
         top_asins = list(top_asins.values())
@@ -481,6 +481,8 @@ def _build_price_band_analysis(run_dir: Path) -> list[dict[str, Any]]:
     if not ms_packet:
         return []
     facts = ms_packet.get("facts") or {}
+    if not isinstance(facts, dict):
+        facts = {}
     price_dist = facts.get("price_distribution") or {}
     bands = price_dist.get("bands") or price_dist.get("price_bands") or []
     result: list[dict[str, Any]] = []
@@ -515,6 +517,8 @@ def _build_voc_to_spec(run_dir: Path) -> list[dict[str, Any]]:
     review_count = _get_voc_review_count(run_dir)
     is_degraded = review_count < VOC_MIN_REVIEW_THRESHOLD
     facts = voc_packet.get("facts") or {}
+    if not isinstance(facts, dict):
+        facts = {}
     pain_points = facts.get("pain_points") or facts.get("top_pain_points") or []
     result: list[dict[str, Any]] = []
     for pp in (pain_points if isinstance(pain_points, list) else [])[:8]:
@@ -541,6 +545,8 @@ def _build_keyword_strategy(run_dir: Path) -> dict[str, Any]:
     if not sd_packet:
         return {"primary_attack": [], "testable": [], "negative": [], "strategy_note": "__ai_judgment__"}
     facts = sd_packet.get("facts") or {}
+    if not isinstance(facts, dict):
+        facts = {}
     kw_pool = facts.get("keyword_pool_by_role") or facts.get("keyword_pool") or {}
     result: dict[str, Any] = {"primary_attack": [], "testable": [], "negative": [], "strategy_note": "__ai_judgment__"}
     for role_key, target_key in [("primary_attack", "primary_attack"), ("testable", "testable"), ("negative", "negative")]:
@@ -604,6 +610,8 @@ def _build_competitor_weakness_map(run_dir: Path) -> list[dict[str, Any]]:
     if not voc_packet:
         return []
     facts = voc_packet.get("facts") or {}
+    if not isinstance(facts, dict):
+        facts = {}
     pain_points = facts.get("pain_points") or facts.get("top_pain_points") or []
     seen_asins: set[str] = set()
     result: list[dict[str, Any]] = []
@@ -622,35 +630,6 @@ def _build_competitor_weakness_map(run_dir: Path) -> list[dict[str, Any]]:
                             "my_counter": "__ai_judgment__",
                             "counter_difficulty": "__ai_judgment__",
                         })
-    return result
-
-
-def _build_cold_start_estimate(run_dir: Path) -> dict[str, Any]:
-    """从市场结构证据包提取冷启动数据骨架。Agent 需填充 cpc_estimate/timeline/budget_range。"""
-    ms_packet = load_json(run_dir / "market_structure" / "market_structure_evidence_packet.json", required=False)
-    facts = (ms_packet or {}).get("facts") or {}
-    top_asins = facts.get("top_asins") or facts.get("reference_asin_pool") or []
-    if isinstance(top_asins, dict):
-        top_asins = list(top_asins.values())
-    review_counts = []
-    for a in (top_asins if isinstance(top_asins, list) else [])[:20]:
-        if isinstance(a, dict):
-            rc = a.get("rating_count") or a.get("review_count") or 0
-            try:
-                review_counts.append(int(rc))
-            except (ValueError, TypeError):
-                pass
-    avg_reviews = sum(review_counts) // len(review_counts) if review_counts else 0
-    voc_review_count = _get_voc_review_count(run_dir)
-    result: dict[str, Any] = {
-        "review_threshold": f"头部竞品平均{avg_reviews}评" if avg_reviews else "__ai_judgment__",
-        "cpc_estimate": "__ai_judgment__",
-        "timeline": "__ai_judgment__",
-        "budget_range": "__ai_judgment__",
-        "confidence_note": "以上为数量级估算，基于类目平均数据。实际取决于产品力、Listing质量和广告效率。",
-    }
-    if voc_review_count < VOC_MIN_REVIEW_THRESHOLD:
-        result["voc_data_note"] = f"VOC 数据仅 {voc_review_count} 条评论（最低要求 {VOC_MIN_REVIEW_THRESHOLD} 条），样本不足以支撑痛点结论。冷启动中的 VOC→规格推导置信度低，建议按 validation_roadmap 在收集足量评论后重新推导。"
     return result
 
 
