@@ -65,6 +65,54 @@ _ALLOWED_REPORT_CLASS_TOKENS = {
     "pill",
 }
 
+_FAILURE_CLASSIFICATION: dict[str, dict[str, str]] = {
+    # analysis: judgment logic failures → retry Stage 10 (Lead Operator Agent)
+    "report_data_values_consistent": {"class": "analysis", "retry_stage": "stage_10", "retry_target": "Lead Operator Agent"},
+    "p0_blockers_clear": {"class": "analysis", "retry_stage": "stage_10", "retry_target": "Lead Operator Agent"},
+    # rendering: presentation/HTML failures → retry Stage 12 (Report Generation Agent)
+    "html_exists": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
+    "report_data_has_required_sections": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
+    "has_no_removed_legacy_sections": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
+    "has_inline_style": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
+    "uses_report_template_css": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
+    "has_only_allowed_report_classes": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
+    "has_no_fixed_data_source_section": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
+    "has_required_operator_sections": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
+    "has_gonogo_class": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
+    "has_no_forbidden_html_patterns": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
+    "no_conflict_leak": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
+    # data: seed/data pipeline failures → retry Stage 11 (seed generation)
+    "report_data_exists": {"class": "data", "retry_stage": "stage_11", "retry_target": "build_analysis_report seed"},
+    "report_data_sources_valid": {"class": "data", "retry_stage": "stage_11", "retry_target": "build_analysis_report seed"},
+    "xlsx_exists": {"class": "data", "retry_stage": "stage_11", "retry_target": "build_analysis_report seed"},
+}
+
+
+def _classify_failures(failures: list[str]) -> dict[str, Any]:
+    """Classify each QA failure into analysis/rendering/data and assign retry target.
+
+    Returns:
+        {
+            "analysis": {"failures": [...], "retry_stage": "stage_10", "retry_target": "Lead Operator Agent"},
+            "rendering": {"failures": [...], "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
+            "data": {"failures": [...], "retry_stage": "stage_11", "retry_target": "build_analysis_report seed"},
+        }
+    """
+    classified: dict[str, dict[str, Any]] = {
+        "analysis": {"failures": [], "retry_stage": "stage_10", "retry_target": "Lead Operator Agent"},
+        "rendering": {"failures": [], "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
+        "data": {"failures": [], "retry_stage": "stage_11", "retry_target": "build_analysis_report seed"},
+    }
+    for name in failures:
+        fc = _FAILURE_CLASSIFICATION.get(name)
+        if fc:
+            classified[fc["class"]]["failures"].append(name)
+        else:
+            # Unknown check → default to rendering (Report Generation Agent)
+            classified["rendering"]["failures"].append(name)
+    return {k: v for k, v in classified.items() if v["failures"]}
+
+
 def find_report_files(run_dir: Path) -> tuple[Path | None, Path | None, Path | None]:
     """Find report_data.json, HTML, and XLSX in the analysis directory."""
     analysis_dir = run_dir / "analysis"
@@ -107,6 +155,13 @@ def print_qa_summary(result: dict) -> None:
         print(f"\nFailures ({len(failures)}):")
         for f in failures:
             print(f"  - {f}")
+        classification = result.get("failure_classification") or {}
+        for cls_key, cls_info in classification.items():
+            label_map = {"analysis": "分析错误→Stage 10", "rendering": "渲染错误→Stage 12", "data": "数据错误→Stage 11"}
+            label = label_map.get(cls_key, cls_key)
+            print(f"\n  [{label}] retry {cls_info['retry_target']}:")
+            for fn in cls_info["failures"]:
+                print(f"    - {fn}")
 
     if checks.get("forbidden_html_hits"):
         print("\nForbidden HTML patterns found:")
@@ -199,12 +254,14 @@ def run_delivery_qa(report_data_path: Path, html_path: Path, xlsx_path: Path, an
     if blocker_result.get("hits"):
         checks["p0_blocker_hits"] = blocker_result["hits"]
     failures = [name for name, passed in checks.items() if not passed and name not in ("report_data_sources_note", "report_data_values_note", "report_data_value_mismatches")]
+    failure_classification = _classify_failures(failures)
     return {
         "status": "pass" if not failures else "fail",
         "qa_rule_version": QA_RULE_VERSION,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "checks": checks,
         "failures": failures,
+        "failure_classification": failure_classification,
     }
 
 
@@ -457,6 +514,23 @@ def _validate_p0_delivery_blockers(run_dir: Path, report_data_path: Path) -> dic
         ]
         if unfinished:
             hits.append("progress.json 存在未完成阶段: " + ", ".join(sorted(unfinished)[:5]))
+
+    # ── Judgment 10-deep-field completeness ──────────────────
+    judgment_path = run_dir / "analysis" / "integrated_operator_judgment.json"
+    if judgment_path.exists():
+        from packages.research_core.pipeline.judgment_contract import validate_judgment_file
+        jc = validate_judgment_file(judgment_path)
+        if not jc["pass"]:
+            missing_deep = jc.get("missing_deep_fields", [])
+            incomplete_deep = jc.get("incomplete_deep_fields", [])
+            if missing_deep:
+                hits.append(f"judgment 缺少深度分析字段: {', '.join(missing_deep)}")
+            if incomplete_deep:
+                hits.append(f"judgment 深度分析字段不完整: {', '.join(incomplete_deep[:10])}")
+            if not jc.get("verdict_valid"):
+                hits.append("judgment final_verdict 值无效")
+            if not jc.get("confidence_valid"):
+                hits.append("judgment confidence 值无效")
 
     schema_versions = _collect_schema_versions(
         report_data_path,

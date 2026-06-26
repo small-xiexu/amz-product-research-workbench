@@ -29,7 +29,8 @@
 ├─ Stage 7  冲突复核
 ├─ Stage 8  VOC 评论分析 ──────────────────────── 【运营参与：导出评论】
 ├─ Stage 9  六维评价（6 个 Evaluation Agent 并行）
-├─ Stage 10 资深运营专家综合判断
+├─ Stage 10a 深度分析（Route Strategy + Growth & Risk 并行）
+├─ Stage 10b 决策合成（Lead Operator Agent）
 ├─ Stage 11 脚本生成 report_data.seed.json
 ├─ Stage 12 报告生成（Report Generation Agent 写 HTML）
 └─ Stage 13 QA 双层门禁 ───────────────────────── 交付 HTML + XLSX
@@ -73,7 +74,9 @@
 | VOC Opportunity Evaluation Agent | 9 | VOC 机会评价 | VOC 证据 | `voc_opportunity_evaluation.json` |
 | Risk Evaluation Agent | 9 | 风险评价 | 全部证据 + 冲突 | `risk_evaluation.json` |
 | Data Quality Evaluation Agent | 9 | 数据质量评价 | 全部证据 + snapshot | `data_quality_evaluation.json` |
-| Lead Operator Agent | 10 | 资深运营综合判断 | 6 evaluation + 全部证据 | `integrated_operator_judgment.json` |
+| Route Strategy Agent | 10a | 路线竞争分析 | 评价 + 市场结构 + VOC | judgment 路线/竞品/价格5字段 |
+| Growth & Risk Agent | 10a | 增长风控分析 | 评价 + 搜索需求 + VOC | judgment 增长/风控5字段 |
+| Lead Operator Agent | 10b | 跨维度权衡+最终决策 | 6 evaluation + 2份10a产出 | `integrated_operator_judgment.json` |
 | Report Generation Agent | 12 | 报告生成 | seed + judgment + 证据包 | `report_data.json` + HTML |
 | Delivery QA Agent | 13 | 交付质检（强制 spawn） | 全部产物 + MCP snapshot | `qa_notes.md` |
 
@@ -289,60 +292,76 @@ python3 scripts/build_evaluation_summary.py <run_dir>
 
 ---
 
-### Stage 10 · 资深运营专家综合判断
+### Stage 10a · 深度分析（并行）
 
-Lead Operator Agent 读取全部证据包 + 6 份评价 + 评价汇总，做跨维度深度运营分析，输出 `integrated_operator_judgment.json`：
+Route Strategy Agent 和 Growth & Risk Agent **强制并行 spawn**，互不依赖。两者读取 6 份评价 + 评价汇总 + 原始证据包，各自产出 5 个深度分析字段，写入 `analysis/integrated_operator_judgment.json`。
 
-**决策摘要**：
+| Agent | 职责 | 产出 5 字段 | 必须回查 |
+|---|---|---|---|
+| Route Strategy Agent | 路线级竞争分析、竞品对标、价格带解读 | `route_recommendation`、`route_tradeoff`、`competitor_benchmark`、`competitor_weakness_map`、`price_band_analysis` | 市场结构证据（价格带分布、Top100 ASIN）、VOC 证据（差评原文） |
+| Growth & Risk Agent | VOC→规格推导、关键词策略、风险缓解、冷启动估算、验证路线图 | `voc_to_spec`、`keyword_strategy`、`risk_mitigation`、`cold_start_estimate`、`validation_roadmap` | 搜索需求证据（搜索量/CPC）、VOC 证据（评论原文）、市场结构证据（评论数/新品数据） |
 
-| 字段 | 说明 |
-|---|---|
-| `final_verdict` | `go` / `watch` / `no_go` / `blocked` |
-| `verdict_reason` | 综合判断理由（维度间张力 + 最终权衡） |
-| `confidence` | `high` / `medium` / `low` |
-| `biggest_opportunity` | 最大机会 |
-| `biggest_risk` | 最大风险 |
-| `required_next_actions` | 下一步验证动作 |
-
-**深度运营分析**（10 项，逐一填写，不得合并）：
-
-| 字段 | 内容 | 数据来源 |
-|---|---|---|
-| `route_recommendation` | 每条路线的机会、风险、差异化切入点和推荐优先级 | 路线矩阵 + 全部评价 |
-| `route_tradeoff` | 路线取舍分析：选每条路线得到什么、放弃什么，适合/不适合什么样的卖家 | route_recommendation + route_breakdown |
-| `competitor_benchmark` | 每条路线 2-3 个对标 ASIN，差异化方向和参考价锚点 | 市场结构证据 + 竞争评价 |
-| `competitor_weakness_map` | 每个核心竞品最致命的 1-2 个弱点（VOC 差评原文支撑）+ 反击方案 | VOC 证据（差评原文）+ 竞争评价 |
-| `cold_start_estimate` | 冷启动估算：评论门槛数量级、CPC 预估、冷启动周期、前 3 个月预算量级 | 市场结构证据（头部评论数/CPC）+ 新品数据 |
-| `price_band_analysis` | 每个价格带的竞争含义、推荐切入带和理由 | 市场结构证据 + 价格利润评价 |
-| `voc_to_spec` | P0/P1 痛点 → 产品规格要求 → 竞品差距 → 差异化机会 | VOC 证据 + VOC 机会评价 |
-| `keyword_strategy` | 主攻/可测/否定词的分层运营逻辑 | 搜索需求证据 + 市场需求评价 |
-| `risk_mitigation` | 每个风险的真实运营含义和缓解路径 | 风险评价 + 全部证据交叉核验 |
-| `validation_roadmap` | 按时间线组织的验证计划，阶段数/时间跨度/决策条件全部根据品类特征自行定义，每步有 exit_criteria 和 if_fail | 全部证据 + cold_start_estimate |
-
-Agent 必须回查原始证据包，不能只读 evaluation summary。这是唯一有权给最终 Go/No-Go 的 Agent。
+**并行 spawn 规则**：两个 Agent 必须同时启动。先运行脚本生成字段骨架，再 spawn 两个 Agent 各自填充自己负责的 5 个字段。
 
 **本阶段执行顺序**：
-1. spawn Lead Operator Agent（推荐独立 spawn）
-2. `build_integrated_judgment.py` — 脚本生成字段骨架（Agent 填充分析内容）
+1. `build_integrated_judgment.py` — 脚本生成 10 个字段骨架（带 `__ai_judgment__` 占位）
+2. **强制并行 spawn** Route Strategy Agent + Growth & Risk Agent，各自填充 5 个字段
 
 ```bash
 python3 scripts/build_integrated_judgment.py <run_dir>
 ```
 
+两个 Agent 均完成后方可进入 Stage 10b。
+
+---
+
+### Stage 10b · 决策合成
+
+Lead Operator Agent 读取 Stage 10a 产出的 10 个深度分析字段，做交叉一致性检查，给出最终 Go/No-Go。
+
+**本 Agent 不再重做深度分析**，只做三件事：
+1. 交叉验证：检查 10a 产出的 10 个字段是否与评价的 `route_breakdown`、证据包原始数据自洽
+2. 决策拍板：基于治理规则和维度间张力，给出 `final_verdict`、`confidence`、`biggest_opportunity`、`biggest_risk`
+3. 合并写入：将决策摘要字段 + 10a 的 10 个深度分析字段合并写入 `integrated_operator_judgment.json`
+
+**决策摘要**（本 Agent 产出）：
+
+| 字段 | 说明 |
+|---|---|
+| `final_verdict` | `go` / `watch` / `no_go` / `blocked` |
+| `verdict_reason` | 综合判断理由（2-4 段，讲清维度间张力和最终权衡） |
+| `confidence` | `high` / `medium` / `low` |
+| `biggest_opportunity` | 最大机会（含维度、评分、核心理由） |
+| `biggest_risk` | 最大风险（含维度、评分、具体风险描述） |
+| `required_next_actions` | 下一步验证动作列表 |
+
+**治理规则**（不可逾越）：
+- 任一核心维度**目标路线** `rating=blocked` → 该路线不能 Go
+- `data_quality`**目标路线** `rating=blocked` → 只能"补数后再判断"
+- 合规/知产 `blocked` → 所有路线不能 Go
+- blocking conflict 未解决 → 最终不能 Go
+- Stage 10a 10 字段任一为 `__ai_judgment__` 占位 → 只能 `blocked`，打回 Stage 10a
+
+**本阶段执行顺序**：
+1. 确认 Stage 10a 两个 Agent 均已完成
+2. spawn Lead Operator Agent（推荐独立 spawn）— 验证 → 拍板 → 合并写入
+
+这是唯一有权给最终 Go/No-Go 的 Agent。
+
 ---
 
 ### Stage 11 · 脚本生成 seed
 
-`build_analysis_report.py` 从证据包抽取结构化数据，生成 `report_data.seed.json`。纯数据提取，不做判断。
+`build_report_seed.py` 从证据包抽取结构化数据，生成 `report_data.seed.json`。纯数据提取，不做判断。判断类字段标记为 `"__ai_judgment__"` 占位，等待 Stage 12 转录。
 
 ```bash
-python3 -m packages.research_core.pipeline.build_analysis_report <run_dir>
+python3 -m packages.research_core.pipeline.build_report_seed <run_dir>
 ```
 
-此时 `report_data.json` 尚不存在，脚本停在 seed 阶段，提示 Report Generation Agent 接手。
+此时 `report_data.json` 尚不存在，脚本提示 Report Generation Agent 接手。
 
 **本阶段执行顺序**：
-1. `build_analysis_report.py`（seed 模式）— 从证据包 + judgment 抽取结构化数据 → `report_data.seed.json`
+1. `build_report_seed.py` — 从证据包抽取结构化数据 → `report_data.seed.json` + `analysis_packet.json`
 
 ---
 
@@ -377,15 +396,15 @@ HTML 报告结构（运营必备板块）：
 python3 scripts/run_report_agent.py <run_dir>
 ```
 
-然后再次运行 `build_analysis_report.py` 生成 XLSX 决策工具包：
+Agent 完成后，运行 `build_report_xlsx.py` 生成 XLSX 决策工具包：
 
 ```bash
-python3 -m packages.research_core.pipeline.build_analysis_report <run_dir>
+python3 -m packages.research_core.pipeline.build_report_xlsx <run_dir>
 ```
 
 **本阶段执行顺序**：
 1. Report Generation Agent — 从 judgment 转录判断文字 → 增强 `report_data.json` → 手写 HTML
-2. `build_analysis_report.py`（XLSX 模式）— 从 `report_data.json` + `integrated_operator_judgment.json` 生成 `<中文品名>_决策工具包.xlsx`（5 Sheet：路线计分卡、竞品拆解、关键词矩阵、样品检查表、冷启动预算）
+2. `build_report_xlsx.py` — 从 `report_data.json` + `integrated_operator_judgment.json` 生成 `<中文品名>_决策工具包.xlsx`（5 Sheet：路线计分卡、竞品拆解、关键词矩阵、样品检查表、冷启动预算）+ `delivery_qa_result.json`
 
 ---
 
@@ -409,12 +428,20 @@ fail → 阻断，不进入第二层。
 
 次要职责：运营判断质量（4 blocker + 4 error）。
 
-pass → 交付。fail → 打回 Stage 12 修复，最多 3 轮。3 轮不过 → `progress.json` 标记 `blocked`，需人工介入。
+pass → 交付。fail → 按失败类型智能打回：
+
+| 失败类型 | 说明 | 打回目标 |
+|---|---|---|
+| **analysis** (分析错误) | judgment 逻辑错误、弱结论、数值不一致 | retry Stage 10 (Lead Operator Agent) |
+| **rendering** (渲染错误) | HTML 缺板块、CSS 违规、禁止术语泄漏 | retry Stage 12 (Report Generation Agent) |
+| **data** (数据错误) | source_path 无效、seed 缺失、XLSX 缺失 | retry Stage 11 (build_analysis_report seed) |
+
+`delivery_qa_result.json` 中 `failure_classification` 字段明确标识每类失败及对应 retry 目标。修复后重新执行 Stage 13 两层 QA，最多 3 轮。3 轮不过 → `progress.json` 标记 `blocked`，需人工介入。
 
 **本阶段执行顺序**：
 1. `run_delivery_qa.py` — 脚本 QA（文件完整性、source_path 溯源、禁止术语、P0 阻断）
 2. spawn Delivery QA Agent（强制独立 spawn，不可降级）— 7 条阻断规则 + 运营判断质量
-3. QA 修复循环（最多 3 轮）：fail → 打回 Stage 12 → 重新 1+2 → 仍 fail → `blocked`
+3. QA 修复循环（最多 3 轮）：fail → 查看 `failure_classification` 按类型打回 → 重新 1+2 → 仍 fail → `blocked`
 
 ---
 

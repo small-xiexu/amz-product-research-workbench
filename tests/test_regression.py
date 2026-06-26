@@ -27,7 +27,8 @@ from packages.research_core.pipeline.audit_run_status import audit_run_status
 from packages.research_core.pipeline.validate_research_outputs import validate_workflow_output
 from packages.report_renderer.constants import FORMAL_REPORT_SECTION_TITLES
 from packages.research_core.pipeline.constants import QA_RULE_VERSION
-from packages.research_core.pipeline.build_analysis_report import build_analysis_packet, build_workbook_sheets
+from packages.research_core.pipeline.build_analysis_packet import build_analysis_packet
+from packages.research_core.pipeline.xlsx_back_table import build_workbook_sheets
 
 
 ROOT = Path(__file__).resolve().parents[1]

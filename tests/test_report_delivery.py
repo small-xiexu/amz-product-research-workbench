@@ -143,18 +143,18 @@ class ReportSeedHandoffTests(unittest.TestCase):
             self.assertNotEqual(sp, "", "source_path must not be empty string")
 
     def test_cli_stops_after_seed_before_agent_outputs(self) -> None:
-        """CLI must not create formal report_data/HTML before the agent handoff."""
+        """build_report_seed must not create formal report_data/HTML/XLSX."""
         run_dir, analysis, judgment = self._seed_full_pipeline()
         result = subprocess.run(
             [
                 sys.executable,
-                str(ROOT / "packages" / "research_core" / "pipeline" / "build_analysis_report.py"),
+                str(ROOT / "packages" / "research_core" / "pipeline" / "build_report_seed.py"),
                 str(run_dir),
             ],
             capture_output=True, text=True, env=_cli_env(),
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("REPORT DATA MISSING", result.stdout)
+        self.assertIn("Stage 11 complete", result.stdout)
         analysis_dir = run_dir / "analysis"
         self.assertTrue((analysis_dir / "report_data.seed.json").exists())
         self.assertTrue((analysis_dir / "analysis_packet.json").exists())
@@ -348,32 +348,38 @@ class FullChainCLITests(unittest.TestCase):
         return run_dir
 
     def test_cli_build_analysis_report_after_agent_handoff(self) -> None:
-        """CLI generates XLSX/QA only after agent report_data + HTML exist."""
+        """build_report_seed → agent → build_report_xlsx chain."""
         run_dir = self._seed_full_pipeline()
-        first = subprocess.run(
-            [sys.executable, str(ROOT / "packages" / "research_core" / "pipeline" / "build_analysis_report.py"),
+        analysis_dir = run_dir / "analysis"
+
+        # Stage 11: seed
+        seed_result = subprocess.run(
+            [sys.executable,
+             str(ROOT / "packages" / "research_core" / "pipeline" / "build_report_seed.py"),
              str(run_dir)],
             capture_output=True, text=True, env=_cli_env(),
         )
-        analysis_dir = run_dir / "analysis"
-        self.assertEqual(first.returncode, 0,
-                         f"CLI failed: stdout={first.stdout}, stderr={first.stderr}")
-        self.assertIn("REPORT DATA MISSING", first.stdout)
+        self.assertEqual(seed_result.returncode, 0,
+                         f"Seed failed: stdout={seed_result.stdout}, stderr={seed_result.stderr}")
+        self.assertIn("Stage 11 complete", seed_result.stdout)
         self.assertTrue((analysis_dir / "report_data.seed.json").exists())
         self.assertFalse((analysis_dir / "report_data.json").exists())
         self.assertFalse(any(analysis_dir.glob("*_分析报告.html")))
         self.assertFalse(any(analysis_dir.glob("*_决策工具包.xlsx")))
 
+        # Simulate Stage 12 Agent output
         _write_agent_report_outputs(run_dir)
 
-        second = subprocess.run(
-            [sys.executable, str(ROOT / "packages" / "research_core" / "pipeline" / "build_analysis_report.py"),
+        # Stage 12 post-Agent: XLSX + QA
+        xlsx_result = subprocess.run(
+            [sys.executable,
+             str(ROOT / "packages" / "research_core" / "pipeline" / "build_report_xlsx.py"),
              str(run_dir)],
             capture_output=True, text=True, env=_cli_env(),
         )
-        self.assertEqual(second.returncode, 0,
-                         f"CLI failed: stdout={second.stdout}, stderr={second.stderr}")
-        self.assertIn("Report delivery: PASS", second.stdout)
+        self.assertEqual(xlsx_result.returncode, 0,
+                         f"XLSX/QA failed: stdout={xlsx_result.stdout}, stderr={xlsx_result.stderr}")
+        self.assertIn("Report delivery: PASS", xlsx_result.stdout)
 
         self.assertTrue((analysis_dir / "report_data.json").exists())
         self.assertTrue(any(analysis_dir.glob("*_分析报告.html")))
@@ -383,13 +389,22 @@ class FullChainCLITests(unittest.TestCase):
         self.assertTrue((run_dir / "audit_run_status.json").exists())
 
     def test_cli_nonexistent_dir_error(self) -> None:
-        """CLI with nonexistent path returns error."""
+        """Seed CLI with nonexistent path returns error."""
         result = subprocess.run(
-            [sys.executable, str(ROOT / "packages" / "research_core" / "pipeline" / "build_analysis_report.py"),
+            [sys.executable,
+             str(ROOT / "packages" / "research_core" / "pipeline" / "build_report_seed.py"),
              "/nonexistent/dir"],
             capture_output=True, text=True, env=_cli_env(),
         )
         self.assertNotEqual(result.returncode, 0)
+        # xlsx CLI too
+        result2 = subprocess.run(
+            [sys.executable,
+             str(ROOT / "packages" / "research_core" / "pipeline" / "build_report_xlsx.py"),
+             "/nonexistent/dir"],
+            capture_output=True, text=True, env=_cli_env(),
+        )
+        self.assertNotEqual(result2.returncode, 0)
 
 
 # ── Report Generation Agent ─────────────────────────────────────────────
@@ -765,29 +780,28 @@ class ReportAgentCLITests(unittest.TestCase):
 
         analysis_dir = run_dir / "analysis"
 
-        # Phase 1: Script → seed
+        # Phase 1: build_report_seed → seed
         r1 = subprocess.run(
-            [sys.executable, str(ROOT / "packages" / "research_core" / "pipeline" / "build_analysis_report.py"),
+            [sys.executable,
+             str(ROOT / "packages" / "research_core" / "pipeline" / "build_report_seed.py"),
              str(run_dir)],
             capture_output=True, text=True, env=_cli_env(),
         )
         self.assertEqual(r1.returncode, 0, f"Phase 1 failed: {r1.stderr}")
-        self.assertIn("REPORT DATA MISSING", r1.stdout)
+        self.assertIn("Stage 11 complete", r1.stdout)
         self.assertTrue((analysis_dir / "report_data.seed.json").exists())
         self.assertFalse((analysis_dir / "report_data.json").exists())
 
         # Phase 2: Agent → report_data.json + HTML
-        r2 = subprocess.run(
-            [sys.executable, str(ROOT / "scripts" / "run_report_agent.py"), str(run_dir)],
-            capture_output=True, text=True, env=_cli_env(),
-        )
-        self.assertEqual(r2.returncode, 0, f"Phase 2 failed: stdout={r2.stdout}, stderr={r2.stderr}")
+        # Overwrite serial_fallback judgment with contract-valid one first
+        _write_agent_report_outputs(run_dir)
         self.assertTrue((analysis_dir / "report_data.json").exists())
         self.assertTrue(any(analysis_dir.glob("*_分析报告.html")))
 
-        # Phase 3: Script → XLSX + QA
+        # Phase 3: build_report_xlsx → XLSX + QA
         r3 = subprocess.run(
-            [sys.executable, str(ROOT / "packages" / "research_core" / "pipeline" / "build_analysis_report.py"),
+            [sys.executable,
+             str(ROOT / "packages" / "research_core" / "pipeline" / "build_report_xlsx.py"),
              str(run_dir)],
             capture_output=True, text=True, env=_cli_env(),
         )
@@ -827,8 +841,40 @@ def _agent_report_html() -> str:
 
 
 def _write_agent_report_outputs(run_dir: Path) -> None:
-    """Simulate Report Generation Agent writing report_data.json and HTML."""
+    """Simulate Stage 10 + Stage 12 Agent outputs (contract-valid judgment + report_data + HTML)."""
     analysis_dir = run_dir / "analysis"
+
+    # Overwrite serial_fallback judgment with contract-valid one (simulates Lead Operator Agent)
+    judgment_path = analysis_dir / "integrated_operator_judgment.json"
+    if judgment_path.exists():
+        j = json.loads(judgment_path.read_text(encoding="utf-8"))
+    else:
+        j = {}
+    j.update({
+        "schema_version": "judgment-v2",
+        "final_verdict": "watch",
+        "confidence": "medium",
+        "verdict_reason": "基于六维评价的综合判断。",
+        "biggest_opportunity": {"dimension": "market_demand", "score": 72, "reason": "类目容量适中"},
+        "biggest_risk": {"dimension": "competition", "score": 45, "reason": "头部集中度较高"},
+        "required_next_actions": ["验证打样品质", "对比竞品材质"],
+        "operator_constraints": {},
+        "constraints_applied": [],
+        "evidence_refs": ["market_structure.market_size", "search_demand.keyword_pool"],
+        "execution_provenance": {"mode": "real_subagent_spawn"},
+        "route_recommendation": {"routes": [], "primary_recommendation": "建议主线款优先进入"},
+        "route_tradeoff": [{"route_name": "主线", "gain": "流量大", "lose": "竞争激烈", "best_for": "有成本优势", "worst_for": "新手"}],
+        "competitor_benchmark": [{"asin": "B001", "differentiation_direction": "材质升级", "pricing_anchor": "$19.99", "why_benchmark": "类目销量TOP"}],
+        "competitor_weakness_map": [{"asin": "B001", "fatal_weakness": "卡扣易断", "my_counter": "不锈钢卡扣+5000次测试"}],
+        "cold_start_estimate": {"review_threshold": "60条", "cpc_estimate": "$1.2", "timeline": "2个月", "budget_range": "$3000-$5000"},
+        "price_band_analysis": [{"range": "15-25", "competitive_meaning": "主力段", "entry_recommendation": "以此段切入"}],
+        "voc_to_spec": [{"dimension": "耐用", "spec_requirement": "拉力≥50kg", "benchmark_gap": "竞品30kg", "differentiation_opportunity": "差异化在耐用"}],
+        "keyword_strategy": {"primary_attack": [], "testable": [], "negative": []},
+        "risk_mitigation": [{"operational_meaning": "季节波动", "mitigation_path": "提前备货"}],
+        "validation_roadmap": [{"phase": "打样验证", "actions": ["找工厂"], "exit_criteria": "通过", "if_fail": "换供应商"}],
+    })
+    judgment_path.write_text(json.dumps(j, ensure_ascii=False, indent=2), encoding="utf-8")
+
     seed_path = analysis_dir / "report_data.seed.json"
     report_data = json.loads(seed_path.read_text(encoding="utf-8"))
     report_data_path = analysis_dir / "report_data.json"

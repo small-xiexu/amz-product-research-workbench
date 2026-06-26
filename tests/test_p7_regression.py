@@ -165,13 +165,13 @@ class P7EndToEndTests(unittest.TestCase):
         judgment = build_integrated_judgment(run_dir)
         self.assertGreater(len(judgment["evidence_refs"]), 0)
 
-    def test_execution_provenance_is_serial_fallback(self) -> None:
-        """Judgment is marked as serial_fallback, not real agent execution."""
+    def test_execution_provenance_is_script_generated_skeleton(self) -> None:
+        """Judgment skeleton is script-generated, not real agent execution."""
         run_dir = self._seed_p6_done()
         judgment = build_integrated_judgment(run_dir)
         prov = judgment.get("execution_provenance", {})
         self.assertFalse(prov.get("executed_by_agent"))
-        self.assertEqual(prov.get("execution_mode"), "serial_fallback")
+        self.assertEqual(prov.get("execution_mode"), "script_generated_skeleton")
 
     # ── Verdict rules ─────────────────────────────────────────────────
 
@@ -329,6 +329,97 @@ class P7EndToEndTests(unittest.TestCase):
             capture_output=True, text=True, env=_cli_env(),
         )
         self.assertNotEqual(result.returncode, 0)
+
+    # ── VOC degradation mode ─────────────────────────────────────────────
+
+    def _seed_p6_with_review_count(self, review_count: int) -> Path:
+        """Seed P4→P5→P6 with a specific review count."""
+        run_dir = self._tmp / f"20260625_degraded_{review_count}"
+        run_dir.mkdir()
+        (run_dir / "workflow_state.json").write_text(
+            json.dumps(_workflow_state(), ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+        run_candidate_pool(run_dir)
+        run_route_matrix_confirmation(run_dir)
+        run_sellersprite_deep_dive(run_dir, snapshot_source=self._write_sellersprite_snapshot())
+        run_sorftime_deep_dive(run_dir, snapshot_source=self._write_sorftime_snapshot())
+        run_conflict_review(run_dir)
+        run_review_asin_batch(run_dir)
+        run_review_voc_package(run_dir, self._write_review_xlsx(review_count))
+        run_voc_gate(run_dir)
+        run_evaluations(run_dir)
+        # Populate voc_evidence_packet with synthetic pain points (simulating AI agent output).
+        # The script-generated package has pain_points=[], but real pipeline has AI-filled ones.
+        voc_packet_path = run_dir / "review_voc" / "voc_evidence_packet.json"
+        voc_packet = json.loads(voc_packet_path.read_text(encoding="utf-8"))
+        facts = voc_packet.setdefault("facts", {})
+        facts["pain_points"] = [
+            {
+                "priority": "P0",
+                "dimension": "durability",
+                "review_count": 5,
+                "evidence_quotes": ["easily broken", "poor material", "lasted only 2 weeks"],
+            },
+            {
+                "priority": "P1",
+                "dimension": "noise_level",
+                "review_count": 3,
+                "evidence_quotes": ["too loud", "noisy operation"],
+            },
+        ]
+        voc_packet_path.write_text(json.dumps(voc_packet, ensure_ascii=False, indent=2), encoding="utf-8")
+        return run_dir
+
+    def test_voc_degradation_adds_data_note_to_voc_to_spec(self) -> None:
+        """When < 30 reviews, each voc_to_spec entry gets data_note."""
+        run_dir = self._seed_p6_with_review_count(12)
+        judgment = build_integrated_judgment(run_dir)
+        voc_entries = judgment.get("voc_to_spec", [])
+        self.assertGreater(len(voc_entries), 0, "voc_to_spec should not be empty")
+        for i, entry in enumerate(voc_entries):
+            self.assertIn("data_note", entry,
+                         f"voc_to_spec[{i}] missing data_note in degradation mode")
+            self.assertIn("样本不足", entry["data_note"],
+                         f"voc_to_spec[{i}].data_note should mention sample insufficiency")
+            self.assertIn("12", entry["data_note"],
+                         f"voc_to_spec[{i}].data_note should include review count")
+
+    def test_voc_degradation_adds_voc_data_note_to_cold_start(self) -> None:
+        """When < 30 reviews, cold_start_estimate gets voc_data_note."""
+        run_dir = self._seed_p6_with_review_count(5)
+        judgment = build_integrated_judgment(run_dir)
+        cold_start = judgment.get("cold_start_estimate", {})
+        self.assertIn("voc_data_note", cold_start,
+                     "cold_start_estimate missing voc_data_note in degradation mode")
+        self.assertIn("5", cold_start["voc_data_note"],
+                     "voc_data_note should include review count")
+        self.assertIn("VOC 数据仅", cold_start["voc_data_note"],
+                     "voc_data_note should mention VOC data limitation")
+
+    def test_voc_degradation_not_applied_when_reviews_sufficient(self) -> None:
+        """When >= 30 reviews, degradation fields are NOT present."""
+        run_dir = self._seed_p6_with_review_count(35)
+        judgment = build_integrated_judgment(run_dir)
+        voc_entries = judgment.get("voc_to_spec", [])
+        for i, entry in enumerate(voc_entries):
+            self.assertNotIn("data_note", entry,
+                            f"voc_to_spec[{i}] should not have data_note when reviews sufficient")
+        cold_start = judgment.get("cold_start_estimate", {})
+        self.assertNotIn("voc_data_note", cold_start,
+                        "cold_start_estimate should not have voc_data_note when reviews sufficient")
+
+    def test_voc_degradation_no_gate_file_no_crash(self) -> None:
+        """When voc_gate.json is missing, degradation gracefully defaults (no crash)."""
+        run_dir = self._seed_p6_with_review_count(35)
+        # Remove voc_gate.json to simulate missing gate
+        (run_dir / "review_voc" / "voc_gate.json").unlink()
+        judgment = build_integrated_judgment(run_dir)
+        # Should still produce valid voc_to_spec without crashing
+        voc_entries = judgment.get("voc_to_spec", [])
+        self.assertIsInstance(voc_entries, list)
+        cold_start = judgment.get("cold_start_estimate", {})
+        self.assertIsInstance(cold_start, dict)
 
 
 # ── Full chain: P6 → P7 → report seed ─────────────────────────────────────

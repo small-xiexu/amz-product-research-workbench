@@ -112,6 +112,26 @@ def _bar_color(opportunity_level: str) -> str:
 
 # ── Seed → Report Data Enhancement ───────────────────────────────────────
 
+def _as_list(val: Any) -> list[Any]:
+    """Return val as a list, or empty list if None/not-listable."""
+    if val is None:
+        return []
+    if isinstance(val, list):
+        return val
+    return []
+
+
+def _is_filled(val: Any) -> bool:
+    """Return True if val is a non-empty, non-placeholder judgment value."""
+    if val is None:
+        return False
+    if isinstance(val, str) and val.strip() in ("", "__ai_judgment__"):
+        return False
+    if isinstance(val, (list, dict)) and len(val) == 0:
+        return False
+    return True
+
+
 def enhance_seed_to_report_data(
     seed: dict[str, Any],
     judgment: dict[str, Any] | None,
@@ -119,9 +139,12 @@ def enhance_seed_to_report_data(
 ) -> dict[str, Any]:
     """Enhance report_data seed into formal report_data.json.
 
-    The seed already carries structure and source_path markers from
-    analysis_packet. This function fills judgment-driven prose while
-    preserving all source_paths. It does NOT fabricate new numbers.
+    Transcription priority:
+    1. judgment deep-analysis fields (Lead Operator Agent output) — highest fidelity
+    2. judgment decision-summary fields (verdict_reason, required_next_actions)
+    3. template-fill fallback (mechanical, for serial_fallback mode)
+
+    All source_paths are preserved. No new numbers are fabricated.
     """
     rd: dict[str, Any] = json.loads(json.dumps(seed, ensure_ascii=False))
 
@@ -130,9 +153,9 @@ def enhance_seed_to_report_data(
         "agent_role": "Report Generation Agent",
         "execution_mode": "serial_fallback",
         "provenance_note": (
-            "serial_fallback: deterministic enhancement applied by script. "
-            "Judgment text derived from integrated_operator_judgment and "
-            "data-driven narratives. No Agent/MCP calls were made."
+            "serial_fallback: judgment transcription + template fallback. "
+            "Fields transcribed from integrated_operator_judgment deep-analysis "
+            "when available; '__ai_judgment__' placeholders fall back to template text."
         ),
     }
 
@@ -147,12 +170,29 @@ def enhance_seed_to_report_data(
             "blocked": "建议暂停推进",
         }
         hero["verdict"] = verdict_map.get(jv, hero.get("verdict", ""))
-        jr = judgment.get("verdict_reason", "")
-        if jr:
-            hero["lead_analysis"] = jr
+        hero["confidence"] = judgment.get("confidence", hero.get("confidence", ""))
+
+        # Priority 1: route_recommendation.primary_recommendation (deep analysis)
+        route_rec = judgment.get("route_recommendation") or {}
+        primary = route_rec.get("primary_recommendation", "")
+        if _is_filled(primary):
+            hero["lead_analysis"] = primary
+        # Priority 2: verdict_reason (decision summary)
+        elif _is_filled(judgment.get("verdict_reason", "")):
+            hero["lead_analysis"] = judgment["verdict_reason"]
         elif not hero.get("lead_analysis"):
             hero["lead_analysis"] = "基于市场、竞争、价格、VOC、风险和数据质量六维评价的综合判断。"
-        hero["confidence"] = judgment.get("confidence", hero.get("confidence", ""))
+
+        # Cold start estimate → hero
+        cold_start = judgment.get("cold_start_estimate") or {}
+        if _is_filled(cold_start.get("review_threshold")):
+            hero["cold_start_summary"] = (
+                f"冷启动估算：{cold_start.get('review_threshold', '')}。"
+                f"CPC预估 {cold_start.get('cpc_estimate', '')}。"
+                f"周期 {cold_start.get('timeline', '')}。"
+                f"预算量级 {cold_start.get('budget_range', '')}。"
+                f"{cold_start.get('confidence_note', '')}"
+            )
 
     # ── Category Panorama ──────────────────────────────────────────────
     cp = rd.setdefault("category_panorama", {})
@@ -165,119 +205,237 @@ def enhance_seed_to_report_data(
                     ins["body"] = "基于 Top100 样本数据分析，具体数值见下表。"
                     ins["source_path"] = ins.get("source_path", "__ai_judgment__")
 
-    # sub_market / market_health / seasonality 已在 seed_report_data 中由脚本填充，
-    # 此处的 enhance 仅做判断文本增强，不再回填数据字段。
+    # ── Route tradeoff ──────────────────────────────────────────────────
+    tradeoffs = (judgment or {}).get("route_tradeoff") or []
+    if tradeoffs and isinstance(tradeoffs, list):
+        filled_tradeoffs = [
+            {
+                "route_name": t.get("route_name", ""),
+                "gain": t.get("gain", ""),
+                "lose": t.get("lose", ""),
+                "best_for": t.get("best_for", ""),
+                "worst_for": t.get("worst_for", ""),
+            }
+            for t in tradeoffs
+            if isinstance(t, dict) and _is_filled(t.get("gain"))
+        ]
+        if filled_tradeoffs:
+            rd["route_tradeoff"] = filled_tradeoffs
 
     # ── Competitor judgments ────────────────────────────────────────────
-    competitors = rd.get("competitors")
-    if isinstance(competitors, list):
-        for c in competitors:
-            if isinstance(c, dict) and not c.get("judgment"):
-                role = _rv(c.get("asin_role", ""))
-                price = _rv(c.get("price", ""))
-                sales = _rv(c.get("monthly_sales", ""))
-                if "primary" in str(role):
-                    c["judgment"] = f"核心参考竞品，月销 {sales}，定价 ${price}，作为类目基准。"
-                elif "high_sales" in str(role):
-                    c["judgment"] = f"高销标杆，月销 {sales}，可参考其流量和转化策略。"
-                elif "new_release" in str(role):
-                    c["judgment"] = f"新品样本，月销 {sales}，代表了近期进入者的竞争水平。"
-                elif "premium" in str(role):
-                    c["judgment"] = f"高端锚点，定价 ${price}，代表了价格天花板。"
-                else:
-                    c["judgment"] = f"参考竞品，月销 {sales}，作为竞争态势参考。"
+    competitors = _as_list(rd.get("competitors"))
+    # Build weakness map lookup from judgment
+    weakness_map: dict[str, dict[str, Any]] = {}
+    if judgment:
+        for w in _as_list(judgment.get("competitor_weakness_map") or []):
+            if isinstance(w, dict) and w.get("asin"):
+                weakness_map[str(w["asin"]).strip()] = w
+    # Build benchmark lookup from judgment
+    benchmark_map: dict[str, dict[str, Any]] = {}
+    if judgment:
+        for b in _as_list(judgment.get("competitor_benchmark") or []):
+            if isinstance(b, dict) and b.get("asin"):
+                benchmark_map[str(b["asin"]).strip()] = b
+
+    for c in competitors:
+        if not isinstance(c, dict):
+            continue
+        asin = _rv(c.get("asin", "")).strip()
+        wm = weakness_map.get(asin, {})
+        bm = benchmark_map.get(asin, {})
+
+        # Transcribe weakness/counter from judgment
+        if _is_filled(wm.get("fatal_weakness")):
+            c["weakness"] = wm["fatal_weakness"]
+        if _is_filled(wm.get("my_counter")):
+            c["counter"] = wm["my_counter"]
+
+        # Transcribe judgment from competitor_benchmark differentiation
+        if _is_filled(bm.get("differentiation_direction")):
+            c["judgment"] = bm["differentiation_direction"]
+        elif not c.get("judgment"):
+            # Template fallback
+            role = _rv(c.get("asin_role", ""))
+            price = _rv(c.get("price", ""))
+            sales = _rv(c.get("monthly_sales", ""))
+            if "primary" in str(role):
+                c["judgment"] = f"核心参考竞品，月销 {sales}，定价 ${price}，作为类目基准。"
+            elif "high_sales" in str(role):
+                c["judgment"] = f"高销标杆，月销 {sales}，可参考其流量和转化策略。"
+            elif "new_release" in str(role):
+                c["judgment"] = f"新品样本，月销 {sales}，代表了近期进入者的竞争水平。"
+            elif "premium" in str(role):
+                c["judgment"] = f"高端锚点，定价 ${price}，代表了价格天花板。"
+            else:
+                c["judgment"] = f"参考竞品，月销 {sales}，作为竞争态势参考。"
+    rd["competitors"] = competitors
 
     # ── Pain points ─────────────────────────────────────────────────────
-    pain_points = rd.get("pain_points")
-    if isinstance(pain_points, list):
-        for pp in pain_points:
-            if isinstance(pp, dict):
-                if not pp.get("issue_description"):
-                    dim = _rv(pp.get("dimension", ""))
-                    pp["issue_description"] = f"竞品在{dim}方面存在用户反馈问题，需重点关注。"
-                if not pp.get("spec_requirement"):
-                    pp["spec_requirement"] = "基于 VOC 分析制定品质标准，在打样阶段验证。"
+    pain_points = _as_list(rd.get("pain_points"))
+    voc_specs: dict[str, dict[str, Any]] = {}
+    if judgment:
+        for vs in _as_list(judgment.get("voc_to_spec") or []):
+            if isinstance(vs, dict) and vs.get("dimension"):
+                voc_specs[str(vs["dimension"]).strip()] = vs
+
+    for pp in pain_points:
+        if not isinstance(pp, dict):
+            continue
+        dim = _rv(pp.get("dimension", "")).strip()
+        vs = voc_specs.get(dim, {})
+
+        if _is_filled(vs.get("issue_description")):
+            pp["issue_description"] = vs["issue_description"]
+        elif not pp.get("issue_description"):
+            pp["issue_description"] = f"竞品在{dim}方面存在用户反馈问题，需重点关注。"
+
+        if _is_filled(vs.get("spec_requirement")):
+            pp["spec_requirement"] = vs["spec_requirement"]
+        elif not pp.get("spec_requirement"):
+            pp["spec_requirement"] = "基于 VOC 分析制定品质标准，在打样阶段验证。"
+    rd["pain_points"] = pain_points
 
     # ── Price band judgments ────────────────────────────────────────────
-    price_bands = rd.get("price_bands")
-    if isinstance(price_bands, list):
-        for pb in price_bands:
-            if isinstance(pb, dict) and not pb.get("judgment"):
-                level = _rv(pb.get("opportunity_level", ""))
-                band = _rv(pb.get("band", ""))
-                share = _rv(pb.get("unit_share", ""))
-                if level == "strong":
-                    pb["judgment"] = f"${band} 段销量占比 {share}，机会信号强，建议作为主力定价段。"
-                elif level == "watch":
-                    pb["judgment"] = f"${band} 段销量占比 {share}，需关注竞争密度，可选择性进入。"
-                else:
-                    pb["judgment"] = f"${band} 段销量占比 {share}，竞争激烈或容量有限，谨慎进入。"
+    price_bands = _as_list(rd.get("price_bands"))
+    pb_analysis: dict[str, dict[str, Any]] = {}
+    if judgment:
+        for pb in _as_list(judgment.get("price_band_analysis") or []):
+            if isinstance(pb, dict) and pb.get("range"):
+                pb_analysis[str(pb["range"]).strip()] = pb
+
+    for pb in price_bands:
+        if not isinstance(pb, dict):
+            continue
+        band = _rv(pb.get("band", "")).strip()
+        pba = pb_analysis.get(band, {})
+
+        if _is_filled(pba.get("competitive_meaning")):
+            pb["judgment"] = pba["competitive_meaning"]
+        elif not pb.get("judgment"):
+            level = _rv(pb.get("opportunity_level", ""))
+            share = _rv(pb.get("unit_share", ""))
+            if level == "strong":
+                pb["judgment"] = f"${band} 段销量占比 {share}，机会信号强，建议作为主力定价段。"
+            elif level == "watch":
+                pb["judgment"] = f"${band} 段销量占比 {share}，需关注竞争密度，可选择性进入。"
+            else:
+                pb["judgment"] = f"${band} 段销量占比 {share}，竞争激烈或容量有限，谨慎进入。"
+    rd["price_bands"] = price_bands
 
     # ── Keyword strategies ──────────────────────────────────────────────
-    keywords = rd.get("keywords")
-    if isinstance(keywords, list):
-        for kw in keywords:
-            if isinstance(kw, dict) and not kw.get("strategy"):
-                role = kw.get("role", "")
-                word = _rv(kw.get("keyword", ""))
-                cpc = _rv(kw.get("cpc", ""))
-                if role == "main_traffic":
-                    kw["strategy"] = f"主攻词，CPC ${cpc}，作为 listing 核心流量词重点投放和埋词。"
-                elif role == "conversion_quality":
-                    kw["strategy"] = f"转化词，CPC ${cpc}，长尾精准流量，投产比较高，建议精准投放。"
-                elif role == "precise_long_tail":
-                    kw["strategy"] = f"长尾词，CPC ${cpc}，低竞争精准流量，适合前期低成本测款。"
-                elif role == "mixed_or_excluded":
-                    kw["strategy"] = (
-                        "混池或排除词，存在类目不匹配或流量不精准风险，建议否定或谨慎测试。"
-                    )
-                else:
-                    kw["strategy"] = f"关键词 {word}，建议根据实际投放数据判断效果。"
+    keywords = _as_list(rd.get("keywords"))
+    kw_strategy: dict[str, str] = {}
+    if judgment:
+        ks = judgment.get("keyword_strategy") or {}
+        for role_key in ("primary_attack", "testable", "negative"):
+            for kw_entry in _as_list(ks.get(role_key) or []):
+                if isinstance(kw_entry, dict):
+                    kw_text = str(kw_entry.get("keyword", "")).strip()
+                    rationale = kw_entry.get("strategy_rationale", "")
+                    if kw_text and _is_filled(rationale):
+                        kw_strategy[kw_text] = rationale
+
+    for kw in keywords:
+        if not isinstance(kw, dict):
+            continue
+        kw_text = _rv(kw.get("keyword", "")).strip()
+        if kw_text in kw_strategy:
+            kw["strategy"] = kw_strategy[kw_text]
+        elif not kw.get("strategy"):
+            role = kw.get("role", "")
+            cpc = _rv(kw.get("cpc", ""))
+            if role == "main_traffic":
+                kw["strategy"] = f"主攻词，CPC ${cpc}，作为 listing 核心流量词重点投放和埋词。"
+            elif role == "conversion_quality":
+                kw["strategy"] = f"转化词，CPC ${cpc}，长尾精准流量，投产比较高，建议精准投放。"
+            elif role == "precise_long_tail":
+                kw["strategy"] = f"长尾词，CPC ${cpc}，低竞争精准流量，适合前期低成本测款。"
+            elif role == "mixed_or_excluded":
+                kw["strategy"] = "混池或排除词，存在类目不匹配或流量不精准风险，建议否定或谨慎测试。"
+            else:
+                kw["strategy"] = f"关键词 {kw_text}，建议根据实际投放数据判断效果。"
+    rd["keywords"] = keywords
 
     # ── Advantages ──────────────────────────────────────────────────────
-    advantages = rd.get("advantages")
-    if isinstance(advantages, list):
-        for adv in advantages:
-            if isinstance(adv, dict):
-                if not adv.get("description") or "待AI" in str(adv.get("description", "")):
-                    adv["description"] = "基于市场数据和 VOC 分析识别到的品类切入点优势。"
-                    adv["severity"] = "中"
-                    adv["evidence_basis"] = "参考 evaluation_summary 各维度评分和证据包数据。"
-                if not adv.get("mitigation") and not adv.get("evidence_basis"):
-                    adv["evidence_basis"] = "参考证据包分析。"
+    advantages = _as_list(rd.get("advantages"))
+    for adv in advantages:
+        if isinstance(adv, dict):
+            if not adv.get("description") or "待AI" in str(adv.get("description", "")):
+                adv["description"] = "基于市场数据和 VOC 分析识别到的品类切入点优势。"
+                adv["severity"] = "中"
+                adv["evidence_basis"] = "参考 evaluation_summary 各维度评分和证据包数据。"
+            if not adv.get("mitigation") and not adv.get("evidence_basis"):
+                adv["evidence_basis"] = "参考证据包分析。"
+    rd["advantages"] = advantages
 
     # ── Risks ───────────────────────────────────────────────────────────
-    risks = rd.get("risks")
-    if isinstance(risks, list):
-        for risk in risks:
-            if isinstance(risk, dict) and not risk.get("mitigation"):
-                risk["mitigation"] = "在下一步中跟进验证，补齐缺失数据后再做判断。"
-
-    # ── Next steps from judgment ────────────────────────────────────────
+    risks = _as_list(rd.get("risks"))
+    risk_mitigations: list[dict[str, Any]] = []
     if judgment:
-        j_actions = judgment.get("required_next_actions")
-        if isinstance(j_actions, list) and j_actions:
+        risk_mitigations = _as_list(judgment.get("risk_mitigation") or [])
+
+    for i, risk in enumerate(risks):
+        if not isinstance(risk, dict):
+            continue
+        rm = risk_mitigations[i] if i < len(risk_mitigations) else {}
+        if isinstance(rm, dict):
+            if _is_filled(rm.get("operational_meaning")):
+                risk["description"] = rm["operational_meaning"]
+            if _is_filled(rm.get("mitigation_path")):
+                risk["mitigation"] = rm["mitigation_path"]
+        if not risk.get("mitigation"):
+            risk["mitigation"] = "在下一步中跟进验证，补齐缺失数据后再做判断。"
+    rd["risks"] = risks
+
+    # ── Next steps ──────────────────────────────────────────────────────
+    if judgment:
+        # Priority 1: validation_roadmap (deep analysis, phased plan)
+        roadmap = _as_list(judgment.get("validation_roadmap") or [])
+        if roadmap:
             new_steps = []
-            for i, action in enumerate(j_actions[:3]):
-                if isinstance(action, str) and action.strip():
-                    new_steps.append(
-                        {
+            for i, phase in enumerate(roadmap):
+                if not isinstance(phase, dict):
+                    continue
+                title = phase.get("phase", "")
+                actions = phase.get("actions") or []
+                exit_criteria = phase.get("exit_criteria", "")
+                if_fail = phase.get("if_fail", "")
+                action_text = "；".join(str(a) for a in actions if a)
+                desc = action_text
+                if exit_criteria:
+                    desc += f"【通过标准】{exit_criteria}"
+                if if_fail:
+                    desc += f"【不通过】{if_fail}"
+                if title and action_text:
+                    new_steps.append({
+                        "order": i + 1,
+                        "title": title,
+                        "description": desc,
+                        "source_path": f"integrated_operator_judgment.validation_roadmap[{i}]",
+                    })
+            if new_steps:
+                rd["next_steps"] = new_steps
+
+        # Priority 2: required_next_actions (decision summary, flat list)
+        if not rd.get("next_steps"):
+            j_actions = judgment.get("required_next_actions")
+            if isinstance(j_actions, list) and j_actions:
+                new_steps = []
+                for i, action in enumerate(j_actions[:3]):
+                    if isinstance(action, str) and action.strip():
+                        new_steps.append({
                             "order": i + 1,
                             "title": action.strip(),
                             "description": "基于六维评价和集成判断的自动化建议。",
-                            "source_path": (
-                                f"integrated_operator_judgment.required_next_actions[{i}]"
-                            ),
-                        }
-                    )
-            if new_steps:
-                rd["next_steps"] = new_steps
+                            "source_path": f"integrated_operator_judgment.required_next_actions[{i}]",
+                        })
+                if new_steps:
+                    rd["next_steps"] = new_steps
 
     # ── Go/No-Go conditions from judgment ───────────────────────────────
     if judgment:
         gonogo = rd.get("gonogo_conditions")
         if isinstance(gonogo, list):
-            constraints = judgment.get("operator_constraints") or {}
             for i, gg in enumerate(gonogo):
                 if isinstance(gg, dict):
                     gg["source_path"] = gg.get(
@@ -285,7 +443,6 @@ def enhance_seed_to_report_data(
                         f"integrated_operator_judgment.operator_constraints[{i}]",
                     )
         if not gonogo and judgment.get("operator_constraints"):
-            constraints = judgment.get("operator_constraints") or {}
             jv = judgment.get("final_verdict", "")
             rd["gonogo_conditions"] = [
                 {
@@ -374,7 +531,7 @@ def _build_hero_html(hero: dict[str, Any], run_id: str) -> str:
 
 
 def _build_category_html(cp: dict[str, Any]) -> str:
-    categories = as_list(cp.get("categories") or [])
+    categories = _as_list(cp.get("categories") or [])
 
     cat_rows = ""
     for cat in categories:
@@ -399,7 +556,7 @@ def _build_category_html(cp: dict[str, Any]) -> str:
       <td>{_esc(str(reason))}</td>
     </tr>"""
 
-    insights = as_list(cp.get("insights") or [])
+    insights = _as_list(cp.get("insights") or [])
     insight_cards = ""
     for ins in insights:
         if not isinstance(ins, dict):
@@ -703,14 +860,14 @@ def generate_operator_html(report_data: dict[str, Any]) -> str:
 
     hero = report_data.get("hero") or {}
     cp = report_data.get("category_panorama") or {}
-    competitors = as_list(report_data.get("competitors"))
-    pain_points = as_list(report_data.get("pain_points"))
-    price_bands = as_list(report_data.get("price_bands"))
-    keywords = as_list(report_data.get("keywords"))
-    risks = as_list(report_data.get("risks"))
-    advantages = as_list(report_data.get("advantages"))
-    gonogo = as_list(report_data.get("gonogo_conditions"))
-    next_steps = as_list(report_data.get("next_steps"))
+    competitors = _as_list(report_data.get("competitors"))
+    pain_points = _as_list(report_data.get("pain_points"))
+    price_bands = _as_list(report_data.get("price_bands"))
+    keywords = _as_list(report_data.get("keywords"))
+    risks = _as_list(report_data.get("risks"))
+    advantages = _as_list(report_data.get("advantages"))
+    gonogo = _as_list(report_data.get("gonogo_conditions"))
+    next_steps = _as_list(report_data.get("next_steps"))
 
     sections = [
         _build_hero_html(hero, run_id),

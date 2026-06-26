@@ -11,7 +11,7 @@ from packages.research_core.contracts import (
     should_reuse_existing_artifacts,
     summarize_evaluation_constraints,
 )
-from packages.research_core.pipeline.build_analysis_report import main as build_analysis_report_main
+from packages.research_core.pipeline.build_report_seed import main as build_report_seed_main
 from packages.research_core.pipeline.constants import REQUIRED_SECTION_MARKERS
 from packages.research_core.pipeline.delivery_qa import (
     _has_required_operator_sections,
@@ -230,7 +230,7 @@ class P0ContractTests(unittest.TestCase):
         self.assertEqual(result["resolved"], 1)
         self.assertEqual(result["unresolved"], 0)
 
-    def test_build_analysis_report_writes_seed_without_formal_report_data(self) -> None:
+    def test_build_report_seed_writes_seed_without_formal_report_data(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             run_dir = Path(tmpdir) / "20260624_generic_direction"
             (run_dir / "search_demand").mkdir(parents=True)
@@ -265,7 +265,7 @@ class P0ContractTests(unittest.TestCase):
             (run_dir / "review_voc" / "voc_evidence_packet.json").write_text("{}", encoding="utf-8")
             (run_dir / "workflow_state.json").write_text("{}", encoding="utf-8")
 
-            exit_code = build_analysis_report_main([str(run_dir)])
+            exit_code = build_report_seed_main([str(run_dir)])
 
             self.assertEqual(exit_code, 0)
             self.assertTrue((run_dir / "analysis" / "report_data.seed.json").exists())
