@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build report seed, XLSX back-table, and delivery QA from evidence packets.
 
-Orchestration layer for the Stage 7 report handoff. This script creates the
+Orchestration layer for the report delivery handoff. This script creates the
 report_data.seed.json handoff for Report Generation Agent. After the agent has
 written report_data.json and the formal HTML report, rerunning this script
 creates the XLSX back-table and delivery QA artifacts.
@@ -143,7 +143,7 @@ from packages.research_core.pipeline.delivery_qa import (
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build Stage 7 analysis report from evidence packets.")
+    parser = argparse.ArgumentParser(description="Build analysis report from evidence packets.")
     parser.add_argument("run_dir", type=Path, help="Path to run directory (e.g. runs/20260623_加液马桶刷)")
     return parser.parse_args(argv)
 
@@ -215,7 +215,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"QA FAILED: {qa.get('failures', [])}", file=sys.stderr)
         return 1
 
-    print("Stage 7 report delivery: PASS")
+    print("Report delivery: PASS")
     return 0
 
 

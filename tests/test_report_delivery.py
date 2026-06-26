@@ -373,7 +373,7 @@ class FullChainCLITests(unittest.TestCase):
         )
         self.assertEqual(second.returncode, 0,
                          f"CLI failed: stdout={second.stdout}, stderr={second.stderr}")
-        self.assertIn("Stage 7 report delivery: PASS", second.stdout)
+        self.assertIn("Report delivery: PASS", second.stdout)
 
         self.assertTrue((analysis_dir / "report_data.json").exists())
         self.assertTrue(any(analysis_dir.glob("*_分析报告.html")))
@@ -792,7 +792,7 @@ class ReportAgentCLITests(unittest.TestCase):
             capture_output=True, text=True, env=_cli_env(),
         )
         self.assertEqual(r3.returncode, 0, f"Phase 3 failed: stdout={r3.stdout}, stderr={r3.stderr}")
-        self.assertIn("Stage 7 report delivery: PASS", r3.stdout)
+        self.assertIn("Report delivery: PASS", r3.stdout)
         self.assertTrue(any(analysis_dir.glob("*_决策工具包.xlsx")))
         self.assertTrue((analysis_dir / "delivery_qa_result.json").exists())
         self.assertTrue((analysis_dir / "qa_notes.md").exists())

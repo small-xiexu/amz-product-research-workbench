@@ -164,8 +164,8 @@ def validate_all_evaluations(evaluations: dict[str, dict[str, Any]]) -> None:
         validate_evaluation_packet(packet, dim)
 
 
-def _require_field(value: dict[str, Any], field: str, path: str) -> None:
-    _shared_require_field(value, field, path, error_cls=P6ContractError)
+def _require_field(value: dict[str, Any], field: str, path: str) -> Any:
+    return _shared_require_field(value, field, path, error_cls=P6ContractError)
 
 
 def _require_fields(value: dict[str, Any], fields: tuple[str, ...], path: str) -> None:

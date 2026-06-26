@@ -10,7 +10,6 @@ from .validators import (
     ContractValidationError,
     validate_candidate_pool,
     validate_workflow_state,
-    _require_field as _shared_require_field,
     _require_fields as _shared_require_fields,
     _require_dict as _shared_require_dict,
     _require_list as _shared_require_list,

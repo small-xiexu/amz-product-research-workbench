@@ -20,6 +20,7 @@ from packages.research_core.contracts import (
     validate_p4_evidence_packet,
     validate_workflow_state,
 )
+from packages.research_core.contracts.validators import ContractValidationError
 from packages.research_core.pipeline._utils import as_list, first_text, load_json, numeric_value, _run_id, _validate_artifacts
 
 
@@ -62,7 +63,7 @@ PRIORITY_ORDER = (
 )
 
 
-class P5AsinBatchError(Exception):
+class P5AsinBatchError(ContractValidationError):
     """Raised when the ASIN batch cannot be built."""
 
 

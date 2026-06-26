@@ -1,6 +1,6 @@
 # Evidence Packet 契约
 
-Evidence Packet 是多 Agent 协作的交接单位。每个数据源专家 Agent 只输出证据包，不直接给最终进入结论。资深亚马逊运营主 Agent 只能基于这些证据包和 `research_package.json` 做综合市场机会判断。
+Evidence Packet 是多 Agent 协作的交接单位。每个数据源专家 Agent 只输出证据包，不直接给最终进入结论。资深亚马逊运营主 Agent 只能基于这些证据包和 `report_data.json` 做综合市场机会判断。
 
 ## 通用结构
 
@@ -199,7 +199,7 @@ Route Matrix、workflow_state 等非 Evidence Packet 文件不强制 `executed_b
 
 - 专家 Agent 不输出 `final_decision`、`route_priority`。
 - 专家 Agent 可以写 `evidence_strength`，不能写“建议立项”。
-- 主 Agent 不新增原始数字；需要数字时必须引用 Evidence Packet、MCP 快照、结构化中间文件或 `research_package.json`。
+- 主 Agent 不新增原始数字；需要数字时必须引用 Evidence Packet、MCP 快照、结构化中间文件或 `report_data.json`。
 - Stage 7 的内部 `analysis_packet` 可以使用 `继续看 / 谨慎继续 / 暂缓` 短判词；写入 `report_data.json` 时必须映射为 `hero.verdict` 的正式三值，并说明数据缺口和结论边界。
 - QA Agent 不改商业判断，只判断是否有证据、是否违反边界、是否可交付。
 - 任一证据包 `confidence=low` 时，主 Agent 必须在最终判断里说明影响。
@@ -252,6 +252,6 @@ Stage 7 真实多 Agent 执行时还必须满足：
 Evidence Packet 是真实子 Agent 和主 Agent 的交接格式；当运行环境不支持子 Agent 时，也作为主 Agent 串行执行专家口径的输出格式。它不改变既有 CLI 的基础产物，但允许在对应目录落成独立 JSON 文件：
 
 - 代码层已有 `build_research_data_packet()` 负责结构化数据。
-- `research_package.json` 仍是正式报告唯一事实源。
+- `report_data.json` 是正式报告唯一事实源。
 - 子 Agent 或主 Agent 串行执行时，均按 Evidence Packet 组织证据。
 - 调度规则见 `references/multi_agent_dispatch.md`。

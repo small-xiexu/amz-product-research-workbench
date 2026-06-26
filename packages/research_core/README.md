@@ -17,20 +17,18 @@
 
 当前主产品体验由 `workflows.create_initial_state()`、`workflows.plan_next_action()`、`workflows.advance_stage()` 维护交互状态；`scripts/plan_interactive_workflow.py` 提供最小 CLI。
 
-`scripts/run_research_workflow.py` 保留为数据齐全后的批量报告重跑和回归验证入口。
+`scripts/run_pipeline.py` 和 `tests/` (pytest) 为批量报告重跑和回归验证入口。
 
 ## 当前数据契约
 
-- `selection_brief`：模糊选品意图
 - `candidate_pool`：候选品池
-- `import_manifest`：手动导出文件盘点结果
 - `review_voc_package`：自有评论插件导出的 Excel/HTML 转换后的 VOC 数据包
-- `research_package`：重点候选深挖数据包，供报告渲染层消费
 - `workflow_state`：交互式流程状态，记录阶段、下一步动作、运营决策点和证据引用
+- `report_data`：唯一数据中枢，所有事实含 source_path 溯源
 
 ## 后续扩展落点
 
 - 新增第三方数据中心：优先新增 `adapters/<source>_adapter.py`，再更新 `adapters/merge_strategy.py`
 - 新增交互式入口：复用 `workflows.plan_next_action()`，不要把阶段判断写散到脚本里
-- 新增批量重跑入口：复用 `workflows.run_research_workflow()`，不要复制 `scripts/run_research_workflow.py`
+- 新增批量重跑入口：复用 `pipeline` 模块，不要复制脚本文件
 - 新增数据包强约束：先补 `contracts/validators.py`，再补正式交付校验器

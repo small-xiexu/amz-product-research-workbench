@@ -216,8 +216,8 @@ def _validate_asin_batch_item(item: Any, path: str) -> None:
         raise P5ContractError(f"{path}.priority must be a number")
 
 
-def _require_field(value: dict[str, Any], field: str, path: str) -> None:
-    _shared_require_field(value, field, path, error_cls=P5ContractError)
+def _require_field(value: dict[str, Any], field: str, path: str) -> Any:
+    return _shared_require_field(value, field, path, error_cls=P5ContractError)
 
 
 def _require_fields(value: dict[str, Any], fields: list[str], path: str) -> None:

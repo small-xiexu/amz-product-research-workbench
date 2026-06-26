@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 QA_RULE_VERSION = "2026-06-25-p8-v2"
-VOC_MIN_REVIEW_THRESHOLD = 30  # Stage 8 VOC 门控最低评论数
+VOC_MIN_REVIEW_THRESHOLD = 30  # stage_7_voc_gate 最低评论数
 REPORT_VERDICT_LABELS = {
     "继续看": "建议进入小批量验证",
     "谨慎继续": "建议补齐数据后再评估",

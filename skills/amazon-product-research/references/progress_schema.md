@@ -18,7 +18,7 @@
   "run_id": "YYYYMMDD_示例品类",
   "current_stage": "stage_5_route_matrix",
   "status": "waiting_operator",
-  "stages_completed": ["stage_1_intent", "stage_2_3_quick_check", "stage_4_candidate_pool"],
+  "stages_completed": ["stage_1_inputs", "stage_2_market_quick_check", "stage_3_quick_gate", "stage_4_candidate_pool"],
   "last_updated": "2026-06-25T22:00:00",
   "context_brief": "已确认{品类方向}为优先方向，排除{具体排除方向}",
   "pending_questions": [

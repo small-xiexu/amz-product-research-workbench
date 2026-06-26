@@ -150,3 +150,8 @@ def _require_string_list(value: Any, path: str, *, min_items: int = 0, error_cls
         text = _require_non_empty_text(item, f"{path}[{index}]", error_cls=error_cls)
         result.append(text)
     return result
+
+
+def _require_enum(value: Any, allowed: set[str] | frozenset[str], path: str, *, error_cls: type[Exception] = ContractValidationError) -> None:
+    if value not in allowed:
+        raise error_cls(f"{path} must be one of {', '.join(sorted(allowed))}")

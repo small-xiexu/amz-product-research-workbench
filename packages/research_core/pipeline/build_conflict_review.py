@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from packages.research_core.contracts import (
+    ContractValidationError,
     P4ContractError,
     P4_SCHEMA_VERSION,
     P4_STAGE_ID,
@@ -184,7 +185,7 @@ COMPARABLE_PAIRS: tuple[dict[str, Any], ...] = (
 )
 
 
-class P4ConflictReviewError(ValueError):
+class P4ConflictReviewError(ContractValidationError):
     """Raised when P4-4 conflict review artifacts cannot be built."""
 
 

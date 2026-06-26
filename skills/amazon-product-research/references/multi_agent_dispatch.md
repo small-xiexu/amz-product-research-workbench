@@ -26,7 +26,7 @@ Stage 1 (意图收集) → Stage 2-3 (快验+门控) → Stage 4 (候选池) →
 | Stage 4 候选池 | 不 spawn | Stage 3 gate=continue | 脚本 `build_mcp_candidate_pool.py` | `candidate_pool.json` |
 | Stage 5 路线确认 | 不 spawn | Stage 4 done + 运营确认 | 主 Agent + 脚本 `build_route_matrix_confirm.py` | `route_matrix_confirm.json` |
 | Stage 6 双 MCP 深挖 | **强制并行 spawn** | Stage 5 done | Market Structure Agent、Search Demand Agent | `market_structure_evidence_packet.json`、`search_demand_evidence_packet.json` |
-| Stage 7 冲突复核 | 不 spawn（脚本执行） | Stage 6 done | 脚本 `build_conflict_resolution_packet.py` | `conflict_resolution_packet.json` |
+| Stage 7 冲突复核 | 不 spawn（脚本执行） | Stage 6 done | 脚本 `build_conflict_review.py` | `conflict_resolution_packet.json` |
 | Stage 8 VOC | 推荐 spawn | Stage 7 done + 运营导出评论 | VOC Evidence Agent + 脚本 `build_review_voc_package.py` | `voc_gate.json`、`review_voc_package.json`、`voc_evidence_packet.json` |
 | Stage 9 六维评价 | **推荐并行 spawn** | Stage 6、7、8 全部 done | 6 个 Evaluation Agent | `evaluations/*.json`、`evaluation_summary.json` |
 | Stage 10 资深判断 | **推荐独立 spawn** | Stage 9 done | Lead Operator Agent（深度运营分析 + 最终决策） | `integrated_operator_judgment.json`（含 6 项深度分析：路线推荐、竞品对标、价格带解读、VOC→规格推导、关键词策略、风险缓解） |

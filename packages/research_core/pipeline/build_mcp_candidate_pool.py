@@ -15,6 +15,7 @@ from typing import Any
 
 from packages.research_core.contracts import validate_candidate_pool, validate_workflow_state
 from packages.research_core.contracts.p0_contracts import P0_SCHEMA_VERSION
+from packages.research_core.contracts.validators import ContractValidationError
 from packages.research_core.pipeline._utils import as_list, first_text, load_json, public_text, _now_iso, _write_json, _unique_texts
 from packages.research_core.pipeline.quick_market_check import (
     SOURCE_CONFIG,
@@ -28,7 +29,7 @@ STAGE_ID_CANDIDATE_POOL = "stage_4_candidate_pool"
 QUICK_CHECK_DIR = "quick_check"
 
 
-class P2ContractError(ValueError):
+class P2ContractError(ContractValidationError):
     """Raised when P2 candidate-pool artifacts violate the frozen contract."""
 
 

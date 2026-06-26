@@ -1,7 +1,7 @@
 """Legacy report renderer constants.
 
 这些常量服务旧 `report.md` / `report.html` renderer 链路，不作为 CLI P0
-新 Stage 7 HTML 报告契约依据。CLI P0 required operator sections 以
+新 Stage 9 HTML 报告契约依据。CLI P0 required operator sections 以
 `packages.research_core.pipeline.constants.REQUIRED_SECTION_MARKERS` 为准。
 """
 
@@ -19,18 +19,4 @@ FORMAL_REPORT_SECTION_TITLES = (
     "风险与待验证项",
     "继续研究优先级",
     "下一步动作与证据附录",
-)
-
-
-REPORT_EXCEL_SHEET_MAP = (
-    ("数据来源与口径", "数据来源说明、调研边界、交互决策记录"),
-    ("品类选择推导链路", "品类推导链路、类目候选、竞品选择逻辑、关键词池"),
-    ("市场结构与数据质量", "市场结构、Top100原始明细、数据质量检查"),
-    ("产品属性分布与交叉分析", "属性定义、Top商品打标、属性分布、属性交叉分析"),
-    ("竞品池与竞品选择逻辑", "竞品池、竞品深拆卡、进入壁垒"),
-    ("评论 VOC 与真实痛点", "评论VOC、VOC证据"),
-    ("市场机会评分", "市场机会评分卡、决策检查、风险矩阵、状态卡"),
-    ("风险与待验证项", "风险矩阵、退货风险、数据质量检查"),
-    ("继续研究优先级", "市场机会评分卡、路线深挖计划、状态卡"),
-    ("下一步动作与证据附录", "状态卡、交互决策记录"),
 )

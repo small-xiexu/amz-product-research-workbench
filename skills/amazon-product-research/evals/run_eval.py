@@ -32,7 +32,7 @@ def main(argv: list[str] | None = None) -> int:
         "check",
         nargs="?",
         default="all",
-        choices=("all", "build_minimal_analysis_packet", "stage7_qa_pipeline"),
+        choices=("all", "build_minimal_analysis_packet", "stage9_qa_pipeline"),
     )
     args = parser.parse_args(argv)
 
@@ -40,8 +40,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.check in ("all", "build_minimal_analysis_packet"):
         if _run_minimal_analysis_packet_eval() != 0:
             failures += 1
-    if args.check in ("all", "stage7_qa_pipeline"):
-        if _run_stage7_qa_pipeline_eval() != 0:
+    if args.check in ("all", "stage9_qa_pipeline"):
+        if _run_stage9_qa_pipeline_eval() != 0:
             failures += 1
     if failures:
         print(f"\n{failures} eval(s) failed")
@@ -77,8 +77,8 @@ def _run_minimal_analysis_packet_eval() -> int:
     return 0
 
 
-def _run_stage7_qa_pipeline_eval() -> int:
-    """验证 Stage 7 QA 管线：source_path 校验 + 值一致性 + 禁止模式。"""
+def _run_stage9_qa_pipeline_eval() -> int:
+    """验证 Stage 9 QA 管线：source_path 校验 + 值一致性 + 禁止模式。"""
     with tempfile.TemporaryDirectory(prefix="amz_skill_eval_qa_") as tmp:
         run_dir = Path(tmp)
         analysis_dir = run_dir / "analysis"

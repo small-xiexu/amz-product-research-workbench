@@ -11,6 +11,10 @@ from typing import Any
 
 from packages.research_core.contracts import validate_candidate_pool, validate_workflow_state
 from packages.research_core.contracts.p0_contracts import P0_SCHEMA_VERSION
+from packages.research_core.contracts.validators import (
+    ContractValidationError,
+    _require_fields as _shared_require_fields,
+)
 from packages.research_core.pipeline._utils import as_list, compact_list, first_text, load_json, public_text, _now_iso, _unique_texts, _write_json
 from packages.research_core.pipeline.build_mcp_candidate_pool import QUICK_CHECK_DIR, SOURCE_CONFIG
 from packages.research_core.pipeline.quick_market_check import validate_progress, validate_quick_gate, validate_quick_packet
@@ -25,7 +29,7 @@ ALLOWED_DECISIONS = {"confirm", "revise_candidate_pool", "stop"}
 COMPLETENESS_LEVELS = ("acceptable", "warning", "blocker")
 
 
-class P3ContractError(ValueError):
+class P3ContractError(ContractValidationError):
     """Raised when route-matrix confirmation artifacts violate the frozen contract."""
 
 
@@ -1122,9 +1126,7 @@ def _unique_any(values: list[Any]) -> list[Any]:
 
 
 def _require_fields(data: dict[str, Any], fields: list[str], name: str) -> None:
-    for field in fields:
-        if field not in data:
-            raise P3ContractError(f"{name}.{field} is required")
+    _shared_require_fields(data, fields, name, error_cls=P3ContractError)
 
 
 def _write_failure_progress(run_path: Path, progress_path: Path, error: str) -> None:

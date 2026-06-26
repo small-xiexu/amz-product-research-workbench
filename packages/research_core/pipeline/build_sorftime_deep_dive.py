@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from packages.research_core.contracts import (
+    ContractValidationError,
     P4ContractError,
     P4_SCHEMA_VERSION,
     P4_STAGE_ID,
@@ -147,7 +148,7 @@ EVIDENCE_SPECS: tuple[dict[str, Any], ...] = (
 )
 
 
-class P4SorftimeError(ValueError):
+class P4SorftimeError(ContractValidationError):
     """Raised when P4-3 Sorftime artifacts cannot be built."""
 
 

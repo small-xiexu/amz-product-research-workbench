@@ -13,6 +13,11 @@ from typing import Any
 
 from packages.research_core.contracts import decide_quick_gate
 from packages.research_core.contracts.p0_contracts import P0_SCHEMA_VERSION
+from packages.research_core.contracts.validators import (
+    ContractValidationError,
+    _require_fields as _shared_require_fields,
+    _require_enum as _shared_require_enum,
+)
 from packages.research_core.pipeline._utils import load_json
 
 
@@ -49,7 +54,7 @@ CONFIDENCE_LEVELS = {"high", "medium", "low"}
 EXECUTION_MODES = {"real_subagent_spawn", "serial_simulation", "script_generated", "legacy_fallback"}
 
 
-class P1ContractError(ValueError):
+class P1ContractError(ContractValidationError):
     """Raised when P1 quick market-check artifacts violate the frozen contract."""
 
 
@@ -827,14 +832,11 @@ def _next_required_user_action(gate: dict[str, Any]) -> str:
 def _require_fields(data: dict[str, Any], fields: list[str], label: str) -> None:
     if not isinstance(data, dict):
         raise P1ContractError(f"{label} must be an object")
-    missing = [field for field in fields if field not in data]
-    if missing:
-        raise P1ContractError(f"{label} missing required fields: {', '.join(missing)}")
+    _shared_require_fields(data, fields, label, error_cls=P1ContractError)
 
 
 def _require_enum(value: Any, allowed: set[str], path: str) -> None:
-    if value not in allowed:
-        raise P1ContractError(f"{path} must be one of {', '.join(sorted(allowed))}")
+    _shared_require_enum(value, allowed, path, error_cls=P1ContractError)
 
 
 def _require_metric_basis(value: Any) -> None:

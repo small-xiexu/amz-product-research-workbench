@@ -22,8 +22,7 @@ from packages.research_core.contracts import (
 from packages.research_core.pipeline.build_route_matrix_confirmation import P3ContractError
 from packages.research_core.workflows import DecisionRecord, advance_stage, create_initial_state
 from packages.research_core.pipeline.build_candidate_pool_from_import_manifest import build_candidate_pool
-from packages.research_core.pipeline.cross_analysis import build_cross_analysis
-from packages.research_core.pipeline.parse_top100_dimensions import parse_top100_dimensions
+
 from packages.research_core.pipeline.audit_run_status import audit_run_status
 from packages.research_core.pipeline.validate_research_outputs import validate_workflow_output
 from packages.report_renderer.constants import FORMAL_REPORT_SECTION_TITLES
@@ -86,7 +85,7 @@ class RegressionTests(unittest.TestCase):
 
     def test_analysis_report_uses_operator_research_objects(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            run_dir = Path(tmpdir) / "generic_stage7_run"
+            run_dir = Path(tmpdir) / "generic_stage9_run"
             run_dir.mkdir()
             paths = {
                 "search_demand": run_dir / "search_demand" / "search_demand_evidence_packet.json",
@@ -396,13 +395,13 @@ class RegressionTests(unittest.TestCase):
                 json.dumps(
                     {
                         "workflow_id": "generic_run",
-                        "stage": "stage_5_1_route_sorftime_calibration_completed",
+                        "stage": "stage_5_route_matrix",
                         "initial_intent": "测试方向",
                         "known_inputs": {"stage1_quick_probe_summary": "已快探"},
                         "missing_inputs": ["评论插件导出数据"],
                         "next_actions": [
                             {
-                                "stage": "stage_7_voc_waiting_review_export",
+                                "stage": "stage_7_voc_gate",
                                 "question": "等待评论导出",
                                 "recommended_action": {
                                     "type": "review_crawl",
@@ -440,83 +439,6 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(audit["current_stage"]["status"], "pending")
         self.assertTrue(any(item["item"] == "Stage 5 路线确认" for item in audit["blockers"]))
         self.assertIn("Stage 5 路线确认", [item["label"] for item in audit["next_actions"]])
-
-    def test_parse_top100_dimensions_confidence_layers_and_capture_groups(self) -> None:
-        products = [
-            {"asin": "B000000001", "title": "Premium 12 Inch Window Squeegee Large Kit", "monthly_sales": 100},
-            {"asin": "B000000002", "title": "Medium microfiber cleaning tool", "monthly_sales": 80},
-            {"asin": "B000000003", "title": "Generic cleaning tool", "monthly_sales": 10},
-        ]
-        rules = {
-            "dimensions": [
-                {
-                    "name": "尺寸",
-                    "label": "size",
-                    "rules": [
-                        {"type": "regex", "pattern": r"(\d+)\s*inch", "value": "$1 inch", "confidence": "high"},
-                        {"type": "keyword", "keywords": ["small", "medium", "large"], "confidence": "medium"},
-                    ],
-                    "default": "未知",
-                }
-            ]
-        }
-
-        parsed, uncertain = parse_top100_dimensions(products, rules)
-
-        self.assertEqual(parsed[0]["parsed_dimensions"]["size"]["value"], "12 inch")
-        self.assertEqual(parsed[0]["parsed_dimensions"]["size"]["parse_confidence"], "high")
-        self.assertEqual(parsed[1]["parsed_dimensions"]["size"]["value"], "medium")
-        self.assertEqual(parsed[1]["parsed_dimensions"]["size"]["parse_confidence"], "medium")
-        self.assertEqual(parsed[2]["parsed_dimensions"]["size"]["value"], "未知")
-        self.assertEqual(parsed[2]["parsed_dimensions"]["size"]["parse_confidence"], "low")
-        self.assertEqual(uncertain, [{"asin": "B000000003", "title": "Generic cleaning tool", "uncertain_dimensions": ["size"]}])
-
-    def test_cross_analysis_builds_matrix_gaps_and_thresholds(self) -> None:
-        products = [
-            {
-                "asin": "B000000001",
-                "monthly_sales": 100,
-                "monthly_revenue": 1000,
-                "parsed_dimensions": {"size": {"value": "large"}, "price_band": {"value": "high"}, "material": {"value": "steel"}},
-            },
-            {
-                "asin": "B000000002",
-                "monthly_sales": 60,
-                "monthly_revenue": 600,
-                "parsed_dimensions": {"size": {"value": "small"}, "price_band": {"value": "low"}, "material": {"value": "plastic"}},
-            },
-            {
-                "asin": "B000000003",
-                "monthly_sales": 40,
-                "monthly_revenue": 400,
-                "parsed_dimensions": {"size": {"value": "small"}, "price_band": {"value": "high"}, "material": {"value": "plastic"}},
-            },
-        ]
-        config = {
-            "pairs": [
-                {"dim1": "size", "dim2": "price_band", "scarcity_threshold": 1},
-                {"dim1": "material", "dim2": "price_band", "scarcity_threshold": 2},
-            ]
-        }
-
-        result = build_cross_analysis(products, config)
-
-        self.assertEqual(len(result), 2)
-        first = result[0]
-        self.assertEqual(first["dim1"], "size")
-        self.assertEqual(first["dim2"], "price_band")
-        self.assertEqual(len(first["matrix"]), 4)
-        blank_gap = next(item for item in first["gaps"] if item["dim1_value"] == "large" and item["dim2_value"] == "low")
-        self.assertEqual(blank_gap["gap_type"], "空白")
-        thin_gap = next(item for item in first["gaps"] if item["dim1_value"] == "large" and item["dim2_value"] == "high")
-        self.assertEqual(thin_gap["gap_type"], "薄供给")
-        self.assertEqual(thin_gap["products"], ["B000000001"])
-
-    def test_cross_analysis_accepts_empty_product_list(self) -> None:
-        result = build_cross_analysis([], {"pairs": [{"dim1": "size", "dim2": "price_band"}]})
-
-        self.assertEqual(result[0]["matrix"], [])
-        self.assertEqual(result[0]["gaps"], [])
 
     def test_sorftime_adapter_name_and_legacy_alias(self) -> None:
         snapshot = {

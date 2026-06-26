@@ -294,8 +294,8 @@ def build_blockers(
                 "source": check["stage"],
             })
     qa_exists = artifacts.get("delivery_qa", {}).get("exists", False)
-    # 检查 stage 7 是否已有产出（report/html/xlsx）
-    stage_7_has_artifacts = (
+    # 检查 stage 9 是否已有产出（report/html/xlsx）
+    stage_9_has_artifacts = (
         artifacts.get("analysis_report_data", {}).get("exists", False)
         and artifacts.get("analysis_html", {}).get("exists", False)
         and artifacts.get("analysis_xlsx", {}).get("exists", False)
@@ -329,12 +329,12 @@ def build_blockers(
                 "next_step": "查看 delivery_qa_result.json 中的失败项并修复。",
                 "source": "analysis/delivery_qa_result.json",
             })
-    elif stage_7_has_artifacts and not qa_exists:
+    elif stage_9_has_artifacts and not qa_exists:
         # 产出已生成但 QA 文件缺失 → 阻断
         blockers.append({
             "type": "qa_missing",
             "severity": "blocking",
-            "item": "Stage 7 产出已存在但 QA 文件缺失（delivery_qa_result.json）",
+            "item": "Stage 9 产出已存在但 QA 文件缺失（delivery_qa_result.json）",
             "impact": "报告质量未经校验，无法确认是否满足交付标准。",
             "next_step": "运行 build_analysis_report.py 完成 QA 校验。",
             "source": "analysis/delivery_qa_result.json",

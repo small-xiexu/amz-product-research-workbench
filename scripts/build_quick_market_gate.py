@@ -23,22 +23,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from packages.research_core.pipeline.quick_market_check import build_quick_market_gate, validate_quick_gate, validate_quick_packet
-
-QUICK_CHECK_DIR = "quick_check"
-
-SOURCE_CONFIG = {
-    "sellersprite": {
-        "packet_name": "sellersprite_quick_evidence_packet.json",
-        "source_type": "sellersprite_mcp",
-        "packet_id": "sellersprite_quick_evidence_packet",
-    },
-    "sorftime": {
-        "packet_name": "sorftime_quick_evidence_packet.json",
-        "source_type": "sorftime_mcp",
-        "packet_id": "sorftime_quick_evidence_packet",
-    },
-}
+from packages.research_core.pipeline.quick_market_check import (
+    QUICK_CHECK_DIR,
+    SOURCE_CONFIG,
+    build_quick_market_gate,
+    validate_quick_gate,
+    validate_quick_packet,
+)
 
 
 def main(argv: list[str] | None = None) -> int:

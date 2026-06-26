@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from packages.research_core.contracts.validators import ContractValidationError
 from packages.research_core.pipeline._utils import as_list, load_json, _run_id, _validate_artifacts
 from packages.research_core.pipeline.constants import VOC_MIN_REVIEW_THRESHOLD
 
@@ -45,7 +46,7 @@ P5_GATE_OUTPUT_ARTIFACTS = [
 ]
 
 
-class P5GateError(Exception):
+class P5GateError(ContractValidationError):
     """Raised when the VOC gate cannot be generated."""
 
 
@@ -555,13 +556,13 @@ def _decide_gate(
     if conflict_level == "warning":
         reasons.append("P4 冲突复核为 warning，VOC Gate 可继续但需人工复核。")
         actions.append("人工复核 P4 conflict warning 中的冲突项。")
-        actions.append("在 Stage 7 报告中标注 inherited_warnings。")
+        actions.append("在后续阶段中标注 inherited_warnings。")
 
     # All good → continue
     if min_review_met and low_rating_met and route_coverage_complete and asin_role_coverage_complete and conflict_level == "none":
         reasons.append(f"VOC 证据充分：{total_reviews} 条评论，{low_rating_count} 条低分评论，路线覆盖完整。")
-        reasons.append("P4 无 blocker 或 warning，可进入 Stage 7 报告。")
-        actions.append("进入 stage_7_voc_gate 正式报告生成。")
+        reasons.append("P4 无 blocker 或 warning，可进入下一阶段。")
+        actions.append("进入 stage_8_evaluation 六维评价阶段。")
         return "continue", "；".join(reasons), actions
 
     # Mixed signals — if we got here with warnings/incomplete, default to watch
@@ -609,13 +610,13 @@ def _update_progress(
     elif decision == "watch":
         next_action = {
             "type": "proceed_with_warnings",
-            "description": "VOC Gate 判定为 watch — 可进入 Stage 7 报告但需标注所有警告。",
+            "description": "VOC Gate 判定为 watch — 可进入下一阶段但需标注所有警告。",
             "stage_id": P5_STAGE_ID,
         }
     else:
         next_action = {
             "type": "generate_report",
-            "description": "VOC Gate 判定为 continue — 进入 Stage 7 正式报告生成。",
+            "description": "VOC Gate 判定为 continue — 进入下一阶段正式报告生成。",
             "stage_id": P5_STAGE_ID,
         }
 

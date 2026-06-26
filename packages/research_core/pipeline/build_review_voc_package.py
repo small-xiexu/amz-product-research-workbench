@@ -24,6 +24,7 @@ from packages.research_core.pipeline.build_review_voc_from_plugin_export import 
     read_review_excel,
     read_reviews_from_json,
 )
+from packages.research_core.contracts.validators import ContractValidationError
 from packages.research_core.pipeline._utils import as_list, first_text, load_json, _relative_path, _run_id, _validate_artifacts
 
 
@@ -42,7 +43,7 @@ P5_VOC_PACKAGE_OUTPUT_ARTIFACTS = [
 ]
 
 
-class P5VocPackageError(Exception):
+class P5VocPackageError(ContractValidationError):
     """Raised when the VOC package cannot be built."""
 
 

@@ -12,6 +12,10 @@ import json
 import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from packages.research_core.pipeline.build_integrated_judgment import (
     run_integrated_judgment,
 )

@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from packages.research_core.contracts.p0_contracts import summarize_evaluation_constraints
+from packages.research_core.contracts.validators import ContractValidationError
 from packages.research_core.pipeline._utils import as_list, load_json, first_text, numeric_value
 
 
@@ -48,7 +49,7 @@ P6_OUTPUT_ARTIFACTS = [
 RATING_THRESHOLDS = {"strong": 70, "watch": 50, "weak": 30}
 
 
-class P6EvaluationError(Exception):
+class P6EvaluationError(ContractValidationError):
     """Raised when evaluations cannot be generated."""
 
 
