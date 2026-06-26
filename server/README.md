@@ -40,7 +40,7 @@ uvicorn server.app:app --reload --port 8000
 python3 -m unittest discover -s server/tests -v
 ```
 
-MockProvider 会驱动「用户消息 → inspect_manual_exports → build_candidate_pool → 最终回复」完整闭环。
+MockProvider 会驱动「用户消息 → inspect_manual_exports → 最终回复」完整闭环。
 
 ## 配置入口
 
@@ -64,6 +64,5 @@ MockProvider 会驱动「用户消息 → inspect_manual_exports → build_candi
 ## 当前工具（A 类 · AI 可自动执行）
 
 - `inspect_manual_exports`：盘点卖家精灵导出文件夹
-- `build_candidate_pool`：基于盘点结果构建候选池
 
 后续按计划接入 research_package、利润/合规模板、validate 及 Sorftime 验证工具。

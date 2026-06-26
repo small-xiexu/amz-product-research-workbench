@@ -656,7 +656,7 @@ class ReportAgentValidationTests(unittest.TestCase):
         rd_path.write_text(json.dumps(_minimal_valid_report_data(), ensure_ascii=False, indent=2), encoding="utf-8")
         html_path = self._tmp / "test.html"
         html_path.write_text(
-            _agent_report_html().replace("--bg: #f5f6f8;", "--bg: #ffffff;"),
+            _agent_report_html().replace("--bg: #F8FAFC;", "--bg: #ffffff;"),
             encoding="utf-8",
         )
         result = validate_agent_output(rd_path, html_path)

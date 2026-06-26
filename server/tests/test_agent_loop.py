@@ -1,7 +1,7 @@
 """MVP-1 闭环测试：用 MockProvider 驱动 tool-use 循环 + 真实 pipeline 工具，无需 API key。
 
-验证：用户消息 → LLM 调 inspect_manual_exports → 调 build_candidate_pool → 给出最终回复，
-且会话 artifacts 里生成了 manifest 与 candidate_pool。
+验证：用户消息 → LLM 调 inspect_manual_exports → 给出最终回复，
+且会话 artifacts 里生成了 manifest。
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ WINDOW_SAMPLE = ROOT / "卖家精灵导出_刮窗器_20260608"
 class ToolRegistryTests(unittest.TestCase):
     def test_tools_exposed(self) -> None:
         names = {t.name for t in ALL_TOOLS}
-        self.assertEqual(names, {"set_research_mode", "inspect_manual_exports", "build_candidate_pool"})
+        self.assertEqual(names, {"set_research_mode", "inspect_manual_exports"})
         for tool in ALL_TOOLS:
             self.assertIn("type", tool.input_schema)
 
@@ -50,11 +50,11 @@ class ToolRegistryTests(unittest.TestCase):
         self.assertEqual(session.workflow_state["mode"], "targeted_deep_dive")
         self.assertEqual(session.workflow_state["site"], "US")
 
-    def test_build_candidate_pool_requires_manifest(self) -> None:
+    def test_inspect_manual_exports_with_missing_folder(self) -> None:
         session = Session(session_id="s1")
         dispatch = make_dispatch(session)
-        with self.assertRaises(RuntimeError):
-            dispatch("build_candidate_pool", {})
+        with self.assertRaises(FileNotFoundError):
+            dispatch("inspect_manual_exports", {"folder": "/tmp/__nonexistent_folder__"})
 
 
 class AgentLoopTests(unittest.TestCase):
@@ -62,17 +62,13 @@ class AgentLoopTests(unittest.TestCase):
     def test_full_tool_use_loop_with_mock_provider(self) -> None:
         session = Session(session_id="s-mock", mode="targeted_deep_dive", intent="窗户刮水器二合一工具", site="US")
 
-        # 脚本：先调盘点工具 → 再调候选池工具 → 给最终结论
+        # 脚本：调盘点工具 → 给最终结论
         script = [
             AssistantTurn(
                 text="先盘点你上传的卖家精灵导出。",
                 tool_calls=[ToolCall(id="t1", name="inspect_manual_exports", arguments={"folder": str(WINDOW_SAMPLE), "site": "US"})],
             ),
-            AssistantTurn(
-                text="数据齐全，构建候选池。",
-                tool_calls=[ToolCall(id="t2", name="build_candidate_pool", arguments={})],
-            ),
-            AssistantTurn(text="候选池已生成，请在工作台选择要深挖的主线方向。"),
+            AssistantTurn(text="数据盘点完成，已识别可用数据源。"),
         ]
         provider = MockProvider(script)
 
@@ -86,16 +82,14 @@ class AgentLoopTests(unittest.TestCase):
         )
 
         self.assertEqual(result.stopped_reason, "completed")
-        self.assertIn("候选池已生成", result.final_text)
+        self.assertIn("数据盘点完成", result.final_text)
 
         tool_names = [run.name for run in result.tool_runs]
-        self.assertEqual(tool_names, ["inspect_manual_exports", "build_candidate_pool"])
+        self.assertEqual(tool_names, ["inspect_manual_exports"])
         self.assertTrue(all(run.ok for run in result.tool_runs))
 
         # 会话产出物
         self.assertIn("manifest", session.artifacts)
-        self.assertIn("candidate_pool", session.artifacts)
-        self.assertGreaterEqual(len(session.artifacts["candidate_pool"].get("candidates", [])), 1)
 
     @unittest.skipUnless(WINDOW_SAMPLE.is_dir(), "需要刮窗器真实导出样例文件夹")
     def test_streaming_loop_emits_text_and_tool_events(self) -> None:
@@ -105,11 +99,7 @@ class AgentLoopTests(unittest.TestCase):
                 text="先盘点。",
                 tool_calls=[ToolCall(id="t1", name="inspect_manual_exports", arguments={"folder": str(WINDOW_SAMPLE)})],
             ),
-            AssistantTurn(
-                text="构建候选池。",
-                tool_calls=[ToolCall(id="t2", name="build_candidate_pool", arguments={})],
-            ),
-            AssistantTurn(text="完成，请选择主线。"),
+            AssistantTurn(text="完成，数据已盘点。"),
         ]
         provider = MockProvider(script)
         session.messages.append({"role": "user", "content": "开始"})
@@ -125,8 +115,8 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(events[-1]["stopped_reason"], "completed")
 
         text = "".join(e["delta"] for e in events if e["type"] == "text")
-        self.assertIn("完成，请选择主线。", text)
-        self.assertIn("candidate_pool", session.artifacts)
+        self.assertIn("完成，数据已盘点。", text)
+        self.assertIn("manifest", session.artifacts)
 
     def test_tool_error_is_fed_back_not_raised(self) -> None:
         session = Session(session_id="s-err")

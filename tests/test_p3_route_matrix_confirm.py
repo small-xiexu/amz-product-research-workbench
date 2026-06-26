@@ -129,7 +129,7 @@ class P3RouteMatrixConfirmationTests(unittest.TestCase):
         self.assertFalse((run_dir / "route_matrix_confirm.json").exists())
         self.assertFalse((run_dir / "data_completeness_check.json").exists())
 
-    def test_missing_candidate_pool_fails_without_legacy_fallback(self) -> None:
+    def test_missing_candidate_pool_fails_without_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             run_dir = _seed_run(Path(tmpdir))
             run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)

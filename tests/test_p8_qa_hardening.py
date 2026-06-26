@@ -108,7 +108,7 @@ class ReportVisualContractTests(unittest.TestCase):
 
     def test_report_template_css_must_match_exactly(self):
         tmp = Path(tempfile.mkdtemp()) / "test.html"
-        html = _minimal_html().replace("--bg: #f5f6f8;", "--bg: #ffffff;")
+        html = _minimal_html().replace("--bg: #F8FAFC;", "--bg: #ffffff;")
         tmp.write_text(html, encoding="utf-8")
         try:
             result = _uses_report_template_css(tmp)

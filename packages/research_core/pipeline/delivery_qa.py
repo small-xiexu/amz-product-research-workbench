@@ -51,6 +51,7 @@ _ALLOWED_REPORT_CLASS_TOKENS = {
     "tag-green",
     "tag-amber",
     "tag-red",
+    "tag-blue",
     "tag-gray",
     "price-band",
     "price-bar",

@@ -17,7 +17,7 @@ class ContractValidationError(ValueError):
 # ── Public validators ────────────────────────────────────────────────────
 
 def validate_import_manifest(manifest: dict[str, Any]) -> None:
-    """LEGACY: validate import_manifest.json structure. 仅用于 MCP 不可用时的 fallback 路径。"""
+    """Validate import_manifest.json structure. 用于手工导出数据盘点场景。"""
     _require_dict(manifest, "import_manifest")
     _require_dict(manifest.get("metadata"), "import_manifest.metadata")
     _require_list(manifest.get("files"), "import_manifest.files")

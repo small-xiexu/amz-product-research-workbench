@@ -243,7 +243,7 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 | 表格 | `table` `th` `td`（无额外类名） | 标准表格 |
 | 表格辅助 | `.tc` | 列居中（用于价格、评分、优先级等短值列） |
 | 优先级标识 | `.pill` | 圆角小徽章，P1/P2/P4（颜色为中性灰蓝） |
-| 标签 | `.tag` `.tag-green` `.tag-amber` `.tag-red` `.tag-gray` | 只有 4 色 |
+| 标签 | `.tag` `.tag-green` `.tag-amber` `.tag-red` `.tag-blue` `.tag-gray` | 只有 5 色 |
 | 价格柱状图 | `.price-band` → `.price-bar` → `.bar` + `.label` | 竖柱图。`.bar` 高度必须使用 `bar_height` 值（单位 px），颜色必须使用 `opportunity_level` 映射：strong→#059669, watch→#d97706, weak→#dc2626。禁止硬编码高度或颜色。 |
 | 风险列表 | `.risk-list` → `li` → `.severity` | 风险/优势列表 |
 | 下一步 | `.next-steps` → `.next-step` → `.num` `h4` `p` | 3 列网格 |

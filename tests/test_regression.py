@@ -12,7 +12,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from packages.report_renderer.xlsx_writer import write_xlsx
-from packages.research_core.adapters import SorftimeAdapter, SortimeAdapter
+
 from packages.research_core.contracts import (
     ContractValidationError,
     validate_candidate_pool,
@@ -21,7 +21,6 @@ from packages.research_core.contracts import (
 )
 from packages.research_core.pipeline.build_route_matrix_confirmation import P3ContractError
 from packages.research_core.workflows import DecisionRecord, advance_stage, create_initial_state
-from packages.research_core.pipeline.build_candidate_pool_from_import_manifest import build_candidate_pool
 
 from packages.research_core.pipeline.audit_run_status import audit_run_status
 from packages.research_core.pipeline.validate_research_outputs import validate_workflow_output
@@ -441,20 +440,6 @@ class RegressionTests(unittest.TestCase):
         self.assertTrue(any(item["item"] == "Stage 5 路线确认" for item in audit["blockers"]))
         self.assertIn("Stage 5 路线确认", [item["label"] for item in audit["next_actions"]])
 
-    def test_sorftime_adapter_name_and_legacy_alias(self) -> None:
-        snapshot = {
-            "fetched_at": "2026-06-12T00:00:00Z",
-            "product_list": [{"asin": "B000000001", "title": "Sample", "monthly_sales": 120}],
-            "keyword_data": [{"keyword": "sample keyword", "monthly_search_volume": 1000}],
-            "category_trend": {"category_name": "Sample Category", "trend_direction": "增长"},
-        }
-
-        self.assertIs(SortimeAdapter, SorftimeAdapter)
-        adapter = SorftimeAdapter(snapshot)
-        self.assertEqual(adapter.fetch_products()[0].asin, "B000000001")
-        self.assertEqual(adapter.fetch_keywords()[0].keyword, "sample keyword")
-        self.assertEqual(adapter.fetch_category().category_name, "Sample Category")  # type: ignore[union-attr]
-
     def test_xlsx_writer_produces_readable_workbook(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "sample.xlsx"
@@ -680,25 +665,6 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(data["workflow_id"], "wf-cli")
         self.assertEqual(data["next_actions"][0]["recommended_action"]["type"], "operator_decision")
-
-    @unittest.skipUnless(
-        (ROOT / "卖家精灵导出样例_美国站_宠物牵引绳_20260607").exists(),
-        "local SellerSprite sample folder is ignored and may be absent",
-    )
-    def test_manual_export_sample_builds_candidate_pool(self) -> None:
-        from packages.research_core.pipeline.inspect_manual_exports import build_manifest
-
-        source = ROOT / "卖家精灵导出样例_美国站_宠物牵引绳_20260607"
-        with tempfile.TemporaryDirectory() as tmp:
-            copied_source = Path(tmp) / source.name
-            shutil.copytree(source, copied_source, ignore=shutil.ignore_patterns(".DS_Store"))
-            manifest = build_manifest(copied_source, "美国站宠物牵引绳样例", "US")
-            candidate_pool = build_candidate_pool(manifest)
-
-        self.assertEqual(candidate_pool["summary"]["total_candidates"], 1)
-        candidate = candidate_pool["candidates"][0]
-        self.assertTrue(candidate["candidate_id"].startswith("cand-"))
-        self.assertGreaterEqual(len(candidate.get("top_products", [])), 1)
 
 
 def _load_json(relative_path: str) -> dict:

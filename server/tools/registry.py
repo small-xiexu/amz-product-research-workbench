@@ -16,7 +16,7 @@ from server.sessions.store import Session
 
 # 复用现有数据逻辑
 from packages.research_core.pipeline.inspect_manual_exports import build_manifest
-from packages.research_core.pipeline.build_candidate_pool_from_import_manifest import build_candidate_pool
+
 from packages.research_core.workflows import create_initial_state
 
 ToolHandler = Callable[[Session, dict[str, Any]], dict[str, Any]]
@@ -62,15 +62,6 @@ SET_RESEARCH_MODE = ToolSpec(
         },
         "required": ["mode", "intent"],
     },
-)
-
-BUILD_CANDIDATE_POOL = ToolSpec(
-    name="build_candidate_pool",
-    description=(
-        "基于当前会话已盘点的卖家精灵导入数据，构建候选品池（含候选方向、需求证据、竞争结构、"
-        "建议评论 VOC ASIN 批次等）。必须先调用 inspect_manual_exports。"
-    ),
-    input_schema={"type": "object", "properties": {}, "required": []},
 )
 
 
@@ -132,35 +123,13 @@ def _handle_set_research_mode(session: Session, args: dict[str, Any]) -> dict[st
     }
 
 
-def _handle_build_candidate_pool(session: Session, args: dict[str, Any]) -> dict[str, Any]:
-    manifest = session.artifacts.get("manifest")
-    if not manifest:
-        raise RuntimeError("尚无 manifest，请先调用 inspect_manual_exports。")
-    pool = build_candidate_pool(manifest)
-    session.artifacts["candidate_pool"] = pool
-
-    metadata = pool.get("metadata", {})
-    candidates = pool.get("candidates", [])
-    primary = candidates[0] if candidates else {}
-    return {
-        "ok": True,
-        "pool_id": metadata.get("pool_id"),
-        "site": metadata.get("site"),
-        "candidate_count": len(candidates),
-        "primary_candidate_name": primary.get("candidate_name") or primary.get("name"),
-        "direction_card_count": len(pool.get("direction_cards", []) or []),
-        "next_review_voc_asin_count": len(pool.get("next_review_voc_asins", []) or []),
-        "hint": "候选池已生成并存入会话，可在工作台查看候选方向并选择主线。",
-    }
-
 
 _HANDLERS: dict[str, ToolHandler] = {
     SET_RESEARCH_MODE.name: _handle_set_research_mode,
     INSPECT_MANUAL_EXPORTS.name: _handle_inspect_manual_exports,
-    BUILD_CANDIDATE_POOL.name: _handle_build_candidate_pool,
 }
 
-ALL_TOOLS: list[ToolSpec] = [SET_RESEARCH_MODE, INSPECT_MANUAL_EXPORTS, BUILD_CANDIDATE_POOL]
+ALL_TOOLS: list[ToolSpec] = [SET_RESEARCH_MODE, INSPECT_MANUAL_EXPORTS]
 
 
 def make_dispatch(session: Session) -> Callable[[str, dict[str, Any]], dict[str, Any]]:

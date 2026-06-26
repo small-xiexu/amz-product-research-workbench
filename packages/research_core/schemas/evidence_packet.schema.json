@@ -30,7 +30,7 @@
       "properties": {
         "execution_mode": {
           "type": "string",
-          "enum": ["real_subagent_spawn", "serial_simulation", "script_generated", "legacy_fallback"]
+          "enum": ["real_subagent_spawn", "serial_simulation", "script_generated"]
         },
         "agent_role": { "type": "string" },
         "tool_names": {

@@ -74,14 +74,6 @@ Web 页面暂不作为主线。等 Codex 版闭环稳定后，再把 Web 作为�
 | 全量报告 + QA | `python3 -m packages.research_core.pipeline.build_analysis_report <run_dir>` |
 | 运行 Delivery QA | `python3 scripts/run_delivery_qa.py <run_dir>` |
 
-## Legacy 回退（MCP 不可用时）
-
-以下入口仅在 MCP 服务不可用时用于人工兜底，不作为主路径：
-
-| 场景 | 命令 |
-|---|---|
-| 盘点卖家精灵导出 | `python3 scripts/inspect_manual_exports.py <导出文件夹> <manifest.json>` |
-
 ## 推荐运行目录
 
 每次真实调试单独建一个 run 目录：

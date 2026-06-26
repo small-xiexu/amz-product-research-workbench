@@ -28,16 +28,17 @@ HTML 中只写内容结构（`.page > .hero + .section`），所有样式由内�
 | 风险列表 | `ul.risk-list > li > .severity + 内容` | 风险/优势双栏内部 |
 | Go/No-Go 表 | `table.go-nogo > thead > tr > th*4` + `tbody` | 风险和下一步板块中段 |
 
-## 3. 标签仅 4 种
+## 3. 标签仅 5 种
 
 | 标签 | 用途 |
 |---|---|
 | `tag-green` | 正面：主战场、低门槛、有机会、已验证 |
 | `tag-amber` | 需注意：次要战场、中等风险、需验证 |
 | `tag-red` | 风险/否定：高壁垒、错误挂载、排除 |
+| `tag-blue` | 数据标注：信息性、指标、类别（中性） |
 | `tag-gray` | 中性标注：待确认、信息不足 |
 
-**禁止**新增 tag-blue、tag-purple 等额外颜色。
+**禁止**新增 tag-purple 等额外颜色。
 
 ## 4. 报告结构
 
@@ -61,9 +62,9 @@ HTML 中只写内容结构（`.page > .hero + .section`），所有样式由内�
 | 禁止 | 正确做法 |
 |---|---|
 | `<link>` 引用外部 CSS | 把 `report_template.css` 全部内容内嵌到 `<style>` 块 |
-| 深灰/黑色 Hero | 绿色渐变（CSS 已定义） |
+| 深灰/黑色 Hero | 蓝色渐变（CSS 已定义） |
 | 裸内容无 `.section` 包裹 | 每个板块进 `.section` 卡片 |
-| 超过 4 种 tag 颜色 | 只用 green/amber/red/gray |
+| 超过 5 种 tag 颜色 | 只用 green/amber/red/blue/gray |
 | 价格带只用表格 | flex 柱状图 + 表格配合 |
 | max-width 不是 1100px | CSS 已设置 1100px |
 | 下一步用普通列表 | 验证路线图（`.next-step` 编号卡片，含时间/动作/标准/失败分支） |

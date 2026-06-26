@@ -114,18 +114,7 @@ python3 scripts/inspect_manual_exports.py \
 
 如果缺 Top100、ABA 或关键词反查，先让运营补导，不进入正式深挖。
 
-## 6. 构建候选池
-
-```bash
-python3 scripts/build_candidate_pool_from_import_manifest.py \
-  runs/<run_id>/import_manifest.json \
-  runs/<run_id>/candidate_pool.json \
-  --sorftime-verification runs/<run_id>/mcp/sorftime_verification.json
-```
-
-如果当前 CLI 参数和脚本不一致，优先用 `scripts/run_research_workflow.py` 的 `--sorftime-verification` 路径完成合并。
-
-## 7. 评论前轻量 Sorftime 路线校准
+## 6. 评论前轻量 Sorftime 路线校准
 
 候选池确认后、规划评价 ASIN 清单前，先按 Search Demand Agent 口径做轻量路线校准。默认写入：
 
@@ -143,7 +132,7 @@ runs/<run_id>/mcp/route_sorftime_calibration.json
 
 校准结论只用于调整路线边界和评价 ASIN 批次：保留、观察、合并、排除、补抓、替换或标记对照。无法调用或数据不足时，必须在 `data_gaps` 写清，再决定是否继续评论采集。
 
-## 8. 规划评价 ASIN 清单
+## 7. 规划评价 ASIN 清单
 
 候选池确认后，Codex 必须按 `docs/评论VOC导出指令完整性规范.md` 输出评价 ASIN 清单。评价插件侧只需要 ASIN，不要求运营填写评论范围、目标条数、字段筛选或低星筛选。
 
@@ -179,7 +168,7 @@ python3 scripts/build_review_voc_from_plugin_export.py \
   --candidate-name "<候选名称>"
 ```
 
-## 9. 重跑正式报告
+## 8. 重跑正式报告
 
 ```bash
 python3 scripts/run_research_workflow.py \
@@ -193,7 +182,7 @@ python3 scripts/run_research_workflow.py \
   --review-input runs/<run_id>/inputs/reviews/<review-report.html>
 ```
 
-## 10. 校验
+## 9. 校验
 
 ```bash
 python3 scripts/validate_research_outputs.py runs/<run_id>

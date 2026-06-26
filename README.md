@@ -122,10 +122,6 @@ python3 scripts/check_generic_redlines.py
 python3 -m unittest tests.test_regression -v
 ```
 
-## 手动导出数据盘点（Legacy 回退）
-
-MCP 不可用时的 fallback 路径：运营手动导出卖家精灵 Excel/CSV，通过 `scripts/inspect_manual_exports.py` 盘点后构建候选池。详见 Skill 附录。
-
 ## 自有评论插件导入
 
 重点候选进入深挖后，读取自有评论插件导出的 Excel，并可附带 HTML AI 报告作为辅助参考。

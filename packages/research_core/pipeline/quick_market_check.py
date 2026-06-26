@@ -51,7 +51,7 @@ DEMAND_SIGNAL_LEVELS = {"strong", "moderate", "weak", "negative", "blocking", "u
 PRICE_BAND_HEALTH = {"strong", "moderate", "weak", "blocking", "unknown"}
 CATEGORY_BOUNDARY_CLARITY = {"clear", "moderate", "weak", "blocking", "unknown"}
 CONFIDENCE_LEVELS = {"high", "medium", "low"}
-EXECUTION_MODES = {"real_subagent_spawn", "serial_simulation", "script_generated", "legacy_fallback"}
+EXECUTION_MODES = {"real_subagent_spawn", "serial_simulation", "script_generated"}
 
 
 class P1ContractError(ContractValidationError):

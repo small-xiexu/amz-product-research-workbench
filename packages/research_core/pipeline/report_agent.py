@@ -91,7 +91,7 @@ def _tag_html(label: str, level: str) -> str:
         "P1": "tag-amber",
         "P2": "tag-green",
         "main_traffic": "tag-green",
-        "conversion_quality": "tag-amber",
+        "conversion_quality": "tag-blue",
         "precise_long_tail": "tag-gray",
         "mixed_or_excluded": "tag-red",
         "must": "tag-red",

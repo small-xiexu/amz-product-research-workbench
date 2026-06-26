@@ -23,7 +23,7 @@
 | 市场结构证据 | `market_structure/market_structure_evidence_packet.json` | 上架时间、品牌分布、类目特征 |
 | 搜索需求证据 | `search_demand/search_demand_evidence_packet.json` | 类目趋势、季节性信号 |
 | VOC 证据 | `review_voc/voc_evidence_packet.json` | 退货抱怨、安全投诉、耐久性问题 |
-| 冲突复核 | `conflict_review/conflict_resolution_packet.json` | 阻塞冲突 |
+| 数据质量评价 | `evaluations/data_quality_evaluation.json` | 冲突裁决结果、数据缺口、混池评估 |
 | 路线矩阵 | `route_matrix_confirm.json` | 产品形态（决定体积/运费风险） |
 
 ## 输出
@@ -82,3 +82,4 @@
 - 不把风险当做阻止进入的唯一理由——风险要和机会放在一起权衡。
 - 不输出最终 Go/No-Go。
 - 不夸大不在证据包中的风险。
+- 不自行解读冲突——冲突裁决由 Data Quality Evaluation Agent 统一输出，直接引用其 `conflict_adjudication`。

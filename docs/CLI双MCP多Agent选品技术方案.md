@@ -13,7 +13,7 @@
 - 数据 Agent 只产证据包，不输出最终 Go / No-Go。
 - 评价 Agent 只打分和列风险，不越权生成最终判断。
 - 资深运营专家 Agent 才能给最终综合判断。
-- 卖家精灵手动导入从主流程移除，只保留 legacy fallback 和历史回归能力。
+- 卖家精灵手动导入已从主流程移除。
 - P0 必须先冻结 MCP snapshot schema、Evidence Packet schema、报告契约、QA 规则和 progress 状态机，再进入 P1。
 
 ## 范围
@@ -138,7 +138,6 @@ runs/<run_id>/
 | `tool_versions` | 脚本、MCP adapter、QA 版本 |
 | `mcp_snapshots` | 每个 MCP snapshot 的生成时间、schema、工具清单 |
 | `execution_mode` | `real_subagent_spawn` / `serial_fallback` / `script_generated` |
-| `legacy_fallback_used` | 是否使用卖家精灵手动导入 fallback |
 | `created_at` | 创建时间 |
 
 ### MCP Snapshot 固定路径
@@ -275,7 +274,7 @@ P0 是本方案的实施前置，不产正式选品报告。
 | `metric_basis` | 数值型事实 / 派生指标的可比较口径；也可内联到单条 fact / metric |
 | `data_gaps` | 缺口及影响 |
 | `evidence_refs` | 指向 snapshot、评论、MCP 工具调用或上游 packet |
-| `execution_provenance` | 真实子 Agent、串行模拟、脚本生成或 legacy fallback |
+| `execution_provenance` | 真实子 Agent、串行模拟或脚本生成 |
 
 `evidence_refs` 统一引用格式：
 
@@ -894,17 +893,15 @@ Delivery QA Agent（独立 spawn）核查
 | `skills/amazon-product-research/agents/delivery-qa-agent.md` | 重写：强制独立 spawn、数据真实性三级交叉核对（HTML→report_data→evidence→MCP snapshot）、运营判断质量、修复循环（最多 3 轮）、可执行修复清单输出 |
 | `skills/amazon-product-research/references/multi_agent_dispatch.md` | Delivery QA Agent 从“可 spawn”改为“强制 spawn”；新增 QA→报告 Agent 修复循环编排 |
 | `skills/amazon-product-research/references/evidence_packet_contract.md` | 新增 quick packet、conflict packet、evaluation packet、integrated judgment 契约 |
-| `docs/卖家精灵导出指令完整性规范.md` | 降级为 legacy fallback 文档 |
+| `docs/卖家精灵导出指令完整性规范.md` | 手工导出操作参考文档 |
 | `docs/字段来源表.md` | 更新卖家精灵字段来源为 MCP 主路径 |
 | `docs/正式报告契约.md` | 去掉正式 HTML 对数据来源过程的展示要求 |
 | `packages/research_core/adapters/seller_sprite_adapter.py` | 从导出记录适配扩展为 MCP snapshot 适配；旧导入适配保留 legacy |
 | `packages/research_core/adapters/sorftime_adapter.py` | 对齐 quick / deep snapshot 字段 |
 | `packages/research_core/adapters/merge_strategy.py` | 扩展冲突优先级和冲突分级输出 |
-| `packages/research_core/pipeline/build_candidate_pool_from_import_manifest.py` | 主路径改为从 quick gate / MCP evidence 构建候选池；导入 manifest 仅 fallback |
 | `packages/research_core/pipeline/build_analysis_packet.py` | 增加 conflict、evaluations、integrated judgment 读取 |
 | `packages/research_core/pipeline/delivery_qa.py` | 增加数据源泄漏、冲突泄漏扫描；补全禁止术语模式；增强 source_path 追溯至 MCP snapshot |
 | `scripts/inspect_manual_exports.py` | 保留 fallback，不再作为主流程必经入口 |
-| `scripts/build_candidate_pool_from_import_manifest.py` | 保留 fallback；新增 MCP 版候选池入口 |
 | `scripts/build_fused_candidate_pool.py` | P0 决策：废弃为历史原型，不吸收、不重命名为 MCP 主入口；该脚本含样例硬编码，未清理前不得作为通用主链路 |
 | `scripts/build_analysis_report.py` | 生成 `report_data.seed.json`、基于 `report_data.json` 生成 XLSX、运行 QA；不负责手写正式 HTML |
 
@@ -937,17 +934,7 @@ Delivery QA Agent（独立 spawn）核查
 | P6 | 多评价 Agent | 生成 `evaluations/*.json` 和汇总 |
 | P7 | 资深运营专家判断 + 报告 | 生成 integrated judgment、report_data、HTML、XLSX |
 | P8 | QA 强化 | 双层强制门禁：脚本 QA（禁止术语/数据源泄漏/冲突泄漏/source_path 可解析性）+ Delivery QA Agent（强制独立 spawn、数据真实性三级交叉核对、修复循环最多 3 轮）；不可跳过、不可降级 |
-| P9 | legacy 导入降级 | 手动导入不再是主流程必经入口 |
-
-P9 legacy 退出标准：
-
-- 连续 3 个真实 run 走 MCP 主路径并通过 QA。
-- legacy fallback 回归测试仍通过。
-- Skill 和文档不再把手动导入写成主路径。
-- `scripts/inspect_manual_exports.py` 只作为 fallback 或历史回放入口。
-- P9 后新增功能不得依赖 `import_manifest` 主路径。
-- legacy 仅允许历史回放、回归测试、MCP 不可用时人工兜底。
-- 删除或隐藏入口前已确认没有测试依赖主路径导入。
+| P9 | legacy 导入移除 | 手动导入链路已彻底删除 |
 
 ## 验证
 
