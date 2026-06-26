@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from packages.research_core.pipeline._utils import as_list, compact_list, first_text, load_json, _run_id, _relative_path
+from packages.research_core.pipeline._utils import as_list, load_json, _run_id, _validate_artifacts
 from packages.research_core.pipeline.constants import VOC_MIN_REVIEW_THRESHOLD
 
 
@@ -632,10 +632,7 @@ def _update_progress(
 # ── Helpers ────────────────────────────────────────────────────────────
 
 def _validate_inputs(run_path: Path) -> None:
-    for artifact in P5_GATE_INPUT_ARTIFACTS:
-        path = run_path / artifact
-        if not path.exists():
-            raise P5GateError(f"required input not found: {artifact}")
+    _validate_artifacts(run_path, P5_GATE_INPUT_ARTIFACTS, P5GateError)
 
 
 

@@ -7,7 +7,6 @@ import argparse
 import json
 import sys
 from copy import deepcopy
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +21,7 @@ from packages.research_core.contracts import (
     validate_p4_preconditions,
 )
 from packages.research_core.contracts.p0_contracts import P0_SCHEMA_VERSION
-from packages.research_core.pipeline._utils import as_list, first_text, load_json, numeric_value
+from packages.research_core.pipeline._utils import as_list, first_text, load_json, numeric_value, _dedupe_dicts, _now_iso, _run_id, _write_json
 from packages.research_core.pipeline.quick_market_check import validate_progress
 
 
@@ -1130,26 +1129,5 @@ def _failure_status(error: str) -> str:
     return "failed"
 
 
-def _run_id(workflow_state: dict[str, Any], run_path: Path) -> str:
-    return first_text(workflow_state.get("workflow_id"), workflow_state.get("run_id"), run_path.name)
 
 
-def _dedupe_dicts(values: list[Any]) -> list[Any]:
-    seen: set[str] = set()
-    result: list[Any] = []
-    for value in values:
-        key = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
-        if key in seen:
-            continue
-        seen.add(key)
-        result.append(value)
-    return result
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-
-def _write_json(path: Path, data: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

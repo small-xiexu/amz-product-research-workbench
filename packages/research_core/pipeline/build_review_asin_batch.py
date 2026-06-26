@@ -20,7 +20,7 @@ from packages.research_core.contracts import (
     validate_p4_evidence_packet,
     validate_workflow_state,
 )
-from packages.research_core.pipeline._utils import as_list, first_text, load_json, numeric_value, _run_id
+from packages.research_core.pipeline._utils import as_list, first_text, load_json, numeric_value, _run_id, _validate_artifacts
 
 
 P5_SCHEMA_VERSION = "p5-voc-gate-v1"
@@ -187,10 +187,7 @@ def build_asin_batch(
 
 
 def _validate_inputs(run_path: Path) -> None:
-    for artifact in P5_ASIN_BATCH_INPUT_ARTIFACTS:
-        path = run_path / artifact
-        if not path.exists():
-            raise P5AsinBatchError(f"required input not found: {artifact}")
+    _validate_artifacts(run_path, P5_ASIN_BATCH_INPUT_ARTIFACTS, P5AsinBatchError)
 
 
 # ── ASIN extraction ────────────────────────────────────────────────────

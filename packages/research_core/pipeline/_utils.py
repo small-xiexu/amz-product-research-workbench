@@ -275,7 +275,7 @@ def _unique_texts(values: list[Any]) -> list[str]:
 
 
 def _run_id(workflow_state: dict[str, Any], run_path: Path | None = None) -> str:
-    wid = first_text(workflow_state.get("workflow_id"))
+    wid = first_text(workflow_state.get("workflow_id"), workflow_state.get("run_id"))
     if wid:
         return wid
     if run_path:
@@ -288,3 +288,157 @@ def _relative_path(target: Path, base: Path) -> str:
         return str(target.resolve().relative_to(base.resolve()))
     except ValueError:
         return str(target)
+
+
+def _base_tool_name(value: Any) -> str:
+    text = first_text(value)
+    if "." in text:
+        text = text.rsplit(".", 1)[-1]
+    if "__" in text:
+        text = text.rsplit("__", 1)[-1]
+    return text or "unknown_tool"
+
+
+def _normalize_tool_status(value: Any) -> str:
+    text = first_text(value).lower()
+    if "fail" in text or "error" in text:
+        return "error"
+    if "empty" in text:
+        return "empty"
+    return "success"
+
+
+def _dedupe_dicts(values: list[Any]) -> list[Any]:
+    seen: set[str] = set()
+    result: list[Any] = []
+    for value in values:
+        key = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(value)
+    return result
+
+
+def _case_insensitive_get(data: dict[str, Any], field: str) -> Any:
+    if field in data:
+        return data[field]
+    folded = field.casefold()
+    for key, value in data.items():
+        if str(key).casefold() == folded:
+            return value
+    return None
+
+
+def _nested_first(data: dict[str, Any], path: tuple[str, ...]) -> Any:
+    current: Any = data
+    for part in path:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(part)
+    return current
+
+
+def _first_field(rows: list[dict[str, Any]], field: str) -> Any:
+    for row in rows:
+        value = _case_insensitive_get(row, field)
+        if value not in (None, "", []):
+            return value
+    return None
+
+
+def _first_metric_value(normalized: dict[str, Any]) -> Any:
+    numeric_values = normalized.get("numeric_values") if isinstance(normalized, dict) else {}
+    if isinstance(numeric_values, dict) and numeric_values:
+        return next(iter(numeric_values.values()))
+    field_values = normalized.get("field_values") if isinstance(normalized, dict) else {}
+    if isinstance(field_values, dict) and field_values:
+        return next(iter(field_values.values()))
+    return None
+
+
+def _probe_raw_result(record: dict[str, Any]) -> Any:
+    for key in ("raw_result_sample", "raw_result", "response", "data"):
+        if key in record and record.get(key) not in (None, "", []):
+            return record.get(key)
+    return None
+
+
+def _result_payload(result: dict[str, Any]) -> Any:
+    if not isinstance(result, dict):
+        return {}
+    for key in ("raw_result", "normalized_preview"):
+        if key in result and result.get(key) not in (None, "", []):
+            return result.get(key)
+    return {}
+
+
+def _call_params_for_result(snapshot: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    call_id = result.get("call_id") if isinstance(result, dict) else ""
+    for call in as_list(snapshot.get("tool_calls")):
+        if isinstance(call, dict) and call.get("call_id") == call_id and isinstance(call.get("params"), dict):
+            return call["params"]
+    return {}
+
+
+def _packet_confidence(data_gaps: list[Any]) -> str:
+    severe_count = sum(1 for gap in data_gaps if isinstance(gap, dict) and gap.get("type") in {"tool_result_unavailable", "tool_call_failed"})
+    if severe_count >= 2:
+        return "low"
+    if data_gaps:
+        return "medium"
+    return "high"
+
+
+def _field_gaps(
+    spec: dict[str, Any],
+    result: dict[str, Any],
+    rows: list[dict[str, Any]],
+    normalized: dict[str, Any],
+    result_ref: str,
+) -> list[dict[str, Any]]:
+    gaps: list[dict[str, Any]] = []
+    tool_name = _base_tool_name(result.get("tool_name") if isinstance(result, dict) else "")
+    status = result.get("status") if isinstance(result, dict) else "missing"
+    if status in {"error", "empty", "missing"}:
+        gaps.append(
+            {
+                "type": "tool_result_unavailable",
+                "tool_name": tool_name or first_text(spec["tools"][0]),
+                "evidence_type": spec["item_type"],
+                "severity": "warning",
+                "evidence_ref": result_ref,
+            }
+        )
+    if not rows:
+        gaps.append(
+            {
+                "type": "empty_tool_result",
+                "tool_name": tool_name or first_text(spec["tools"][0]),
+                "evidence_type": spec["item_type"],
+                "severity": "warning",
+                "evidence_ref": result_ref,
+            }
+        )
+    present = set((normalized.get("field_values") or {}).keys())
+    missing = [field for field in spec["expected_fields"] if field not in present]
+    if missing:
+        gaps.append(
+            {
+                "type": "empty_or_missing_fields",
+                "tool_name": tool_name or first_text(spec["tools"][0]),
+                "evidence_type": spec["item_type"],
+                "fields": missing,
+                "severity": "warning",
+                "evidence_ref": result_ref,
+            }
+        )
+    return gaps
+
+
+def _validate_artifacts(run_path: Path, artifacts: list[str], error_cls: type[Exception]) -> None:
+    for artifact in artifacts:
+        p = run_path / artifact
+        if not p.exists():
+            raise error_cls(f"required input not found: {artifact}")
+

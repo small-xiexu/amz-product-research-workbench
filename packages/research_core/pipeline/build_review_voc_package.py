@@ -24,7 +24,7 @@ from packages.research_core.pipeline.build_review_voc_from_plugin_export import 
     read_review_excel,
     read_reviews_from_json,
 )
-from packages.research_core.pipeline._utils import as_list, first_text, load_json, _run_id, _relative_path
+from packages.research_core.pipeline._utils import as_list, first_text, load_json, _relative_path, _run_id, _validate_artifacts
 
 
 P5_SCHEMA_VERSION = "p5-voc-gate-v1"
@@ -286,10 +286,7 @@ def _update_progress(
 # ── Validation ─────────────────────────────────────────────────────────
 
 def _validate_inputs(run_path: Path) -> None:
-    for artifact in P5_VOC_PACKAGE_INPUT_ARTIFACTS:
-        path = run_path / artifact
-        if not path.exists():
-            raise P5VocPackageError(f"required input not found: {artifact}")
+    _validate_artifacts(run_path, P5_VOC_PACKAGE_INPUT_ARTIFACTS, P5VocPackageError)
 
 
 # ── Helpers ────────────────────────────────────────────────────────────
