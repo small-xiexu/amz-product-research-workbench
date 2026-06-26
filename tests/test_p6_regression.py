@@ -83,6 +83,7 @@ class P6EndToEndTests(unittest.TestCase):
         run_review_asin_batch(run_dir)
         run_review_voc_package(run_dir, self._write_review_xlsx(review_count))
         run_voc_gate(run_dir)
+        _write_agent_evaluations(run_dir)
         return run_dir
 
     def _write_sellersprite_snapshot(self) -> Path:
@@ -171,16 +172,16 @@ class P6EndToEndTests(unittest.TestCase):
             for ref in ev["evidence_refs"]:
                 self.assertTrue(ref.strip(), f"Empty evidence_ref in {dim}_evaluation")
 
-    def test_execution_provenance_is_serial_fallback(self) -> None:
-        """All evaluations are marked as serial_fallback, not real agent spawn."""
+    def test_execution_provenance_is_real_agent_spawn(self) -> None:
+        """All evaluations are marked as real agent spawn (not serial_fallback)."""
         run_dir = self._seed_p5_3_done(35)
         run_evaluations(run_dir)
 
         for dim in ["market_demand", "competition", "price_profit", "voc_opportunity", "risk", "data_quality"]:
             ev = load_json(run_dir / "evaluations" / f"{dim}_evaluation.json")
             prov = ev.get("execution_provenance", {})
-            self.assertFalse(prov.get("executed_by_agent"), f"{dim} should not claim agent execution")
-            self.assertEqual(prov.get("execution_mode"), "serial_fallback")
+            self.assertTrue(prov.get("executed_by_agent"), f"{dim} should claim agent execution")
+            self.assertEqual(prov.get("execution_mode"), "real_subagent_spawn")
 
     # ── Evaluation Summary governance ─────────────────────────────────
 
@@ -257,32 +258,36 @@ class P6EndToEndTests(unittest.TestCase):
 
     # ── Error / missing input cases ────────────────────────────────────
 
-    def test_missing_market_structure_raises(self) -> None:
-        """P6 fails without market_structure_evidence_packet.json."""
+    def test_missing_evaluation_file_raises(self) -> None:
+        """P6 fails when an Agent-produced evaluation file is missing."""
         run_dir = self._seed_p5_3_done(35)
-        (run_dir / "market_structure" / "market_structure_evidence_packet.json").unlink()
+        (run_dir / "evaluations" / "market_demand_evaluation.json").unlink()
         with self.assertRaises(P6EvaluationError):
             run_evaluations(run_dir)
 
-    def test_missing_search_demand_raises(self) -> None:
-        """P6 fails without search_demand_evidence_packet.json."""
+    def test_missing_all_evaluations_raises(self) -> None:
+        """P6 fails when evaluations/ directory is empty."""
         run_dir = self._seed_p5_3_done(35)
-        (run_dir / "search_demand" / "search_demand_evidence_packet.json").unlink()
+        import shutil
+        shutil.rmtree(run_dir / "evaluations")
         with self.assertRaises(P6EvaluationError):
             run_evaluations(run_dir)
 
-    def test_missing_voc_package_raises(self) -> None:
-        """P6 fails without review_voc_package.json."""
+    def test_evaluation_missing_required_fields_raises(self) -> None:
+        """P6 fails when an evaluation file is missing required fields."""
         run_dir = self._seed_p5_3_done(35)
-        (run_dir / "review_voc" / "review_voc_package.json").unlink()
+        broken = {"score": 50}
+        (run_dir / "evaluations" / "market_demand_evaluation.json").write_text(
+            json.dumps(broken, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
         with self.assertRaises(P6EvaluationError):
             run_evaluations(run_dir)
 
-    def test_missing_conflict_resolution_raises(self) -> None:
-        """P6 fails without conflict_resolution_packet.json."""
+    def test_missing_progress_raises(self) -> None:
+        """P6 raises FileNotFoundError without progress.json."""
         run_dir = self._seed_p5_3_done(35)
-        (run_dir / "conflict_review" / "conflict_resolution_packet.json").unlink()
-        with self.assertRaises(P6EvaluationError):
+        (run_dir / "progress.json").unlink()
+        with self.assertRaises(FileNotFoundError):
             run_evaluations(run_dir)
 
     # ── Scope boundaries ────────────────────────────────────────────
@@ -343,6 +348,38 @@ class P6EndToEndTests(unittest.TestCase):
         # All 7 files should exist
         for artifact in P6_OUTPUT_ARTIFACTS:
             self.assertTrue((run_dir / artifact).exists(), f"CLI should produce {artifact}")
+
+
+# ── Agent evaluation fixture ─────────────────────────────────────────────────
+
+def _write_agent_evaluations(run_dir: Path) -> None:
+    """Write 6 valid Agent-produced evaluation files so run_evaluations() can read them."""
+    eval_dir = run_dir / "evaluations"
+    eval_dir.mkdir(parents=True, exist_ok=True)
+    dims = ["market_demand", "competition", "price_profit", "voc_opportunity", "risk", "data_quality"]
+    for dim in dims:
+        ev = {
+            "schema_version": "p6-evaluation-v1",
+            "packet_id": f"{dim}_evaluation",
+            "stage": "evaluation",
+            "score": 75,
+            "rating": "strong",
+            "confidence": "high",
+            "key_reasons": [f"{dim} signal is healthy"],
+            "risks": [],
+            "required_followups": [f"Verify {dim} with additional data"],
+            "evidence_refs": [f"evidence_packet.json#{dim}"],
+            "execution_provenance": {
+                "executed_by_agent": True,
+                "agent_role": f"{dim} Evaluation Agent",
+                "execution_mode": "real_subagent_spawn",
+                "subagent_id": f"agent-{dim}-001",
+                "note": "Agent produced evaluation from evidence packets.",
+            },
+        }
+        (eval_dir / f"{dim}_evaluation.json").write_text(
+            json.dumps(ev, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
 
 
 # ── Fixtures ───────────────────────────────────────────────────────────────

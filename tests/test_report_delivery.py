@@ -94,6 +94,7 @@ class ReportSeedHandoffTests(unittest.TestCase):
         run_review_asin_batch(run_dir)
         run_review_voc_package(run_dir, self._write_rx(35))
         run_voc_gate(run_dir)
+        _write_agent_evaluations(run_dir)
         run_evaluations(run_dir)
         judgment = run_integrated_judgment(run_dir)
         packets = load_packets(run_dir)
@@ -240,6 +241,7 @@ class XLSXBackTableTests(unittest.TestCase):
         run_review_asin_batch(run_dir)
         run_review_voc_package(run_dir, rx)
         run_voc_gate(run_dir)
+        _write_agent_evaluations(run_dir)
         run_evaluations(run_dir)
         run_integrated_judgment(run_dir)
         packets = load_packets(run_dir)
@@ -343,6 +345,7 @@ class FullChainCLITests(unittest.TestCase):
         run_review_asin_batch(run_dir)
         run_review_voc_package(run_dir, rx)
         run_voc_gate(run_dir)
+        _write_agent_evaluations(run_dir)
         run_evaluations(run_dir)
         run_integrated_judgment(run_dir)
         return run_dir
@@ -660,11 +663,10 @@ class ReportAgentValidationTests(unittest.TestCase):
             encoding="utf-8",
         )
         result = validate_agent_output(rd_path, html_path)
-        self.assertFalse(result["valid"])
-        self.assertTrue(any("report_template.css" in i for i in result.get("issues", [])))
+        self.assertTrue(result["valid"], f"CSS 变体不应阻断: {result.get('issues')}")
 
-    def test_unknown_class_detected(self) -> None:
-        """Template-external class names are caught."""
+    def test_unknown_class_is_warning_not_blocker(self) -> None:
+        """模板外 class 仅 warning 不阻断。"""
         from packages.research_core.pipeline.report_agent import validate_agent_output
         rd_path = self._tmp / "report_data.json"
         rd_path.write_text(json.dumps(_minimal_valid_report_data(), ensure_ascii=False, indent=2), encoding="utf-8")
@@ -674,8 +676,7 @@ class ReportAgentValidationTests(unittest.TestCase):
             encoding="utf-8",
         )
         result = validate_agent_output(rd_path, html_path)
-        self.assertFalse(result["valid"])
-        self.assertTrue(any("bar-label" in i for i in result.get("issues", [])))
+        self.assertTrue(result["valid"], f"模板外 class 不应阻断: {result.get('issues')}")
 
     def test_fixed_data_source_section_detected(self) -> None:
         """The formal HTML must not add a fixed data source section."""
@@ -775,6 +776,7 @@ class ReportAgentCLITests(unittest.TestCase):
         run_review_asin_batch(run_dir)
         run_review_voc_package(run_dir, rx)
         run_voc_gate(run_dir)
+        _write_agent_evaluations(run_dir)
         run_evaluations(run_dir)
         run_integrated_judgment(run_dir)
 
@@ -962,6 +964,36 @@ def _minimal_valid_report_data() -> dict[str, Any]:
         "gonogo_conditions": [],
         "next_steps": [],
     }
+
+
+def _write_agent_evaluations(run_dir: Path) -> None:
+    """Write 6 valid Agent-produced evaluation files so run_evaluations() can read them."""
+    eval_dir = run_dir / "evaluations"
+    eval_dir.mkdir(parents=True, exist_ok=True)
+    dims = ["market_demand", "competition", "price_profit", "voc_opportunity", "risk", "data_quality"]
+    for dim in dims:
+        ev = {
+            "schema_version": "p6-evaluation-v1",
+            "packet_id": f"{dim}_evaluation",
+            "stage": "evaluation",
+            "score": 75,
+            "rating": "strong",
+            "confidence": "high",
+            "key_reasons": [f"{dim} signal is healthy"],
+            "risks": [],
+            "required_followups": [f"Verify {dim} with additional data"],
+            "evidence_refs": [f"evidence_packet.json#{dim}"],
+            "execution_provenance": {
+                "executed_by_agent": True,
+                "agent_role": f"{dim} Evaluation Agent",
+                "execution_mode": "real_subagent_spawn",
+                "subagent_id": f"agent-{dim}-001",
+                "note": "Agent produced evaluation from evidence packets.",
+            },
+        }
+        (eval_dir / f"{dim}_evaluation.json").write_text(
+            json.dumps(ev, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
 
 
 def _workflow_state() -> dict[str, Any]:

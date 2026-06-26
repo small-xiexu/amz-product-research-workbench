@@ -354,6 +354,65 @@ def _check_route_placeholders(data: dict[str, Any]) -> None:
         )
 
 
+def _classify_route_tier(candidate: dict[str, Any]) -> str:
+    """Classify route as 'full' or 'light' based on data completeness.
+
+    full: >=2 reference ASINs AND estimated search volume >= 5K.
+    light: <2 reference ASINs OR estimated search volume < 5K.
+    """
+    top_products = as_list(candidate.get("top_products"))
+    asin_count = len(top_products)
+
+    if asin_count < 2:
+        return "light"
+
+    # Estimate search volume from demand_evidence
+    demand = candidate.get("demand_evidence") or {}
+    search_signal = first_text(
+        demand.get("search_signal"),
+        demand.get("search_volume_signal"),
+        "",
+    )
+    sv = _parse_search_volume(search_signal)
+    if sv is not None and sv < 5000:
+        return "light"
+
+    return "full"
+
+
+def _parse_search_volume(text: str) -> int | None:
+    """Extract monthly search volume from a free-text signal string.
+
+    Handles patterns like '月搜索249,093', '月搜索量 270,612',
+    'search volume 50K', '搜索量 8.5K'.
+    """
+    if not text:
+        return None
+    # Pattern: optional prefix, digits with commas or decimals, optional K/万 suffix
+    m = re.search(r"(?:月)?搜索(?:量|值)?[^\d]*?([\d,]+(?:\.[\d]+)?)\s*[Kk]?", text)
+    if m:
+        raw = m.group(1).replace(",", "")
+        try:
+            val = float(raw)
+        except ValueError:
+            return None
+        if re.search(r"[Kk]", m.group(0)):
+            val *= 1000
+        return int(val)
+    # English pattern: "search volume" or "monthly searches"
+    m = re.search(r"(?:search\s*volume|monthly\s*searches?)[^\d]*?([\d,]+(?:\.[\d]+)?)\s*[Kk]?", text, re.IGNORECASE)
+    if m:
+        raw = m.group(1).replace(",", "")
+        try:
+            val = float(raw)
+        except ValueError:
+            return None
+        if re.search(r"[Kk]", m.group(0)):
+            val *= 1000
+        return int(val)
+    return None
+
+
 def _assess_route_completeness(
     candidate: dict[str, Any],
     candidate_pool: dict[str, Any],
@@ -444,6 +503,8 @@ def _assess_route_completeness(
     next_check = _route_next_check(candidate, gap_level, data_gaps, required_deep_dive)
     price_range = first_text(_nested_lookup(candidate, "competition_structure.price_band"), _route_price_hint(candidate), "待补")
 
+    tier = _classify_route_tier(candidate)
+
     return {
         "candidate_id": candidate_id,
         "route_id": candidate_id,
@@ -459,6 +520,7 @@ def _assess_route_completeness(
         "price_band_health": price_band_health,
         "category_boundary_clarity": category_boundary_clarity,
         "confidence": first_text(candidate.get("confidence"), "medium"),
+        "tier": tier,
         "gap_level": gap_level,
         "gap_reasons": gap_reasons,
         "requires_voc_validation": needs_voc_validation,
@@ -521,6 +583,11 @@ def _build_data_completeness_check(
         ]
         + [ref for route in route_checks for ref in _flatten_list(route.get("evidence_refs"))]
     )
+    tier_summary = {
+        "full_count": sum(1 for r in route_checks if r.get("tier") == "full"),
+        "light_count": sum(1 for r in route_checks if r.get("tier") == "light"),
+        "note": "full: >=2 reference ASINs AND estimated search volume >=5K; light: <2 ASINs OR search volume <5K. light routes get 2-dim quick evaluation (market_demand + data_quality) instead of full 6-dim evaluation.",
+    }
     return {
         "schema_version": P3_SCHEMA_VERSION,
         "packet_id": "data_completeness_check",
@@ -536,6 +603,7 @@ def _build_data_completeness_check(
         },
         "overall_level": overall_level,
         "summary": summary,
+        "tier_summary": tier_summary,
         "route_checks": route_checks,
         "required_next_actions": required_next_actions,
         "evidence_refs": evidence_refs,

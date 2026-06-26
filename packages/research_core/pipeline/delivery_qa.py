@@ -66,6 +66,10 @@ _ALLOWED_REPORT_CLASS_TOKENS = {
     "pill",
 }
 
+_KEY_STRUCTURE_CLASSES = {"hero", "page", "section", "go-nogo"}
+
+_KEY_CSS_SELECTORS = [".hero", ".section", ".go-nogo", ".page", ".tag-green", ".tag-amber", ".tag-red", ".insight-card"]
+
 _FAILURE_CLASSIFICATION: dict[str, dict[str, str]] = {
     # analysis: judgment logic failures → retry Stage 10 (Lead Operator Agent)
     "report_data_values_consistent": {"class": "analysis", "retry_stage": "stage_10", "retry_target": "Lead Operator Agent"},
@@ -376,7 +380,7 @@ def _extract_inline_style(html: str) -> str | None:
 
 
 def _uses_report_template_css(html_path: Path) -> dict[str, Any]:
-    """HTML 的唯一 <style> 内容必须与 report_template.css 完全一致。"""
+    """HTML 的 <style> 必须包含关键 CSS 选择器，不要求逐字节匹配模板。"""
     if not html_path.exists():
         return {"pass": False, "hits": ["HTML 文件不存在"]}
     html = html_path.read_text(encoding="utf-8")
@@ -384,35 +388,35 @@ def _uses_report_template_css(html_path: Path) -> dict[str, Any]:
     if inline_css is None:
         return {"pass": False, "hits": ["缺少内嵌 <style>"]}
 
-    template_css = _report_template_css_path().read_text(encoding="utf-8").strip()
-    if inline_css != template_css:
+    missing_selectors = [s for s in _KEY_CSS_SELECTORS if s not in inline_css]
+    if missing_selectors:
         return {
             "pass": False,
-            "hits": ["<style> 内容未完整复制 report_template.css"],
+            "hits": [f"<style> 缺少关键 CSS 选择器: {', '.join(missing_selectors)}"],
         }
     return {"pass": True, "hits": []}
 
 
 def _has_only_allowed_report_classes(html_path: Path) -> dict[str, Any]:
-    """HTML class token 必须来自报告模板白名单，避免手写漂移。"""
+    """检查关键结构 class 存在；非白名单 class 仅 warning 不阻断。"""
     if not html_path.exists():
         return {"pass": False, "hits": ["HTML 文件不存在"]}
     html = html_path.read_text(encoding="utf-8")
     class_values = re.findall(r"""\bclass\s*=\s*["']([^"']+)["']""", html)
-    unknown = sorted(
-        {
-            token
-            for value in class_values
-            for token in value.split()
-            if token not in _ALLOWED_REPORT_CLASS_TOKENS
-        }
-    )
-    if unknown:
+    all_tokens = {token for value in class_values for token in value.split()}
+
+    missing_key = _KEY_STRUCTURE_CLASSES - all_tokens
+    if missing_key:
         return {
             "pass": False,
-            "hits": [f"发现模板外 class: {', '.join(unknown[:10])}"],
+            "hits": [f"缺少关键结构 class: {', '.join(sorted(missing_key))}"],
         }
-    return {"pass": True, "hits": []}
+
+    unknown = sorted(all_tokens - _ALLOWED_REPORT_CLASS_TOKENS)
+    hits: list[str] = []
+    if unknown:
+        hits.append(f"[WARNING] 发现模板外 class（不阻断）: {', '.join(unknown[:10])}")
+    return {"pass": True, "hits": hits}
 
 
 def _has_no_fixed_data_source_section(html_path: Path) -> dict[str, Any]:

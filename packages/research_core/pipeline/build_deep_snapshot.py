@@ -24,29 +24,58 @@ def _as_list(value: object) -> list:
     return []
 
 
+def _from_tool_summaries(summaries: list, now: str) -> list[dict]:
+    """Convert simplified tool_summaries to full tool_calls format."""
+    tool_calls = []
+    for i, s in enumerate(summaries):
+        if not isinstance(s, dict):
+            continue
+        tool_calls.append({
+            "call_id": f"summary_{i:03d}",
+            "tool_name": s.get("tool") or s.get("tool_name") or "unknown",
+            "params": s.get("params") or {},
+            "status": "success",
+            "started_at": now,
+            "finished_at": now,
+            "normalized_preview": s.get("key_findings") or s.get("result_summary"),
+        })
+    return tool_calls
+
+
 def build_deep_snapshot(
     agent_dump: dict,
     source_name: str,
     run_id: str | None = None,
     route_refs: list[str] | None = None,
 ) -> dict:
-    """Build a contract-compliant deep snapshot from agent's raw MCP dump."""
+    """Build a contract-compliant deep snapshot from agent's MCP dump.
+
+    Supports two formats:
+      - Full format: ``tool_calls`` / ``calls`` with detailed per-call fields.
+      - Simplified format: ``tool_summaries`` (Agent-written, only key findings).
+    """
     now = _now_iso()
 
-    # --- tool_calls ---
-    raw_calls = _as_list(agent_dump.get("tool_calls") or agent_dump.get("calls") or [])
-    tool_calls = []
-    for i, call in enumerate(raw_calls):
-        if not isinstance(call, dict):
-            continue
-        tool_calls.append({
-            "call_id": call.get("call_id") or call.get("id") or f"call_{i:03d}",
-            "tool_name": call.get("tool_name") or call.get("tool") or "unknown",
-            "params": call.get("params") or call.get("arguments") or {},
-            "status": call.get("status") or "success",
-            "started_at": call.get("started_at") or call.get("timestamp") or now,
-            "finished_at": call.get("finished_at") or call.get("timestamp") or now,
-        })
+    # --- tool_calls (support both full and simplified formats) ---
+    raw_summaries = _as_list(agent_dump.get("tool_summaries") or [])
+    if raw_summaries:
+        # Simplified format: convert tool_summaries → tool_calls
+        tool_calls = _from_tool_summaries(raw_summaries, now)
+    else:
+        raw_calls = _as_list(agent_dump.get("tool_calls") or agent_dump.get("calls") or [])
+        tool_calls = []
+        for i, call in enumerate(raw_calls):
+            if not isinstance(call, dict):
+                continue
+            tool_calls.append({
+                "call_id": call.get("call_id") or call.get("id") or f"call_{i:03d}",
+                "tool_name": call.get("tool_name") or call.get("tool") or "unknown",
+                "params": call.get("params") or call.get("arguments") or {},
+                "status": call.get("status") or "success",
+                "started_at": call.get("started_at") or call.get("timestamp") or now,
+                "finished_at": call.get("finished_at") or call.get("timestamp") or now,
+                "normalized_preview": call.get("key_findings") or call.get("result_summary"),
+            })
 
     # --- tool_results ---
     raw_results = _as_list(agent_dump.get("tool_results") or agent_dump.get("results") or [])

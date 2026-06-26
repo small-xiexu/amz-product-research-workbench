@@ -84,17 +84,19 @@
 
 每个关键词对象至少包含 `keyword`、`keyword_role`、`source_type`、`source_refs`、`route_refs`、`matched_asin_count`、`monthly_search_volume`、`cpc`、`competition_count`、`mix_pool_tags`、`recommended_action`、`reason`、`confidence` 和 `lineage`。
 
-**快照输出（必须）**：写入 evidence packet 的同时，将所有 MCP tool_calls 摘要写入 `mcp_snapshots/sorftime_deep_snapshot.json`：
+**快照输出（必须）**：完成 evidence packet 写入后，同步生成简化快照到 `mcp_snapshots/sorftime_deep_snapshot.json`。每个 MCP 工具调用输出一个 `tool_summaries` 条目，只保存关键数字，不保存完整 tool_result：
+
 ```json
 {
-  "tool_calls": [
-    {"tool": "keyword_detail", "params": {"keyword": "..."}, "result_summary": "月搜 12000，CPC $0.85，竞争量中等"},
-    {"tool": "product_traffic_terms", "params": {"asin": "..."}, "result_summary": "返回 15 个流量词"}
+  "tool_summaries": [
+    {"tool": "keyword_detail", "params": {"keyword": "dog leash"}, "key_findings": ["月搜270,612", "CPC $1.31", "竞争量中等"]},
+    {"tool": "product_traffic_terms", "params": {"asin": "B099WM7ZT7"}, "key_findings": ["15个流量词", "Top3词月搜合计50万"]}
   ],
   "collected_at": "<ISO 时间戳>"
 }
 ```
-若子 Agent 模式下无法生成快照（工具调用在不同格式中），在 evidence packet 的 `execution_provenance` 中标注 `snapshot_unavailable: true`。
+
+**禁止**保存完整 MCP 返回体（会膨胀上下文）。只保存 QA 溯源需要的关键数字。
 
 ## Stage 6 深扫最低要求
 

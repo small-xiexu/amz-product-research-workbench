@@ -172,6 +172,30 @@ def as_list(value: Any) -> list[Any]:
     return [value]
 
 
+def as_dict_list(value: Any, *, warn_key: str = "") -> list[dict[str, Any]]:
+    """Return value as a list of dicts, skipping non-dict elements.
+
+    Use this when iterating over Agent-produced lists that may contain bare
+    strings mixed into ``facts`` or ``evidence_items``.  Pass *warn_key* to
+    emit a one-line warning per skipped element (only on first occurrence).
+    """
+    raw = as_list(value)
+    out: list[dict[str, Any]] = []
+    warned = False
+    for item in raw:
+        if isinstance(item, dict):
+            out.append(item)
+        elif warn_key and not warned:
+            import sys
+            print(
+                f"[WARN] as_dict_list({warn_key}): "
+                f"skipping non-dict element of type {type(item).__name__}",
+                file=sys.stderr,
+            )
+            warned = True
+    return out
+
+
 def compact_list(values: list[Any]) -> list[str]:
     return [text for text in (public_text(value) for value in values) if text]
 
@@ -434,6 +458,13 @@ def _field_gaps(
             }
         )
     return gaps
+
+
+def safe_get(item: Any, key: str, default: Any = None) -> Any:
+    """类型安全取值——item 为 dict 时调 .get()，否则返回 default。"""
+    if isinstance(item, dict):
+        return item.get(key, default)
+    return default
 
 
 def _validate_artifacts(run_path: Path, artifacts: list[str], error_cls: type[Exception]) -> None:

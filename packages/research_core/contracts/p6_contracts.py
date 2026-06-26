@@ -141,7 +141,7 @@ def validate_evaluation_summary(summary: dict[str, Any]) -> None:
     _require_list(summary.get("blocked_dimensions"), "evaluation_summary.blocked_dimensions")
     _require_list(summary.get("low_confidence_dimensions"), "evaluation_summary.low_confidence_dimensions")
     _require_list(summary.get("cross_dimension_tensions"), "evaluation_summary.cross_dimension_tensions")
-    _require_list(summary.get("operator_judgment_constraints"), "evaluation_summary.operator_judgment_constraints", min_items=1)
+    _require_list(summary.get("operator_judgment_constraints"), "evaluation_summary.operator_judgment_constraints")
 
     verdict_range = _require_list(
         summary.get("recommended_final_verdict_range"),

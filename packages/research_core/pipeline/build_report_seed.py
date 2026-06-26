@@ -63,7 +63,41 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"Wrote analysis_packet {analysis_packet_path}")
 
-    # Step 3: Indicate handoff
+    # Step 3: Validate seed field names against contract
+    from packages.research_core.pipeline.constants import REQUIRED_REPORT_DATA_SECTIONS
+    from packages.research_core.pipeline.constants import REQUIRED_REPORT_DATA_DECLARATIONS
+
+    seed_keys = set(seed.keys())
+    contract_sections = set(REQUIRED_REPORT_DATA_SECTIONS)
+    contract_decls = set(REQUIRED_REPORT_DATA_DECLARATIONS)
+
+    missing_sections = contract_sections - seed_keys
+    missing_decls = contract_decls - seed_keys
+
+    warnings: list[str] = []
+    if missing_sections:
+        warnings.append(
+            f"[WARN] report_data.seed.json 缺少契约板块: {sorted(missing_sections)}"
+        )
+    if missing_decls:
+        warnings.append(
+            f"[WARN] report_data.seed.json 缺少契约声明字段: {sorted(missing_decls)}"
+        )
+
+    # Also warn about extra sections not in the contract
+    extra = seed_keys - contract_sections - contract_decls - {
+        "schema_version", "packet_id", "run_id", "generated_at",
+        "snapshot_date", "evidence_sources",
+    }
+    if extra:
+        warnings.append(
+            f"[INFO] report_data.seed.json 含契约外字段（Agent 增强后正常）: {sorted(extra)}"
+        )
+
+    for w in warnings:
+        print(w, file=sys.stderr)
+
+    # Step 4: Indicate handoff
     product_name = _extract_product_name(run_dir)
     report_data_path = analysis_dir / "report_data.json"
     print()

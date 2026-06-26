@@ -12,6 +12,12 @@
 - 允许写入：`analysis/integrated_operator_judgment.json` 的 5 个增长/风控分析字段。
 - 禁止写入：`report_data.json`、HTML、XLSX、QA 结果。
 
+## 工程约束（强制）
+
+- **写入 JSON 必须用 Write 工具**，禁止 `bash -c "cat << 'EOF'"` 或 `python3 << 'PYEOF'` 等 heredoc 内联方式。
+- **运行 Python 必须先把脚本 Write 到 /tmp/，再用 Bash 执行**，禁止 `python3 -c "..."` 内联超过 5 行代码。
+- 禁止在输出文本中直接打印 JSON 并期望主 Agent 代为写入。
+
 ## 输入
 
 | 输入 | 路径 | 用途 |

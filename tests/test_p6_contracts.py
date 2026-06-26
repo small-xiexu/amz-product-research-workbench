@@ -207,14 +207,14 @@ class P6SummaryContractTests(unittest.TestCase):
         with self.assertRaises(P6ContractError):
             validate_evaluation_summary(s)
 
-    def test_empty_constraints_raises(self) -> None:
+    def test_empty_constraints_accepted(self) -> None:
+        """Empty operator_judgment_constraints is valid when all dims are healthy."""
         dims = self._all_dims_strong()
         results = {d: {"score": e["score"], "rating": e["rating"], "confidence": e["confidence"]}
                    for d, e in dims.items()}
         s = _summary(results)
         s["operator_judgment_constraints"] = []
-        with self.assertRaises(P6ContractError):
-            validate_evaluation_summary(s)
+        validate_evaluation_summary(s)  # should not raise
 
     def test_invalid_verdict_in_range_raises(self) -> None:
         dims = self._all_dims_strong()

@@ -27,7 +27,7 @@ Stage 1 (意图收集) → Stage 2-3 (快验+门控) → Stage 4 (候选池) →
 | Stage 5 路线确认 | 不 spawn | Stage 4 done + 运营确认 | 主 Agent 产出 route_matrix_confirm.json → 脚本 `build_route_matrix_confirm.py` 合约校验 + `data_completeness_check.json` | `route_matrix_confirm.json`、`data_completeness_check.json` |
 | Stage 6 双 MCP 深挖 | **强制并行 spawn** | Stage 5 done | Market Structure Agent、Search Demand Agent | `market_structure_evidence_packet.json`、`search_demand_evidence_packet.json` |
 | Stage 7 冲突复核 | 不 spawn（脚本执行） | Stage 6 done | 脚本 `build_conflict_review.py` | `conflict_resolution_packet.json` |
-| Stage 8 VOC | 推荐 spawn | Stage 7 done + 运营导出评论 | VOC Evidence Agent + 脚本 `build_review_voc_package.py` | `voc_gate.json`、`review_voc_package.json`、`voc_evidence_packet.json` |
+| Stage 8 VOC | **强制 spawn** | Stage 7 done + 运营导出评论 | VOC Evidence Agent + 脚本 `build_review_voc_package.py`、`build_voc_gate.py` | `voc_gate.json`、`review_voc_package.json`、`voc_evidence_packet.json` |
 | Stage 9 六维评价 | **推荐并行 spawn** | Stage 6、7、8 全部 done | 6 个 Evaluation Agent | `evaluations/*.json`、`evaluation_summary.json` |
 | Stage 10a 深度分析 | **强制并行 spawn** | Stage 9 done | Route Strategy Agent、Growth & Risk Agent | `integrated_operator_judgment.json` 的 10 个深度分析字段（路线推荐/路线取舍/竞品对标/竞品弱点/价格带解读 — Route Strategy；VOC→规格/关键词策略/风险缓解/冷启动/验证路线图 — Growth & Risk） |
 | Stage 10b 决策合成 | **推荐独立 spawn** | Stage 10a done | Lead Operator Agent（跨维度权衡 + 最终决策） | `integrated_operator_judgment.json`（决策摘要 + 合并 10a 的 10 个深度分析字段） |
@@ -137,3 +137,26 @@ Delivery QA Agent 发现阻断项后，主 Agent 调度 Report Generation Agent 
 ## 输出边界
 
 用户版报告只展示业务语言，不展示 Agent、MCP、tool、spawn、packet 等内部术语。内部 Evidence Packet 可以保留执行来源和工具参数，供 QA 与后续恢复使用。
+
+## 工程约束（所有 Agent 强制遵守）
+
+所有 spawn Agent 必须遵守以下工程约束，违反即视为 Agent 执行失败，需打回重做：
+
+### 文件写入
+
+- **写入任何文件必须使用 Write 工具**（或 Edit 工具做增量修改）。
+- **禁止**使用 `bash -c "cat << 'EOF' > file.json"`、`bash -c "python3 << 'PYEOF'"` 或任何 heredoc 内联方式写入文件。
+- **禁止**使用 `echo`、`printf` 拼接多行内容后管道写入文件。
+
+原因：heredoc 内联在中文引号、特殊字符、缩进嵌套场景下极易产生 bash 转义错误，导致文件写入不完整或 Agent 死循环重试。
+
+### Python 脚本执行
+
+- 需要运行 Python 脚本时，必须**先用 Write 工具将脚本写入 `/tmp/` 目录**，再用 `Bash` 工具执行 `python3 /tmp/script_name.py`。
+- **禁止**使用 `bash -c "python3 << 'PYEOF' ... PYEOF"` 或 `python3 -c "..."` 内联超过 5 行的 Python 代码。
+- 临时脚本用完后可删除，不做长期维护要求。
+
+### JSON 产出
+
+- 所有 JSON 产出必须通过 Write 工具写入目标路径（run_dir 下的正式产物）或通过脚本写入（由 Write-to-/tmp/ 的脚本执行）。
+- **禁止**在 Agent 输出文本中直接打印 JSON 并期望主 Agent 代为写入。

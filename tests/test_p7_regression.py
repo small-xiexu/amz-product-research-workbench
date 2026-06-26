@@ -85,6 +85,7 @@ class P7EndToEndTests(unittest.TestCase):
         run_review_asin_batch(run_dir)
         run_review_voc_package(run_dir, self._write_review_xlsx(35))
         run_voc_gate(run_dir)
+        _write_agent_evaluations(run_dir)
         run_evaluations(run_dir)
         return run_dir
 
@@ -348,6 +349,7 @@ class P7EndToEndTests(unittest.TestCase):
         run_review_asin_batch(run_dir)
         run_review_voc_package(run_dir, self._write_review_xlsx(review_count))
         run_voc_gate(run_dir)
+        _write_agent_evaluations(run_dir)
         run_evaluations(run_dir)
         # Populate voc_evidence_packet with synthetic pain points (simulating AI agent output).
         # The script-generated package has pain_points=[], but real pipeline has AI-filled ones.
@@ -450,6 +452,7 @@ class P7FullChainTests(unittest.TestCase):
         run_review_asin_batch(run_dir)
         run_review_voc_package(run_dir, self._write_rx(run_dir, 35))
         run_voc_gate(run_dir)
+        _write_agent_evaluations(run_dir)
         run_evaluations(run_dir)
         run_integrated_judgment(run_dir)
 
@@ -483,6 +486,36 @@ class P7FullChainTests(unittest.TestCase):
 
 
 # ── Fixtures ───────────────────────────────────────────────────────────────
+
+def _write_agent_evaluations(run_dir: Path) -> None:
+    """Write 6 valid Agent-produced evaluation files so run_evaluations() can read them."""
+    eval_dir = run_dir / "evaluations"
+    eval_dir.mkdir(parents=True, exist_ok=True)
+    dims = ["market_demand", "competition", "price_profit", "voc_opportunity", "risk", "data_quality"]
+    for dim in dims:
+        ev = {
+            "schema_version": "p6-evaluation-v1",
+            "packet_id": f"{dim}_evaluation",
+            "stage": "evaluation",
+            "score": 75,
+            "rating": "strong",
+            "confidence": "high",
+            "key_reasons": [f"{dim} signal is healthy"],
+            "risks": [],
+            "required_followups": [f"Verify {dim} with additional data"],
+            "evidence_refs": [f"evidence_packet.json#{dim}"],
+            "execution_provenance": {
+                "executed_by_agent": True,
+                "agent_role": f"{dim} Evaluation Agent",
+                "execution_mode": "real_subagent_spawn",
+                "subagent_id": f"agent-{dim}-001",
+                "note": "Agent produced evaluation from evidence packets.",
+            },
+        }
+        (eval_dir / f"{dim}_evaluation.json").write_text(
+            json.dumps(ev, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+
 
 def _workflow_state() -> dict[str, Any]:
     return {

@@ -16,7 +16,7 @@ from packages.research_core.pipeline.constants import (
 )
 from packages.research_core.pipeline._utils import (
     _report_value, _source_packet_ref, load_json,
-    first_text, first_dict, as_list, compact_list, join_text,
+    first_text, first_dict, as_list, as_dict_list, compact_list, join_text,
     public_text, first_row_text, numeric_value, fmt_number, fmt_percent, dedupe_rows,
 )
 
@@ -258,6 +258,8 @@ def build_search_validation(search: dict[str, Any]) -> dict[str, Any]:
     traffic_rows = []
     feature_rows = []
     for fact in facts:
+        if not isinstance(fact, dict):
+            continue
         source = str(fact.get("source", ""))
         row = {
             "id": fact.get("id", ""),
@@ -292,6 +294,8 @@ def build_search_validation(search: dict[str, Any]) -> dict[str, Any]:
 def build_keyword_demand_rows(search: dict[str, Any], fallback_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows = []
     for item in as_list(search.get("keyword_demand")):
+        if not isinstance(item, dict):
+            continue
         rows.append(
             {
                 "keyword": item.get("keyword", ""),
@@ -319,7 +323,7 @@ def build_keyword_demand_rows(search: dict[str, Any], fallback_rows: list[dict[s
 
 def build_category_background_rows(search: dict[str, Any]) -> list[dict[str, Any]]:
     rows = []
-    for fact in as_list((search.get("category_match") or {}).get("facts")):
+    for fact in as_dict_list((search.get("category_match") or {}).get("facts"), warn_key="category_match.facts"):
         value = fact.get("value") if isinstance(fact.get("value"), dict) else {}
         rows.append(
             {
@@ -579,7 +583,7 @@ def normalize_category_candidates(search: dict[str, Any], market: dict[str, Any]
         )
     if rows:
         return rows
-    for fact in as_list((search.get("category_match") or {}).get("facts")):
+    for fact in as_dict_list((search.get("category_match") or {}).get("facts"), warn_key="category_match.facts"):
         value = fact.get("value") if isinstance(fact.get("value"), dict) else {}
         rows.append(
             {

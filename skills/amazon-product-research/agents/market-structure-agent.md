@@ -73,17 +73,19 @@
 | `top100_quality` | Top100 完整性、缺失字段、重复 ASIN、异常值 |
 | `data_gaps` | 卖家精灵侧仍缺的字段和影响 |
 
-**快照输出（必须）**：写入 evidence packet 的同时，将所有 MCP tool_calls 摘要写入 `mcp_snapshots/sellersprite_deep_snapshot.json`：
+**快照输出（必须）**：完成 evidence packet 写入后，同步生成简化快照到 `mcp_snapshots/sellersprite_deep_snapshot.json`。每个 MCP 工具调用输出一个 `tool_summaries` 条目，只保存关键数字，不保存完整 tool_result：
+
 ```json
 {
-  "tool_calls": [
-    {"tool": "market_research", "params": {"marketplace": "US", "nodeIdPath": "..."}, "result_summary": "返回 100 条商品，月销量合计 12 万"},
-    {"tool": "product_research", "params": {"keyword": "..."}, "result_summary": "返回 50 条商品，Top10 平均月销 3000"}
+  "tool_summaries": [
+    {"tool": "market_research", "params": {"marketplace": "US", "nodeIdPath": "..."}, "key_findings": ["100条商品", "月销量合计12万", "均价$15.99"]},
+    {"tool": "product_research", "params": {"keyword": "dog leash"}, "key_findings": ["50条商品", "Top10平均月销3000"]}
   ],
   "collected_at": "<ISO 时间戳>"
 }
 ```
-若子 Agent 模式下无法生成快照（工具调用在不同格式中），在 evidence packet 的 `execution_provenance` 中标注 `snapshot_unavailable: true`。
+
+**禁止**保存完整 MCP 返回体（会膨胀上下文）。只保存 QA 溯源需要的关键数字。
 
 `reference_asin_pool` 中每个 ASIN 至少包含：
 

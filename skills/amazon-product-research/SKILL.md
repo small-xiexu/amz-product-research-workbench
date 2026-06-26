@@ -229,6 +229,18 @@ python3 scripts/build_route_matrix_confirm.py <run_dir>
 - 通过合约校验（结构完整性 + 通用占位符扫描）后生成 `data_completeness_check.json` 并更新进度。
 - 不生成路线分析内容。`generation_provenance.build_strategy` 标记为 `agent_generated_script_validated`。
 
+**`data_completeness_check.json` 的 `merge_or_exclude` 决策点**：
+- 脚本在校验每个候选路线时，若任一参考 ASIN 数量为 0，在 `data_completeness_check.json` 中为该路线追加 `merge_or_exclude` 字段：
+  ```json
+  "merge_or_exclude": {
+    "trigger": "reference_asin_count=0",
+    "recommendation": "exclude_or_merge",
+    "reason": "该路线无参考 ASIN，后续深挖/VOC/评价均无法获取竞品数据。建议合并到相似路线或标记为暂不深挖。",
+    "action_required": "运营确认"
+  }
+  ```
+- 此字段供运营在暂停点 C 时决策，不等运营确认也应在 Agent prompt 中提前标注。
+
 **暂停点 C**：运营确认路线矩阵，锁定后不再改。
 
 **本阶段执行顺序**：
@@ -269,10 +281,12 @@ Agent 写入 evidence packet 的同时，必须将本 Agent 所有 MCP tool_call
 3. 若分片：Agent 写入 `route_breakdown_{group}.json` → 下一组分片
 4. 全部完成后：`build_deep_evidence_packet.py` ×2 — 合并分片 → P4 Evidence Packet 契约
 5. `build_deep_snapshot.py` ×2 — 从 Agent MCP dump 生成 Deep Snapshot（若可用）
+6. **🔒 契约校验（阻断）**：`validate_evidence_packet.py` — 检查 facts 结构完整性、路线覆盖、必填字段。校验失败 → 打回 Agent 修复，不进入 Stage 7
 
 ```bash
 python3 scripts/build_sellersprite_deep_dive.py <run_dir>
 python3 scripts/build_sorftime_deep_dive.py <run_dir>
+python3 scripts/validate_evidence_packet.py <run_dir>
 ```
 
 ---
@@ -308,6 +322,20 @@ python3 scripts/build_conflict_review.py <run_dir>
 
 每个痛点必须带 `evidence_refs`，包含 `review_id` 和原文 `quote`。
 
+**VOC Evidence Agent 的 execution_provenance（强制）**：
+- `voc_evidence_packet.json` 中必须写回正确的 `execution_provenance`：
+  ```json
+  "execution_provenance": {
+    "executed_by_agent": true,
+    "agent_role": "VOC Evidence Agent",
+    "execution_mode": "agent",
+    "subagent_id": "<本 Agent 的 run_id>",
+    "source_packet": "review_voc/review_voc_package.json",
+    "note": "VOC Evidence Agent 基于 review_voc_package.json 的 normalized_reviews 生成痛点分析和证据溯源。"
+  }
+  ```
+- 禁止标记为 `execution_mode=serial_fallback` 或 `executed_by_agent=false`。
+
 **路线覆盖度门控（强制）：**
 
 ASIN 导出清单必须确保 Stage 5 确认的**每条保留路线**至少覆盖 2 个不同竞品 ASIN 的评论。仅 1 个 ASIN 的路线在后续 Stage 9-10 分析中置信度会被标记为 `low`，但**不能因此就直接搁置或跳过分析**——数据不足是采集问题，不是路线问题。
@@ -324,7 +352,8 @@ ASIN 导出清单必须确保 Stage 5 确认的**每条保留路线**至少覆�
 1. `build_review_asin_batch.py` — 生成 ASIN 清单 + 导出说明。**必须包含每条保留路线的 ≥2 个参考 ASIN。**
 2. **运营导出评论** — 按 README.txt 中的要求导出，放入 `inputs/reviews/`
 3. `build_review_voc_package.py` — 规范化评论数据
-4. `build_voc_gate.py` — VOC 门控（总评论 ≥30 条 → continue；不足 → need_more_reviews）+ 路线覆盖度检查
+4. `build_voc_gate.py` — VOC 门控（总评论 ≥30 条 → continue；不足 → need_more_reviews）+ 路线覆盖度检查，并生成 `voc_evidence_packet.json` 骨架
+5. **Spawn VOC Evidence Agent**（强制） — 读取 `review_voc_package.json` 的 `normalized_reviews`，完成：痛点提取（≥3 条评论提及 + 原文引用）、按产品维度归类、P0/P1/P2 优先级分级、规格推导（`spec_requirement` / `sample_tests` / `listing_risk_note`）、未满足需求（`unmet_needs`）、差异化机会（`differentiation_opportunities`）→ 写入 `voc_evidence_packet.json` 并更新 `execution_provenance` 为 `executed_by_agent: true, execution_mode: "agent"`
 
 ---
 
@@ -352,9 +381,20 @@ python3 scripts/build_evaluation_summary.py <run_dir>
 - `data_quality` 的**目标路线** `rating=blocked` → 该路线只能"补数后再判断"。
 - 如果 route_breakdown 显示差异化路线为 `strong`/`watch`，即使品类大盘 `blocked`，差异化路线不受阻断。
 
+**路线分级评价（基于 Stage 5 tier 分类）**：
+
+| tier | 条件 | 评价维度 |
+|---|---|---|
+| `full` | 参考 ASIN ≥ 2 且搜索量 ≥ 5K | 完整 6 维评价 |
+| `light` | 参考 ASIN < 2 或搜索量 < 5K | 仅做 2 维快速定性（市场需求 + 数据质量），其余 4 维标注 `tier_light_skipped` |
+
+`light` 路线不 spawn 完整 6 Agent，仅 spawn Market Demand + Data Quality 两个 Evaluation Agent。其余 4 维由 `build_evaluation_summary.py` 自动生成 placeholder。
+
 **本阶段执行顺序**：
-1. spawn 6 个 Evaluation Agent（推荐并行）
-2. `build_evaluation_summary.py` — 汇总 6 份评价 + 治理约束 + 跨维度冲突
+1. 读取 `data_completeness_check.json` 的 `tier_summary`，确认每条路线的 tier
+2. `full` 路线：spawn 6 个 Evaluation Agent（推荐并行）
+3. `light` 路线：仅 spawn Market Demand + Data Quality 两个 Evaluation Agent
+4. `build_evaluation_summary.py` — 汇总评价 + tier 占位 + 治理约束 + 跨维度冲突
 
 ---
 
@@ -368,6 +408,11 @@ Route Strategy Agent 和 Growth & Risk Agent **强制并行 spawn**，互不依�
 | Growth & Risk Agent | VOC→规格推导、关键词策略、风险缓解、冷启动估算、验证路线图 | `voc_to_spec`、`keyword_strategy`、`risk_mitigation`、`cold_start_estimate`、`validation_roadmap` | 搜索需求证据（搜索量/CPC）、VOC 证据（评论原文）、市场结构证据（评论数/新品数据） |
 
 **并行 spawn 规则**：两个 Agent 必须同时启动。先运行脚本生成字段骨架，再 spawn 两个 Agent 各自填充自己负责的 5 个字段。
+
+**写入规范（硬约束）**：
+- 必须用 Write 工具写入 Python 脚本文件到 /tmp/，再用 Bash 执行该脚本。
+- 禁止在 bash -c / heredoc 中内联超过 20 行的 Python 代码。
+- 禁止用 Bash + heredoc 方式直接写 JSON（应使用 Write 工具）。
 
 **本阶段执行顺序**：
 1. `build_integrated_judgment.py` — 脚本生成 10 个字段骨架（带 `__ai_judgment__` 占位）
@@ -436,7 +481,12 @@ python3 -m packages.research_core.pipeline.build_report_seed <run_dir>
 Report Generation Agent 执行两步：
 
 1. 读取 seed + judgment + 证据包 → 增强 `report_data.json`（补充运营判断字段，不新增数字）
-2. 对着 `report_data.json` 手写 `<中文品名>_分析报告.html`
+2. 对着 `report_data.json` 手写 `analysis/<中文品名>_分析报告.html`（必须输出到 `analysis/` 目录下）
+
+**输出路径硬约束**：
+- `report_data.json` → `analysis/report_data.json`
+- `<中文品名>_分析报告.html` → `analysis/<中文品名>_分析报告.html`
+- 禁止将 HTML 写到 run 根目录，`build_report_xlsx.py` 期望 HTML 在 `analysis/` 下。
 
 HTML 报告结构（运营必备板块）：
 

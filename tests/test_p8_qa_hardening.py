@@ -87,7 +87,7 @@ def _minimal_html(title: str = "测试品分析报告") -> str:
 </head>
 <body>
 <div class="page">
-<h1>{title}</h1>
+<div class="hero"><h1>{title}</h1></div>
 <section class="section"><h2>类目全景</h2><p>测试类目内容</p></section>
 <section class="section"><h2>核心竞品</h2><p>测试竞品内容</p></section>
 <section class="section"><h2>用户痛点</h2><p>测试痛点内容</p></section>
@@ -104,26 +104,56 @@ def _minimal_html(title: str = "测试品分析报告") -> str:
 # ---------------------------------------------------------------------------
 
 class ReportVisualContractTests(unittest.TestCase):
-    """报告视觉模板契约：CSS、class 和固定板块漂移必须被拦截。"""
+    """报告视觉模板契约：关键 CSS 选择器 + 关键结构 class 存在即可通过。"""
 
-    def test_report_template_css_must_match_exactly(self):
+    def test_report_template_css_variation_allowed(self):
+        """CSS 可自定义（颜色等），只要关键选择器存在即通过。"""
         tmp = Path(tempfile.mkdtemp()) / "test.html"
         html = _minimal_html().replace("--bg: #F8FAFC;", "--bg: #ffffff;")
         tmp.write_text(html, encoding="utf-8")
         try:
             result = _uses_report_template_css(tmp)
-            self.assertFalse(result["pass"], f"修改模板 CSS 应被拦截: {result}")
+            self.assertTrue(result["pass"], f"CSS 变体不应阻断: {result}")
         finally:
             tmp.unlink(missing_ok=True)
 
-    def test_unknown_report_class_is_rejected(self):
+    def test_missing_key_css_selector_is_blocked(self):
+        """缺少关键 CSS 选择器（如 .section）应被拦截。"""
+        tmp = Path(tempfile.mkdtemp()) / "test.html"
+        # Remove ALL .section occurrences from CSS (use unique replacement to avoid substring match)
+        html = _minimal_html()
+        start = html.index("<style>") + len("<style>")
+        end = html.index("</style>")
+        css = html[start:end].replace(".section", ".XREMOVEDX")
+        html = html[:start] + css + html[end:]
+        tmp.write_text(html, encoding="utf-8")
+        try:
+            result = _uses_report_template_css(tmp)
+            self.assertFalse(result["pass"], f"缺少 .section 应被拦截: {result}")
+        finally:
+            tmp.unlink(missing_ok=True)
+
+    def test_unknown_report_class_is_warning_not_blocker(self):
+        """模板外 class 仅 warning 不阻断。"""
         tmp = Path(tempfile.mkdtemp()) / "test.html"
         html = _minimal_html().replace("</body>", '<div class="bar-label">漂移类名</div></body>')
         tmp.write_text(html, encoding="utf-8")
         try:
             result = _has_only_allowed_report_classes(tmp)
-            self.assertFalse(result["pass"], f"模板外 class 应被拦截: {result}")
+            self.assertTrue(result["pass"], f"模板外 class 不应阻断: {result}")
             self.assertTrue(any("bar-label" in hit for hit in result.get("hits", [])))
+        finally:
+            tmp.unlink(missing_ok=True)
+
+    def test_missing_key_structure_class_is_blocked(self):
+        """缺少关键结构 class（如 hero）应被拦截。"""
+        tmp = Path(tempfile.mkdtemp()) / "test.html"
+        # Remove hero class from the HTML
+        html = _minimal_html().replace('class="hero"', 'class="not-hero"')
+        tmp.write_text(html, encoding="utf-8")
+        try:
+            result = _has_only_allowed_report_classes(tmp)
+            self.assertFalse(result["pass"], f"缺少 hero class 应被拦截: {result}")
         finally:
             tmp.unlink(missing_ok=True)
 
