@@ -231,9 +231,11 @@ def _signal(packet: dict[str, Any], field: str) -> str:
 
 def _blocking_gaps(packet: dict[str, Any]) -> list[Any]:
     gaps = packet.get("blocking_gaps")
-    if gaps is None:
-        gaps = packet.get("data_gaps")
-    return [gap for gap in (gaps or []) if gap]
+    if not gaps:
+        return []
+    if not isinstance(gaps, list):
+        return []
+    return [gap for gap in gaps if gap]
 
 
 def _has_blocking_signal(packet: dict[str, Any]) -> bool:
