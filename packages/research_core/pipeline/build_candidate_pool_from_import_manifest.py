@@ -544,10 +544,10 @@ def direction_key_from_text(text: str) -> str:
 
 def direction_meta(market_name: str, seed_keyword: str) -> dict[str, str]:
     return {
-        "name": market_name or seed_keyword or "当前主线方向",
-        "role": "推荐主线",
+        "name": market_name or seed_keyword or "当前主推方向",
+        "role": "推荐方向",
         "status": "继续看",
-        "product_form": "根据当前导出数据归入主线，后续需要人工确认产品形态。",
+        "product_form": "根据当前导出数据归入标准形态，后续需要人工确认产品形态。",
         "default_risk": "当前分类规则为通用规则，需靠真实标题、类目和运营判断进一步拆分。",
     }
 
@@ -645,7 +645,7 @@ def build_direction_cards(
                 "evidence": [item for item in evidence if item],
                 "risks": risks,
                 "ai_recommendation": meta.get("recommendation", ""),
-                "operator_options": ["选择此方向深挖", "保留为旁支参考", "排除该方向", "让 AI 按证据默认选择"],
+                "operator_options": ["选择此方向深挖", "保留为小众形态参考", "排除该方向", "让 AI 按证据默认选择"],
                 "next_action": "若选择该方向，下一步按代表 ASIN 抓评论 VOC，并补关键词、竞品和小类证据。"
                 if meta["status"] in {"优先深挖", "继续看", "保留参考", "谨慎参考"}
                 else "本轮先不深挖，仅作为混池/排除依据记录。",
@@ -1003,7 +1003,7 @@ def build_candidate(manifest: dict[str, Any]) -> dict[str, Any]:
             "小类市场明细",
             "代表竞品证据",
         ],
-        "next_step": "先看报表后多方向候选卡，确认主线/旁支/排除项，再按选定方向抓评论 VOC。",
+        "next_step": "先看报表后多方向候选卡，确认标准形态/小众形态/排除项，再按选定方向抓评论 VOC。",
         "source_refs": source_refs,
     }
     if source_file_conflicts:

@@ -233,6 +233,7 @@ def build_quick_market_gate(
 ) -> dict[str, Any]:
     gate = decide_quick_gate(sellersprite_packet, sorftime_packet)
     packets = [sellersprite_packet, sorftime_packet]
+    cross_discrepancies = _flag_cross_source_discrepancies(sellersprite_packet, sorftime_packet)
     gate.update(
         {
             "candidate_seeds": _combined_fact_list(packets, "candidate_seeds"),
@@ -240,6 +241,10 @@ def build_quick_market_gate(
             "required_deep_dive": _combined_fact_list(packets, "required_deep_dive"),
             "data_gaps": _combined_packet_list(packets, "data_gaps"),
             "confidence": _combined_confidence(packets),
+            "cross_validation": {
+                "discrepancies": cross_discrepancies,
+                "has_discrepancies": len(cross_discrepancies) > 0,
+            },
             "execution_provenance": {
                 "execution_mode": "script_generated",
                 "source_packet_paths": [
@@ -707,6 +712,88 @@ def _combined_packet_list(packets: list[dict[str, Any]], key: str) -> list[Any]:
         elif value:
             rows.append(value)
     return rows
+
+
+def _flag_cross_source_discrepancies(
+    sellersprite_packet: dict[str, Any],
+    sorftime_packet: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Flag material discrepancies between sellersprite and sorftime quick packets."""
+    discrepancies: list[dict[str, Any]] = []
+
+    ss_support = sellersprite_packet.get("support_level", "")
+    sf_support = sorftime_packet.get("support_level", "")
+
+    # Support level divergence
+    if ss_support in ("strong", "moderate") and sf_support in ("weak", "negative"):
+        discrepancies.append({
+            "field": "support_level",
+            "severity": "material",
+            "sellersprite_value": ss_support,
+            "sorftime_value": sf_support,
+            "note": "卖家精灵支持继续但 Sorftime 信号弱，需求可能存在搜索端与供给端脱节",
+            "required_action": "深挖阶段重点验证关键词搜索意图与市场实际销量的匹配度",
+        })
+    elif sf_support in ("strong", "moderate") and ss_support in ("weak", "negative"):
+        discrepancies.append({
+            "field": "support_level",
+            "severity": "material",
+            "sellersprite_value": ss_support,
+            "sorftime_value": sf_support,
+            "note": "Sorftime 支持但卖家精灵信号弱，搜索需求存在但市场供给端可能不健康",
+            "required_action": "深挖阶段重点验证类目集中度、价格带健康度和新品机会",
+        })
+
+    # Mixed pool divergence
+    ss_mixed = sellersprite_packet.get("mixed_pool_level", "")
+    sf_mixed = sorftime_packet.get("mixed_pool_level", "")
+    if ss_mixed != sf_mixed and ("material" in (ss_mixed, sf_mixed) or "blocking" in (ss_mixed, sf_mixed)):
+        discrepancies.append({
+            "field": "mixed_pool_level",
+            "severity": "material" if "blocking" not in (ss_mixed, sf_mixed) else "blocking",
+            "sellersprite_value": ss_mixed,
+            "sorftime_value": sf_mixed,
+            "note": "双源对混池程度的判断不一致，需在深挖阶段交叉验证",
+            "required_action": "深挖阶段分别验证卖家精灵类目Top100和Sorftime关键词搜索结果的混池程度",
+        })
+
+    # Category boundary divergence
+    ss_boundary = sellersprite_packet.get("category_boundary_clarity", "")
+    sf_boundary = sorftime_packet.get("category_boundary_clarity", "")
+    if (ss_boundary in ("unclear", "blocking") and sf_boundary in ("clear", "partial")) or \
+       (sf_boundary in ("unclear", "blocking") and ss_boundary in ("clear", "partial")):
+        discrepancies.append({
+            "field": "category_boundary_clarity",
+            "severity": "material",
+            "sellersprite_value": ss_boundary,
+            "sorftime_value": sf_boundary,
+            "note": "双源对类目边界清晰度的判断不一致",
+            "required_action": "深挖阶段用参考ASIN反推节点路径交叉验证",
+        })
+
+    # Compare facts for trend conflicts
+    ss_facts = sellersprite_packet.get("facts", [])
+    sf_facts = sorftime_packet.get("facts", [])
+    if isinstance(ss_facts, list) and isinstance(sf_facts, list):
+        ss_trend_notes = []
+        sf_trend_notes = []
+        for f in ss_facts:
+            if isinstance(f, dict) and any(kw in str(f).lower() for kw in ("trend", "趋势", "同比", "yoy", "decline", "下降")):
+                ss_trend_notes.append(f)
+        for f in sf_facts:
+            if isinstance(f, dict) and any(kw in str(f).lower() for kw in ("trend", "趋势", "同比", "yoy", "decline", "下降")):
+                sf_trend_notes.append(f)
+        if ss_trend_notes and sf_trend_notes:
+            discrepancies.append({
+                "field": "facts.trend_signals",
+                "severity": "material",
+                "sellersprite_value": f"{len(ss_trend_notes)} trend-related facts",
+                "sorftime_value": f"{len(sf_trend_notes)} trend-related facts",
+                "note": "双源均含趋势信号，深挖阶段必须交叉验证关键词趋势与类目趋势是否一致",
+                "required_action": "深挖阶段对比卖家精灵ABA趋势和Sorftime关键词/类目趋势",
+            })
+
+    return discrepancies
 
 
 def _progress_next_action(gate_result: Any) -> dict[str, str]:

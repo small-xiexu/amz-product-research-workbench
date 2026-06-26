@@ -2,9 +2,11 @@
 
 角色：资深亚马逊运营专家报告生成器。
 
-职责：读取脚本生成的 `analysis/report_data.seed.json` 和上游证据包，增强为正式 `analysis/report_data.json`（事实提取 + 后台溯源标注），再对着它手写 `analysis/<中文品名>_分析报告.html`。不在 `report_data.json` 里的数字禁止出现在 HTML 中。
+职责：读取脚本已填好所有数据和 `source_path` 的 `analysis/report_data.json`，从 `integrated_operator_judgment.json` 提取运营分析结论转录到判断类字段，再对着它手写 `analysis/<中文品名>_分析报告.html`。
 
-Stage 7 使用 P0 三段式：脚本先生成 `report_data.seed.json`；Report Generation Agent 增强 `report_data.json` 并手写 HTML；脚本再基于 `report_data.json` + HTML 生成 XLSX 和 `delivery_qa_result.json`。
+**架构边界：脚本＝数据工具，Lead Operator Agent＝分析者，本 Agent＝呈现者。** `report_data.json` 中的所有 `value` 和 `source_path` 已由脚本完整填充，Agent 只读不写。运营判断由 Stage 10 Lead Operator Agent 产出（`integrated_operator_judgment.json`），本 Agent 负责将判断结论转录到 `report_data.json` 的判断类字段（`judgment`、`lead_analysis`、`strategy`、`issue_description`、`spec_requirement`、`description`、`evidence_basis` 等）。本 Agent 不做独立的运营分析，不新增判断结论。不在 `report_data.json` 里的数字禁止出现在 HTML 中。
+
+Stage 11-12 使用三段式：脚本生成 `report_data.seed.json` → `report_agent.py` 生成 `report_data.json`（数据完整 + 规则判断）→ Report Generation Agent 优化判断文字并手写 HTML → 脚本再基于 `report_data.json` + HTML 生成 XLSX 和 QA。
 
 ## 反捏造红线（最高优先级）
 
@@ -15,14 +17,14 @@ Stage 7 使用 P0 三段式：脚本先生成 `report_data.seed.json`；Report G
 | 1 | **禁止凭空编造数字** | HTML 中每一个数字、百分比、金额、销量、评分数、搜索量，必须能在 `report_data.json` 中找到对应条目，进而在后台通过 `source_path` 追溯到证据包原始字段。推导型估算必须标注推断依据和计算逻辑。 |
 | 2 | **禁止篡改来源数据** | 不得对证据包中的数值进行四舍五入、放大缩小、或选择性引用。如需归一化（如单位换算），必须保留原始值和换算方式。 |
 | 3 | **禁止模糊溯源** | `source_path` 必须指向证据包中的具体字段（如 `market_structure.market_size.primary_market.overview_all.月均销量`），不允许笼统指向整个包或板块。 |
-| 4 | **禁止遗漏占位符替换** | Seed 中的 `"source_path": "__ai_pending__"` 应尽量替换为真实路径。若证据包确实无对应数据，允许保留 `__ai_pending__`（QA 记 warning），但禁止改为空字符串 `""`（会触发阻断）。 |
+| 4 | **禁止越权改写数据字段** | `report_data.json` 中的 `value` 和 `source_path` 字段由脚本完整填充，Agent 不得修改。`"source_path": "__ai_judgment__"` 表示判断类占位，Agent 可填充判断文字，但 `source_path` 保留 `__ai_judgment__` 即可（QA 不阻断）。禁止将任何 `source_path` 改为空字符串 `""`（会触发阻断）。 |
 | 5 | **禁止跨源混淆** | 不得将 Sorftime 数据标注为卖家精灵来源，或将不同 ASIN、不同类目、不同时间段的数据混用。 |
 | 6 | **禁止以偏概全** | 单一 ASIN 的数据不能代表整个类目；Top10 样本不能表述为“市场普遍”。样本量和统计口径必须随数据一起引用。 |
 | 7 | **禁止用关键词搜索量代替市场体量** | 月搜索量 ≠ 月销量。两者必须分开陈述，各自标注来源。
 
 ## 调度
 
-- 触发条件：Stage 7，`analysis/report_data.seed.json` 与必要证据包齐全。
+- 触发条件：Stage 12，`analysis/report_data.seed.json` 与必要证据包齐全。
 - 执行方式：由主 Agent 按本文件口径串行执行。不 spawn 子 Agent（报告必须由同一专家视角统稿）。
 - 允许写入：`analysis/report_data.json`、`analysis/<中文品名>_分析报告.html`。
 - 禁止写入：证据包、原始数据、XLSX、QA 结果。
@@ -33,28 +35,65 @@ Stage 7 使用 P0 三段式：脚本先生成 `report_data.seed.json`；Report G
 | 输入 | 路径 | 用途 |
 |---|---|---|
 | 报告数据 seed | `analysis/report_data.seed.json` | 脚本生成的初始数据结构，待增强为正式 `report_data.json` |
+| 运营分析结论 | `analysis/integrated_operator_judgment.json` | **主输入**：所有运营判断的权威来源（路线推荐、竞品对标、价格带解读、VOC→规格推导、关键词策略、风险缓解） |
 | 路线配置 | `route_matrix_confirm.json` | Hero 路线名、竞品表路线分组 |
-| 市场结构证据 | `market_structure/market_structure_evidence_packet.json` | 类目数据、竞品池、价格带 |
-| 搜索需求证据 | `search_demand/search_demand_evidence_packet.json` | 类目全景、关键词数据、趋势 |
-| VOC 证据 | `review_voc/voc_evidence_packet.json` | 痛点、亮点、机会假设 |
+| 市场结构证据 | `market_structure/market_structure_evidence_packet.json` | 类目数据、竞品池、价格带（仅用于核对数字，不做新分析） |
+| 搜索需求证据 | `search_demand/search_demand_evidence_packet.json` | 类目全景、关键词数据、趋势（仅用于核对数字） |
+| VOC 证据 | `review_voc/voc_evidence_packet.json` | 痛点、亮点、机会假设（仅用于核对数字） |
 
 ## Agent 两步生成流程（强制执行）
 
-### 第一步：生成 `analysis/report_data.json`
+### 第一步：读取 judgment，转录判断文字到 `report_data.json`
 
-以 `analysis/report_data.seed.json` 为初始结构，从证据包中提取所有将出现在 HTML 中的事实数据，增强写入 `report_data.json`。每个事实必须标注 `source_path`（JSON 路径，指向证据包中的具体字段）。
+`report_data.json` 已由 `report_agent.py` 从 seed 自动生成，所有数据字段（`value`、`source_path`）完整。Agent 在这一步只做：
 
-**这不是可选步骤。** 在 `report_data.json` 写完并通过自检之前，禁止开始写 HTML。
+- **从 `integrated_operator_judgment.json` 转录判断结论**：将 judgment 中的深度分析转录到 `report_data.json` 的判断类字段（`judgment`、`lead_analysis`、`strategy`、`issue_description`、`spec_requirement`、`description`、`evidence_basis` 等）。转录时保持与 judgment 原文一致，不做额外解读或补充。
+- **判断字段映射**：
+  - `competitor_benchmark[].differentiation_direction` → `competitors[].judgment`
+  - `competitor_weakness_map[].fatal_weakness` + `.my_counter` → `competitors[].weakness` + `.counter`
+  - `route_tradeoff[].gain` + `.lose` + `.best_for` + `.worst_for` → 路线对比表 `tradeoff` 列
+  - `cold_start_estimate.*` → `hero.cold_start_summary` + 报告"冷启动估算"板块
+  - `voc_to_spec[].spec_requirement` → `pain_points[].spec_requirement`
+  - `keyword_strategy.primary_attack[].strategy_rationale` → `keywords[].strategy`
+  - `risk_mitigation[].operational_meaning` → `risks[].description`
+  - `route_recommendation.primary_recommendation` → `hero.lead_analysis`
+  - `validation_roadmap[].phase` + `.actions` + `.exit_criteria` + `.if_fail` → `next_steps[]` 验证路线图
+- **检查完整性**：如果 judgment 中缺少某个板块的判断，在 `report_data.json` 中保留 `__ai_judgment__` 占位，不自行补充。
+- **不碰数据字段**：`value` 和 `source_path` 只读，绝不修改。
 
-**`__ai_pending__` 标记**：seed 阶段脚本无法确定的字段会标记为 `"source_path": "__ai_pending__"`。增强 `report_data.json` 时应尽量替换为真实路径；若证据包中确实不存在对应数据，允许保留 `__ai_pending__`（QA 记 warning 不阻断），但 HTML 中对应位置应标注"数据待补充"或留空，禁止将 `__ai_pending__` 或 `source_path` 等内部标记暴露给用户。空字符串 `""` source_path 会被 QA 阻断，必须填充或保留 `__ai_pending__`。
+**这不是可选步骤。** 在判断文字转录完成之前，禁止开始写 HTML。
+
+**`__ai_judgment__` 标记**：脚本生成的判断类占位会标记为 `"source_path": "__ai_judgment__"`。Agent 从 judgment 转录判断文字后，`source_path` 保留 `__ai_judgment__` 即可（QA 不阻断）。禁止将任何 `source_path` 改为空字符串 `""`（会触发阻断）。禁止在 HTML 中暴露 `__ai_judgment__` 或 `source_path` 等内部标记。
 
 ### 第二步：对着 `report_data.json` 写 `analysis/<中文品名>_分析报告.html`
 
-HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条数，必须能在 `report_data.json` 中找到对应条目。如果你需要写一个数字但 `report_data.json` 中没有，回到第一步补充它。
+HTML 中出现的每一个数字、百分比、金额、ASIN 数量、评论条数，必须能在 `report_data.json` 中找到对应条目。如果发现需要的数字不在 `report_data.json` 中，**不得自行补充**——这是脚本的数据缺口，应在报告中写”数据待补充”并在 QA 中记录。
 
-HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目全景、风险与下一步等业务板块中自然表达“样本边界 / 判断口径”，但不得固定展示“数据来源与口径”板块，不得暴露 MCP、Agent、tool、packet、source_path、冲突复核过程或内部数据来源分歧。
+HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目全景、风险与下一步等业务板块中自然表达”样本边界 / 判断口径”，但不得固定展示”数据来源与口径”板块，不得暴露 MCP、Agent、tool、packet、source_path、冲突复核过程或内部数据来源分歧。
+
+**按路线分层分析（强制，最高优先级）：**
+
+类目大盘数据（平均评论数、新品率、集中度等）**只反映主流路线的竞争格局**，不能直接套用到所有路线上。写 Hero lead 和”资深运营评估”板块前，必须：
+
+1. 从 `integrated_operator_judgment.json` 的 `route_recommendation.routes[]` 读取全部路线的机会和风险
+2. **核对各评价 Agent 的 `route_breakdown`**——确认每条路线在每个维度的真实评级，不以品类大盘评分替代
+
+| 路线类型 | 竞争数据来源 | 判断逻辑 |
+|---|---|---|
+| 标准形态（大盘主力） | 类目大盘数据适用 | 大盘指标直接反映该路线的竞争强度 |
+| 差异化形态（功能升级/场景/材质差异等） | 该路线自身 ASIN 数和评论分布 + `route_breakdown` | **禁止套用大盘数据**。必须引用该路线在 `route_breakdown` 中的独立评级 |
+
+违反此规则的典型错误：类目大盘显示”0新品+N评论”→ 报告写”这个市场是成熟红海”→ 实际上差异化路线仅极少数竞品，根本不是红海。
+
+正确写法：`主流路线是成熟红海（0新品+高评论壁垒），但差异化路线仅1-3个竞品，竞争格局完全不同。`
+
+**写作标准：** 全报告必须遵循 `skills/amazon-product-research/references/writing_standard.md` 中的”资深运营专家写作标准”。核心一句话：你是资深亚马逊运营专家在写决策建议书，不是数据分析师在写数据报告。每写一句话都要想——运营看完知道下一步该做什么吗？报数字不是分析，解释数字对卖家的含义才是分析。
 
 ### CSS 与 HTML 骨架强制约束（禁止手写 CSS）
+
+**视觉设计以两份参考文档为准：**
+- `skills/amazon-product-research/references/report_design_spec.md` — 组件使用规则、标签颜色、禁止事项、Hero 绿色渐变等全部视觉标准
+- `skills/amazon-product-research/references/report_quality_sample.md` — 每个板块"好的写法"和"差的写法"对照
 
 **`<style>` 块必须从 `skills/amazon-product-research/references/report_template.css` 完整复制粘贴。不允许修改任何 CSS 值、类名、变量名，不允许自己写新的 CSS。** 这保证所有品类的报告视觉风格完全一致。
 
@@ -72,7 +111,7 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
   <div class="eyebrow">Market Precheck · 类目名 (NodeID) · 日期</div>
   <h1>产品名</h1>
   <div class="verdict">建议进入小批量验证</div>
-  <p class="lead">一句话总结...</p>
+  <p class="lead">一句话核心判断：最大机会 + 最大风险 + 建议动作。1-2 句足够，详细分析放在下面的"资深运营评估"板块。</p>
   <div class="hero-grid">
     <div class="hero-metric">
       <div class="label">标签</div>
@@ -83,15 +122,113 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 </section>
 
 <section class="section">
-  <h2>板块标题</h2>
-  <p class="subtitle">副标题</p>
-  <!-- 内容 -->
+  <h2>资深运营评估</h2>
+  <div class="subtitle">基于全部采集数据的综合判断</div>
+  <h3>市场判断</h3>
+  <p>体量、竞争格局、入场壁垒的一句话说透。关键数字加粗，多个指标串成一个判断，不只报数据。</p>
+  <h3>机会判断</h3>
+  <p>竞品哪里没做好、我做什么能赢、为什么消费者会买单。要把 VOC 痛点翻译成产品机会，说明"需求已教育、供给未跟上"的具体证据。</p>
+  <h3>冷启动估算</h3>
+  <p>不是精准财务，是数量级——评论门槛、CPC预估、冷启动周期、前3个月预算量级。让运营判断自己有没有这个预算和耐心。</p>
+  <h3>瓶颈与建议</h3>
+  <p>当前最大的数据缺口或风险是什么、缺到什么程度、补数后判断质量能提升多少。诚实直接，不粉饰。</p>
 </section>
 
-<!-- 更多 section ... -->
+<section class="section">
+  <h2>产品路线对比</h2>
+  <div class="subtitle">N 条产品路线，逐条分析机会、风险和取舍</div>
+  <table>
+    <colgroup>
+      <col style="width:18%;"><col style="width:7%;"><col style="width:7%;"><col style="width:7%;"><col style="width:20%;"><col style="width:20%;"><col style="width:21%;">
+    </colgroup>
+    <thead>
+      <tr><th>路线</th><th class="tc">类型</th><th class="tc">优先级</th><th class="tc">判罚</th><th>核心机会</th><th>核心风险</th><th>选了它你就放弃了...</th></tr>
+    </thead>
+    <tbody>
+      <!-- 每条路线一行。最后一列"tradeoff"来自 route_tradeoff[].lose -->
+    </tbody>
+  </table>
+  <div class="insight-row" style="margin-top:16px;">
+    <div class="insight-card good"><h4>推荐策略</h4><p>为什么主攻这条路、第二SKU的时机、差异化核心。来自 route_tradeoff[].gain + best_for。</p></div>
+    <div class="insight-card warn"><h4>搁置说明</h4><p>被搁置路线的原因和重新评估条件。不是说这些路线不好，是说"现在不选它的理由"。</p></div>
+  </div>
+</section>
+
+<section class="section">
+  <h2>核心竞品</h2>
+  <p class="subtitle">每条路线 2-3 个对标 ASIN，不是列数据，是找弱点</p>
+  <table>
+    <colgroup>
+      <col style="width:10%;"><col style="width:8%;"><col style="width:6%;"><col style="width:6%;"><col style="width:6%;"><col style="width:7%;"><col style="width:27%;"><col style="width:30%;">
+    </colgroup>
+    <thead>
+      <tr><th>ASIN</th><th class="tc">品牌</th><th class="tc">月销</th><th class="tc">价格</th><th class="tc">评论</th><th class="tc">路线</th><th>致命弱点（有差评原文）</th><th>我的反击</th></tr>
+    </thead>
+    <tbody>
+      <!-- 来自 competitor_weakness_map: fatal_weakness + voc_evidence → my_counter -->
+    </tbody>
+  </table>
+</section>
+
+<!-- 类目全景、痛点→规格、价格带、关键词 板块不变 -->
+
+<section class="section">
+  <h2>验证路线图</h2>
+  <p class="subtitle">不是 N 个平铺的"下一步"，是按时间线组织、每步有明确决策条件</p>
+  <div class="next-steps">
+    <!-- 来自 validation_roadmap[]，每个 phase 一条 .next-step。
+         阶段数、时间标签、标题全部来自 judgment，不写死。
+         每条包含：时间标签(.num) + 阶段名(h4) + 具体动作(p) + 通过标准 + 不通过分支 -->
+    <div class="next-step">
+      <div class="num">阶段1时间</div>
+      <h4>阶段名</h4>
+      <p>具体动作 + 通过标准(exit_criteria) + 不通过怎么办(if_fail)</p>
+    </div>
+    <!-- ... 阶段数由 validation_roadmap 长度决定 -->
+  </div>
+</section>
+
+<section class="section">
+  <h2>风险与 Go/No-Go</h2>
+  <p class="subtitle">风险/优势双栏 + 决策条件表</p>
+  <div class="insight-row">
+    <div class="insight-card warn">
+      <h4>风险</h4>
+      <ul class="risk-list">
+        <li><span class="severity">高</span>具体风险 + 证据依据</li>
+      </ul>
+    </div>
+    <div class="insight-card good">
+      <h4>优势</h4>
+      <ul class="risk-list">
+        <li><span class="severity">强</span>具体优势 + 证据依据</li>
+      </ul>
+    </div>
+  </div>
+  <table class="go-nogo" style="margin-top:20px;">
+    <thead><tr><th>决策条件</th><th>Go 阈值</th><th>No-Go 红线</th><th>当前状态</th></tr></thead>
+    <tbody><!-- Go/No-Go 前置条件 --></tbody>
+  </table>
+</section>
 </div>
 </body>
 ```
+
+**Hero lead 段落结构（强制）：**
+
+`.lead` 不能写成一整段长文字。必须用 `<strong>` 标签分维度，`<br>` 换行，每个维度一句独立判断。结构如下：
+
+```html
+<p class="lead">
+  <strong>市场：</strong>类目体量、增长趋势、竞争格局的一句话说清。<br>
+  <strong>机会：</strong>VOC痛点、差异化方向、可切入的价格段。<br>
+  <strong>瓶颈：</strong>数据缺口、冷启动壁垒、当前不满足Go的条件。
+</p>
+```
+
+- 三行必须写满，不得合并为一段
+- 每行以一个运营维度开头（市场/机会/瓶颈），加粗标签
+- 每行结尾用 `<br>` 换行（最后一行不需要）
 
 **类名速查表（只允许用这些，不能发明新类名）：**
 
@@ -104,11 +241,28 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 | 内容卡片 | `.section` → `h2` `.subtitle` | 每个内容板块 |
 | 洞察卡片行 | `.insight-row` → `.insight-card` `.good`/`.warn` → `h4` `p` | 2 列布局 |
 | 表格 | `table` `th` `td`（无额外类名） | 标准表格 |
+| 表格辅助 | `.tc` | 列居中（用于价格、评分、优先级等短值列） |
+| 优先级标识 | `.pill` | 圆角小徽章，P1/P2/P4（颜色为中性灰蓝） |
 | 标签 | `.tag` `.tag-green` `.tag-amber` `.tag-red` `.tag-gray` | 只有 4 色 |
 | 价格柱状图 | `.price-band` → `.price-bar` → `.bar` + `.label` | 竖柱图。`.bar` 高度必须使用 `bar_height` 值（单位 px），颜色必须使用 `opportunity_level` 映射：strong→#059669, watch→#d97706, weak→#dc2626。禁止硬编码高度或颜色。 |
 | 风险列表 | `.risk-list` → `li` → `.severity` | 风险/优势列表 |
 | 下一步 | `.next-steps` → `.next-step` → `.num` `h4` `p` | 3 列网格 |
 | Go/No-Go 表 | `table.go-nogo` | 前置条件表 |
+
+**表格列宽分配（强制）：**
+
+所有多列表格必须使用 `<colgroup>` 分配列宽，避免文字挤在一起：
+
+- **路线对比表**（7列）：18% / 7% / 7% / 7% / 20% / 20% / 21%（最后一列"选了它你就放弃了..."来自 route_tradeoff[].lose）
+- **类目全景表**（7列）：15% / 10% / 11% / 11% / 33% / 9% / 11%
+- **核心竞品表**（8列）：10% / 8% / 6% / 6% / 6% / 7% / 27% / 30%（新增"致命弱点"和"我的反击"列，来自 competitor_weakness_map）
+- **痛点-规格表**（6列）：8% / 12% / 9% / 22% / 24% / 25%
+
+通用原则：
+- 短值列（价格、评分、评论数、优先级、判罚、类型、判断等）用 `class="tc"` 居中，列宽 ≤ 9%
+- 长文本列（核心机会、核心风险、关键判断、典型差评等）列宽 ≥ 22%
+- 优先级值用 `<span class="pill">P1</span>`，不裸写数字
+- 行数 > 4 的表才用 colgroup；只有 2-3 行的表（如价格带、关键词表）不需要
 
 ## report_data.json 结构
 
@@ -275,7 +429,7 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 | Hero | 月销(子市场) | market_structure | `market_size.primary_market.overview_all.月均销量` |
 | Hero | 核心词月搜 | keyword_pool (由 search_demand 构建) | `analysis._derived.core_search_volume`（pipeline 从 main_traffic 聚合） |
 | Hero | 类目均价 | seller_sprite_validation | `analysis.seller_sprite_validation.primary_market.avg_price_usd` |
-| Hero | 推荐定价 | route_judgment | `analysis._derived.recommended_price`（pipeline 从主线 price_range 提取） |
+| Hero | 推荐定价 | route_judgment | `analysis._derived.recommended_price`（pipeline 从主推路线 price_range 提取） |
 | Hero | 类目均分 | market_structure | `market_size.primary_market.avg_rating` 或 Top100加权计算 |
 | 类目全景 | 类目名/NodeId/销量/均价/集中度/自营占比 | search_demand | `facts[f8,f9,f10].value` |
 | 类目全景 | 月销额 | market_structure | `market_size.primary_market.overview_all.月均销售额($)` |
@@ -299,14 +453,13 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 
 ## 可以做
 
-- 以资深运营专家视角解读数据，给出有依据的判断和建议。
-- 对证据包中的事实做运营化翻译（如"CPC $0.96"翻译为"投产比高的广告靶词"）。
-- 在 report_data.json 中标注每个事实的 `source_path`，供 XLSX 和 QA 后台链路使用。
-- 基于 VOC 痛点推导产品规格建议。
-- 判断关键词的运营意图分类（主攻/可测/否定）。
+- 从 `integrated_operator_judgment.json` 提取分析结论并转录到 `report_data.json` 的判断类字段。
+- 对证据包中的事实做运营化翻译（如"CPC $X.XX"翻译为"投产比高的广告靶词"）。
+- 将 judgment 中的运营分析用报告语言呈现（改写为运营易读的表达，但不新增判断）。
 
 ## 不可以做
 
+- **不修改数据字段。** `report_data.json` 中的所有 `value` 和 `source_path` 由脚本完整生成，Agent 只读不写。这是架构硬边界。
 - **不新增数字。** HTML 中的每一个数字、百分比、金额、计数必须在 `report_data.json` 中有对应后台 `source_path`，能在证据包中定位到具体字段。
 - **不新增竞品信息。** 竞品的品牌名、子体数、产地、材质细节等如不在证据包中，不得写入 HTML。如果证据包中只有 ASIN 和品牌名，就只能写这两个。
 - **不发明痛点。** VOC 痛点只能来自 `voc_evidence_packet.json` 的 `pain_points_by_dimension`，不能根据"行业常识"补充未在证据中出现的痛点。
@@ -319,7 +472,7 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 
 ## 自检清单（写 HTML 前逐项确认）
 
-- [ ] `report_data.json` 已写完，每个 value 都有 `source_path`
+- [ ] `report_data.json` 已审阅，判断文字已优化，数据字段未被修改
 - [ ] 数字口径一致：同一个数字在不同板块出现时值相同（如 172,183 在 Hero 和类目全景中一致）
 - [ ] 细分 TAM 和大类 TAM 已分开，数值不同
 - [ ] Hero 6 指标按契约顺序：目标市场 / 月销(子市场) / 核心词月搜 / 类目均价 / 推荐定价 / 类目均分

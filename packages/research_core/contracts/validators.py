@@ -14,9 +14,6 @@ class ContractValidationError(ValueError):
     """Raised when a workflow handoff package misses required structure."""
 
 
-VALID_RESEARCH_VERDICTS = {"GO", "CONDITIONAL GO", "HOLD", "WAIT", "NO-GO"}
-
-
 def validate_import_manifest(manifest: dict[str, Any]) -> None:
     """LEGACY: validate import_manifest.json structure. 仅用于 MCP 不可用时的 fallback 路径。"""
     _require_dict(manifest, "import_manifest")
@@ -59,71 +56,6 @@ def validate_review_voc_package(voc_package: dict[str, Any] | None) -> None:
     _require_dict(voc_package.get("metadata"), "review_voc_package.metadata")
     _require_dict(voc_package.get("summary"), "review_voc_package.summary")
     _require_list(voc_package.get("normalized_reviews"), "review_voc_package.normalized_reviews")
-
-
-def validate_research_package(research_package: dict[str, Any]) -> None:
-    _require_dict(research_package, "research_package")
-    _require_dict(research_package.get("metadata"), "research_package.metadata")
-    _require_dict(research_package.get("normalized_tables"), "research_package.normalized_tables")
-    _require_dict(research_package.get("market_structure"), "research_package.market_structure")
-    _require_dict(research_package.get("decision_review"), "research_package.decision_review")
-    _require_dict(research_package.get("status_card"), "research_package.status_card")
-
-    metadata = research_package["metadata"]
-    _require_non_empty(metadata.get("candidate_id"), "research_package.metadata.candidate_id")
-
-    normalized_tables = research_package["normalized_tables"]
-    _require_dict(normalized_tables.get("candidate"), "research_package.normalized_tables.candidate")
-    _require_list(normalized_tables.get("top100"), "research_package.normalized_tables.top100")
-
-    decision_review = research_package["decision_review"]
-    _require_dict(decision_review.get("go_nogo_scorecard"), "research_package.decision_review.go_nogo_scorecard")
-
-
-def validate_research_package_chapters(research_package: dict[str, Any]) -> None:
-    _require_dict(research_package, "research_package")
-
-    metadata = _require_dict(research_package.get("metadata"), "research_package.metadata")
-    _require_non_empty(metadata.get("site"), "research_package.metadata.site")
-    _require_non_empty(
-        metadata.get("seed_keyword_or_category"),
-        "research_package.metadata.seed_keyword_or_category",
-    )
-    data_sources = _require_list(metadata.get("data_sources"), "research_package.metadata.data_sources")
-    if not data_sources:
-        raise ContractValidationError("research_package.metadata.data_sources must not be empty")
-
-    market_analysis = _require_dict(research_package.get("market_analysis"), "research_package.market_analysis")
-    for key in ("market_size", "price_band", "brand_concentration"):
-        _require_non_empty(market_analysis.get(key), f"research_package.market_analysis.{key}")
-
-    review_sources = research_package.get("review_sources")
-    raw_sources = research_package.get("raw_sources", {})
-    raw_review = raw_sources.get("review_voc_package") if isinstance(raw_sources, dict) else None
-    voc_analysis = research_package.get("voc_analysis")
-    if _review_voc_package_enabled(review_sources) or _review_voc_package_enabled(raw_review):
-        voc = _require_dict(voc_analysis, "research_package.voc_analysis")
-        _require_dict(voc.get("summary"), "research_package.voc_analysis.summary")
-
-    decision_review = _require_dict(research_package.get("decision_review"), "research_package.decision_review")
-    scorecard = _require_dict(
-        decision_review.get("go_nogo_scorecard"),
-        "research_package.decision_review.go_nogo_scorecard",
-    )
-    verdict = scorecard.get("verdict", scorecard.get("decision"))
-    _require_non_empty(verdict, "research_package.decision_review.go_nogo_scorecard.verdict")
-    if str(verdict).upper() not in VALID_RESEARCH_VERDICTS:
-        raise ContractValidationError(
-            "research_package.decision_review.go_nogo_scorecard.verdict must be one of "
-            + ", ".join(sorted(VALID_RESEARCH_VERDICTS))
-        )
-
-    selection_logic = _require_list(
-        research_package.get("competitor_selection_logic"),
-        "research_package.competitor_selection_logic",
-    )
-    if not selection_logic:
-        raise ContractValidationError("research_package.competitor_selection_logic must not be empty")
 
 
 def validate_workflow_state(workflow_state: dict[str, Any]) -> None:
@@ -169,12 +101,3 @@ def _require_list(value: Any, path: str) -> list[Any]:
 def _require_non_empty(value: Any, path: str) -> None:
     if value is None or (isinstance(value, str) and not value.strip()):
         raise ContractValidationError(f"{path} must not be empty")
-
-
-def _review_voc_package_enabled(value: Any) -> bool:
-    if not isinstance(value, dict) or not value:
-        return False
-    if value.get("package_id") or value.get("source_files"):
-        return True
-    summary = value.get("summary")
-    return isinstance(summary, dict) and bool(summary)

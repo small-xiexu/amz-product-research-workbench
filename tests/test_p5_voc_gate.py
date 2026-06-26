@@ -445,11 +445,13 @@ class VocGateMissingInputTests(unittest.TestCase):
         src.write_text(json.dumps(_valid_sorftime_snapshot(), ensure_ascii=False, indent=2), encoding="utf-8")
         return src
 
-    def test_missing_voc_package_raises(self) -> None:
+    def test_missing_voc_package_produces_need_more_reviews(self) -> None:
+        """voc_package is optional: gate defaults to need_more_reviews when missing."""
         run_dir = self._seed_p5_2_done()
         (run_dir / "review_voc" / "review_voc_package.json").unlink()
-        with self.assertRaises(P5GateError):
-            run_voc_gate(run_dir)
+        outputs = run_voc_gate(run_dir)
+        gate = json.loads(outputs["gate"].read_text())
+        self.assertEqual(gate["decision"], "need_more_reviews")
 
     def test_missing_asin_batch_raises(self) -> None:
         run_dir = self._seed_p5_2_done()

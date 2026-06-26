@@ -16,6 +16,11 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   background: var(--bg);
   color: var(--ink);
@@ -45,16 +50,30 @@ body {
   padding: 6px 16px;
   border-radius: 6px;
   margin-bottom: 10px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
-.hero .lead { font-size: 17px; opacity: .9; max-width: 720px; line-height: 1.7; }
-.hero-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-top: 16px; }
+.hero .lead {
+  font-size: 17px;
+  opacity: .9;
+  max-width: 100%;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.hero-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
 .hero-metric {
   background: rgba(255,255,255,.12);
   border-radius: 8px;
   padding: 12px 14px;
+  min-width: 0;
 }
 .hero-metric .label { font-size: 12px; opacity: .7; margin-bottom: 4px; }
-.hero-metric .value { font-size: 26px; font-weight: 800; }
+.hero-metric .value {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
 
 /* ---- Section Cards ---- */
 .section {
@@ -66,6 +85,7 @@ body {
 }
 .section h2 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
 .section .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 14px; }
+.section h2, .section h3, .section p { overflow-wrap: anywhere; }
 
 /* ---- Insight Cards ---- */
 .insight-row {
@@ -85,23 +105,44 @@ body {
 .insight-card p { font-size: 14px; color: #4b5563; }
 
 /* ---- Tables ---- */
-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  overflow-wrap: break-word;
+}
 th {
-  background: #f9fafb;
-  color: #374151;
-  font-weight: 700;
-  font-size: 13px;
-  padding: 8px 10px;
+  color: #64748b;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  padding: 8px 12px;
   text-align: left;
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1.5px solid var(--border);
 }
 td {
-  padding: 8px 10px;
-  border-bottom: 1px solid #f3f4f6;
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
   font-size: 14px;
   vertical-align: top;
+  line-height: 1.55;
 }
+tbody tr:nth-child(even) { background: #fafbfc; }
+tbody tr:hover { background: #f6f8fa; }
 tr:last-child td { border-bottom: 0; }
+
+.tc { text-align: center; }
+
+.pill {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #475569;
+}
 
 /* ---- Tags: only 4 variants ---- */
 .tag {
@@ -118,12 +159,13 @@ tr:last-child td { border-bottom: 0; }
 
 /* ---- Price Band Bar Chart ---- */
 .price-band {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 8px;
   margin: 12px 0;
   align-items: flex-end;
 }
-.price-bar { flex: 1; text-align: center; font-size: 12px; }
+.price-bar { min-width: 0; text-align: center; font-size: 12px; }
 .price-bar .bar {
   border-radius: 6px 6px 0 0;
   margin-bottom: 6px;
@@ -177,10 +219,95 @@ tr:last-child td { border-bottom: 0; }
 /* ---- Go/No-Go Table ---- */
 .go-nogo td:first-child { font-weight: 600; }
 
+/* ---- Validation Roadmap ---- */
+.validation-roadmap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+.roadmap-phase {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  position: relative;
+}
+.roadmap-phase .phase-header {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+.roadmap-phase .phase-header .phase-timeline {
+  display: inline-block;
+  background: var(--accent-soft);
+  color: #065f46;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 10px;
+  margin-right: 8px;
+}
+.roadmap-phase .phase-actions {
+  margin-bottom: 8px;
+  padding-left: 20px;
+}
+.roadmap-phase .phase-actions li {
+  font-size: 14px;
+  margin-bottom: 4px;
+  line-height: 1.6;
+}
+.roadmap-phase .phase-exit,
+.roadmap-phase .phase-fail {
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-top: 8px;
+  line-height: 1.6;
+}
+.roadmap-phase .phase-exit {
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+}
+.roadmap-phase .phase-fail {
+  background: var(--warn-soft);
+  border-left: 3px solid var(--warn);
+}
+.roadmap-phase .phase-label {
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 2px;
+}
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
+  .page { padding: 24px 16px 48px; }
   .hero-grid, .insight-row, .next-steps { grid-template-columns: 1fr; }
   .hero { padding: 28px 24px; }
   .hero h1 { font-size: 28px; }
+  .hero .lead { font-size: 16px; }
+  .hero-metric .value { font-size: 24px; }
   .section { padding: 22px 20px; }
+  table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  th, td {
+    min-width: 120px;
+  }
+  .price-band {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .page { padding: 20px 12px 44px; }
+  .hero { padding: 24px 20px; border-radius: 10px; }
+  .hero .eyebrow { overflow-wrap: anywhere; }
+  .section { padding: 20px 16px; }
+  .price-band { grid-template-columns: 1fr; }
 }

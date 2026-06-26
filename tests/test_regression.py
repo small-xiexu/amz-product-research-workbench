@@ -17,16 +17,14 @@ from packages.research_core.contracts import (
     ContractValidationError,
     validate_candidate_pool,
     validate_import_manifest,
-    validate_research_package,
-    validate_research_package_chapters,
     validate_workflow_state,
 )
 from packages.research_core.pipeline.build_route_matrix_confirmation import P3ContractError
 from packages.research_core.workflows import DecisionRecord, advance_stage, create_initial_state
-from packages.research_core.pipeline.build_route_matrix_confirm import build_route_matrix_confirm
+# LEGACY REMOVED: from packages.research_core.pipeline.build_route_matrix_confirm import build_route_matrix_confirm
 from packages.research_core.pipeline.build_candidate_pool_from_import_manifest import build_candidate_pool
-from packages.research_core.pipeline.build_research_data_packet import build_research_data_packet
-from packages.research_core.pipeline.build_research_package_from_candidate import build_research_package
+# LEGACY REMOVED: from packages.research_core.pipeline.build_research_data_packet import build_research_data_packet
+# LEGACY REMOVED: from packages.research_core.pipeline.build_research_package_from_candidate import build_research_package
 from packages.research_core.pipeline.cross_analysis import build_cross_analysis
 from packages.research_core.pipeline.parse_top100_dimensions import parse_top100_dimensions
 from packages.research_core.pipeline.audit_run_status import audit_run_status
@@ -51,77 +49,6 @@ def _load_generic_redline_module():
 
 
 class RegressionTests(unittest.TestCase):
-    def test_route_matrix_confirm_compat_path_requires_candidate_pool(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            run_dir = Path(tmpdir) / "generic_route_run"
-            (run_dir / "market_structure").mkdir(parents=True)
-            (run_dir / "search_demand").mkdir()
-            (run_dir / "workflow_state.json").write_text(
-                json.dumps(
-                    {
-                        "workflow_id": "generic_route_run",
-                        "site": "US",
-                        "known_inputs": {
-                            "scenario": "桌面整理",
-                            "constraints": ["非电动"],
-                            "confirmed_stage0_route": "手动整理工具",
-                        },
-                    },
-                    ensure_ascii=False,
-                ),
-                encoding="utf-8",
-            )
-            (run_dir / "review_asin_batch.json").write_text(
-                json.dumps(
-                    {
-                        "workflow_id": "generic_route_run",
-                        "site": "US",
-                        "candidate_name": "手动整理工具",
-                        "confirmed_boundary": {
-                            "mainline": "手动整理工具",
-                            "keep_routes": ["基础款", "升级款"],
-                            "exclude_routes": ["电动工具"],
-                        },
-                        "asin_batch": [{"asin": "ASIN001", "route": "base_route"}],
-                    },
-                    ensure_ascii=False,
-                ),
-                encoding="utf-8",
-            )
-            (run_dir / "market_structure" / "market_structure_evidence_packet.json").write_text(
-                json.dumps(
-                    {
-                        "route_market_fit": [
-                            {
-                                "route_id": "base_route",
-                                "route_name": "基础路线",
-                                "role_from_route_matrix": "主推",
-                                "status_from_route_matrix": "继续看",
-                                "facts": {"avg_price_usd": 20},
-                                "representative_asins": ["ASIN001"],
-                            }
-                        ]
-                    },
-                    ensure_ascii=False,
-                ),
-                encoding="utf-8",
-            )
-            (run_dir / "search_demand" / "search_demand_evidence_packet.json").write_text(
-                json.dumps(
-                    {
-                        "keyword_pool_by_role": {
-                            "main_traffic": [{"keyword": "manual organizer", "route_refs": ["base_route"]}],
-                            "mixed_or_excluded": [{"keyword": "electric organizer", "reason": "非目标形态"}],
-                        }
-                    },
-                    ensure_ascii=False,
-                ),
-                encoding="utf-8",
-            )
-
-            with self.assertRaises(P3ContractError):
-                build_route_matrix_confirm(run_dir)
-
     def test_generic_redline_flags_case_specific_terms_in_reusable_assets(self) -> None:
         checker = _load_generic_redline_module()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -595,89 +522,6 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(result[0]["matrix"], [])
         self.assertEqual(result[0]["gaps"], [])
 
-    def test_research_data_packet_is_structured_and_serializable(self) -> None:
-        candidate_pool = {
-            "metadata": {"site": "US", "pool_id": "pool-1"},
-            "source_brief": {},
-            "candidates": [
-                {
-                    "candidate_id": "cand-1",
-                    "name": "Window Cleaning Kit",
-                    "candidate_type": "market_direction",
-                    "status": "观察",
-                    "reason": "候选池原始状态说明",
-                    "top_products": [
-                        {
-                            "asin": "B000000001",
-                            "title": "Premium 12 Inch Window Squeegee Kit",
-                            "price": 19.99,
-                            "monthly_sales": 120,
-                            "monthly_units": 120,
-                            "monthly_revenue": 2398.8,
-                        },
-                        {
-                            "asin": "B000000002",
-                            "title": "Medium Window Cleaning Kit",
-                            "price": 12.99,
-                            "monthly_sales": 80,
-                            "monthly_units": 80,
-                            "monthly_revenue": 1039.2,
-                        },
-                    ],
-                    "market_structure": {},
-                    "dimension_rules": {
-                        "dimensions": [
-                            {
-                                "name": "尺寸",
-                                "label": "size",
-                                "rules": [
-                                    {"type": "regex", "pattern": r"(\d+)\s*inch", "value": "$1 inch", "confidence": "high"},
-                                    {"type": "keyword", "keywords": ["medium"], "confidence": "medium"},
-                                ],
-                                "default": "未知",
-                            }
-                        ]
-                    },
-                    "cross_config": {"pairs": [{"dim1": "size", "dim2": "price_band", "scarcity_threshold": 1}]},
-                    "price_band_context": {
-                        "avg_price_usd": 18.99,
-                        "top_price_band_by_units": "10-20",
-                        "top_price_band_units_share": 0.42,
-                        "note": "仅用于市场价格带判断。",
-                    },
-                    "demand_evidence": {},
-                    "competition_structure": {},
-                }
-            ],
-        }
-
-        data_packet = build_research_data_packet(candidate_pool, "cand-1")
-
-        json.dumps(data_packet, ensure_ascii=False)
-        self.assertNotIn("decision_review", data_packet)
-        self.assertNotIn("ai_analysis", data_packet)
-        self.assertNotIn("status_card", data_packet)
-        self.assertNotIn("opportunity_hypotheses", data_packet)
-        self.assertEqual(data_packet["data_packet_version"], "P28.4")
-        self.assertEqual(data_packet["market_structure"]["scripted_dimension_parse"]["dimension_count"], 1)
-        self.assertEqual(data_packet["market_structure"]["scripted_cross_analysis"]["pair_count"], 1)
-        self.assertEqual(data_packet["normalized_tables"]["top_product_tags"][0]["attribute_tags"]["size"], "12 inch")
-
-    def test_research_package_generates_insights_from_data_packet(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            candidate_pool = build_candidate_pool(
-                _minimal_import_manifest(Path(tmp)),
-                sorftime_verification=_sample_sorftime_verification(),
-            )
-        candidate = candidate_pool["candidates"][0]
-
-        research_package = build_research_package(candidate_pool, candidate["candidate_id"])
-
-        self.assertIn("decision_review", research_package)
-        self.assertIn("ai_analysis", research_package)
-        self.assertIn("status_card", research_package)
-        self.assertEqual(research_package["data_packet_version"], "P28.4")
-
     def test_sorftime_adapter_name_and_legacy_alias(self) -> None:
         snapshot = {
             "fetched_at": "2026-06-12T00:00:00Z",
@@ -811,7 +655,7 @@ class RegressionTests(unittest.TestCase):
             analysis_dir = workflow_dir / "analysis"
             analysis_dir.mkdir()
             (analysis_dir / f"{workflow_dir.name}_分析报告.html").write_text(_minimal_analysis_report_html(), encoding="utf-8")
-            write_xlsx(analysis_dir / f"{workflow_dir.name}_数据回表.xlsx", _minimal_analysis_delivery_sheets())
+            write_xlsx(analysis_dir / f"{workflow_dir.name}_决策工具包.xlsx", _minimal_analysis_delivery_sheets())
             (analysis_dir / "delivery_qa_result.json").write_text(
                 json.dumps({"status": "pass", "qa_rule_version": QA_RULE_VERSION}), encoding="utf-8"
             )
@@ -820,337 +664,6 @@ class RegressionTests(unittest.TestCase):
 
         self.assertTrue(result.ok, result.errors)
         self.assertFalse(result.warnings)
-
-    def test_contract_validators_reject_missing_handoff_fields(self) -> None:
-        with self.assertRaisesRegex(ContractValidationError, "metadata"):
-            validate_import_manifest({"files": [], "data_quality": {}})
-
-        with self.assertRaisesRegex(ContractValidationError, "candidates"):
-            validate_candidate_pool({"metadata": {}, "source_brief": {}, "candidates": []})
-
-        with self.assertRaisesRegex(ContractValidationError, "normalized_tables"):
-            validate_research_package({"metadata": {"candidate_id": "cand-1"}})
-
-        with self.assertRaisesRegex(ContractValidationError, "workflow_id"):
-            validate_workflow_state({"mode": "targeted_deep_dive", "stage": "intent_intake"})
-
-    def test_contract_validators_accept_minimal_handoff_packages(self) -> None:
-        validate_import_manifest(
-            {
-                "metadata": {"site": "US", "task_name": "测试任务"},
-                "files": [],
-                "data_quality": {"available_source_types": [], "missing_source_types": []},
-            }
-        )
-        validate_candidate_pool(
-            {
-                "metadata": {"site": "US"},
-                "source_brief": {},
-                "candidates": [
-                    {
-                        "candidate_id": "cand-1",
-                        "name": "测试方向",
-                        "status": "观察",
-                        "demand_evidence": {},
-                        "competition_structure": {},
-                        "top_products": [],
-                    }
-                ],
-            }
-        )
-        validate_research_package(
-            {
-                "metadata": {"candidate_id": "cand-1"},
-                "normalized_tables": {"candidate": {}, "top100": []},
-                "market_structure": {},
-                "decision_review": {"go_nogo_scorecard": {}},
-                "status_card": {},
-            }
-        )
-        validate_workflow_state(_sample_workflow_state())
-
-    def test_research_package_chapter_validator_rejects_missing_metadata_site(self) -> None:
-        package = _valid_research_package_for_chapter_validation()
-        del package["metadata"]["site"]
-
-        with self.assertRaisesRegex(ContractValidationError, "research_package.metadata.site"):
-            validate_research_package_chapters(package)
-
-    def test_research_package_chapter_validator_rejects_missing_decision_review(self) -> None:
-        package = _valid_research_package_for_chapter_validation()
-        del package["decision_review"]
-
-        with self.assertRaisesRegex(ContractValidationError, "research_package.decision_review"):
-            validate_research_package_chapters(package)
-
-    def test_research_package_chapter_validator_accepts_complete_package(self) -> None:
-        validate_research_package_chapters(_valid_research_package_for_chapter_validation())
-
-    def test_sorftime_category_report_and_price_band_context_flow_to_report(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            candidate_pool = build_candidate_pool(
-                _minimal_import_manifest(Path(tmp)),
-                sorftime_verification=_sample_sorftime_verification(),
-            )
-        candidate = candidate_pool["candidates"][0]
-        research_package = build_research_package(candidate_pool, candidate["candidate_id"])
-
-        self.assertEqual(candidate["demand_evidence"]["sorftime_category_report"]["product_count"], 2)
-        self.assertIn("price_band_context", candidate)
-        self.assertEqual(candidate["price_band_context"]["note"], "仅用于判断市场价格带和新品切入口，不做后置落地测算。")
-        self.assertEqual(research_package["price_band_context"]["top_price_band_by_units"], candidate["price_band_context"]["top_price_band_by_units"])
-
-    def test_research_package_records_expert_ai_analysis_persona(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            candidate_pool = build_candidate_pool(
-                _minimal_import_manifest(Path(tmp)),
-                sorftime_verification=_sample_sorftime_verification(),
-            )
-        candidate = candidate_pool["candidates"][0]
-        voc_package = {
-            "summary": {
-                "review_count": 42,
-                "asin_count": 3,
-                "low_rating_count": 8,
-                "media_review_count": 5,
-            },
-            "normalized_reviews": [],
-            "pain_points": [],
-            "highlights": [],
-        }
-
-        research_package = build_research_package(candidate_pool, candidate["candidate_id"], voc_package)
-
-        self.assertEqual(research_package["ai_analysis"]["persona"], "资深亚马逊运营专家")
-        self.assertIn("卖家精灵", research_package["ai_analysis"]["data_source_scope"][0])
-        self.assertIn("Sorftime", research_package["ai_analysis"]["data_source_scope"][1])
-        self.assertIn("评价插件", research_package["ai_analysis"]["data_source_scope"][2])
-        self.assertIn("路线矩阵", research_package["ai_analysis"]["data_source_scope"][3])
-
-    def test_voc_risk_matrix_uses_summary_when_findings_are_not_curated(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            candidate_pool = build_candidate_pool(_minimal_import_manifest(Path(tmp)))
-        candidate = candidate_pool["candidates"][0]
-        voc_package = {
-            "summary": {
-                "review_count": 399,
-                "asin_count": 4,
-                "low_rating_count": 77,
-                "media_review_count": 32,
-            },
-            "normalized_reviews": [
-                {
-                    "review_id": "R1",
-                    "asin": "B000000001",
-                    "rating": 2,
-                    "review_text": "Belt loosens during running.",
-                }
-            ],
-            "pain_points": [],
-            "highlights": [],
-        }
-
-        research_package = build_research_package(candidate_pool, candidate["candidate_id"], voc_package)
-        voc_risk = next(
-            item for item in research_package["decision_review"]["risk_matrix"]
-            if item["dimension"] == "评论/VOC"
-        )
-
-        self.assertEqual(voc_risk["level"], "中")
-        self.assertIn("已接入 399 条评论", voc_risk["basis"])
-        self.assertIn("覆盖 4 个 ASIN", voc_risk["basis"])
-        self.assertIn("低分 77 条", voc_risk["basis"])
-        self.assertNotIn("未接入评论 VOC", voc_risk["basis"])
-
-    def test_product_route_matrix_keeps_dual_leash_waist_bag_route(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            candidate_pool = build_candidate_pool(_minimal_import_manifest(Path(tmp)))
-        candidate = candidate_pool["candidates"][0]
-        candidate["name"] = "宠物牵引绳 / dog leash"
-        candidate["product_route_profile"] = _dog_leash_route_profile()
-        candidate.setdefault("competitor_candidates", {})["recent_winners"] = [
-            {
-                "asin": "B0DUALWAIST",
-                "title": "SparklyPets Double Bungee Waist 2 Dog Leash with Running Belt Fanny Pack",
-                "price": 39.99,
-                "monthly_units": 1200,
-                "rating_count": 2800,
-            }
-        ]
-        candidate.setdefault("market_structure", {})["tagged_products"] = [
-            {
-                "asin": "B0DUALWAIST",
-                "title": "Double Bungee Waist 2 Dog Leash with Running Belt Fanny Pack",
-                "price": 39.99,
-            },
-            {
-                "asin": "B0BASICWAIST",
-                "title": "Dual Leash Hands Free Dog Leash with Waist Belt and Pouch",
-                "price": 24.99,
-            },
-        ]
-
-        research_package = build_research_package(candidate_pool, candidate["candidate_id"])
-        routes = {item["route_id"]: item for item in research_package["product_route_matrix"]}
-        route_plan = {item["route_id"]: item for item in research_package["route_deep_dive_plan"]}
-
-        self.assertIn("upgraded_core", routes)
-        self.assertGreaterEqual(routes["upgraded_core"]["candidate_count"], 1)
-        self.assertIn("双牵引绳 + 腰包", routes["upgraded_core"]["route_name"])
-        self.assertIn("scenario_specialized", routes)
-        self.assertIn("upgraded_core", route_plan)
-        self.assertEqual(route_plan["upgraded_core"]["recommended_depth"], "必须路线小深挖")
-        self.assertIn("双牵引绳 腰包", route_plan["upgraded_core"]["route_search_terms"])
-        self.assertTrue(route_plan["upgraded_core"]["review_voc_asin_plan"])
-
-    def test_product_route_matrix_is_generic_for_window_squeegee(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            candidate_pool = build_candidate_pool(_minimal_import_manifest(Path(tmp)))
-        candidate = candidate_pool["candidates"][0]
-        candidate.setdefault("competitor_candidates", {})["recent_winners"] = [
-            {
-                "asin": "B0SQUEEGEE1",
-                "title": "2 in 1 Window Squeegee Cleaning Kit with Extendable Pole and Replacement Microfiber Pads",
-                "price": 24.99,
-                "monthly_units": 900,
-                "rating_count": 580,
-            }
-        ]
-        candidate.setdefault("market_structure", {})["tagged_products"] = [
-            {
-                "asin": "B0SQUEEGEE1",
-                "title": "2 in 1 Window Squeegee Cleaning Kit with Extendable Pole and Replacement Microfiber Pads",
-                "price": 24.99,
-            },
-            {
-                "asin": "B0SQUEEGEE2",
-                "title": "Window Cleaning Kit Set with Replacement Pads",
-                "price": 19.99,
-            },
-        ]
-
-        research_package = build_research_package(candidate_pool, candidate["candidate_id"])
-        routes = {item["route_id"]: item for item in research_package["product_route_matrix"]}
-        route_plan = {item["route_id"]: item for item in research_package["route_deep_dive_plan"]}
-        names = " ".join(str(route.get("route_name")) for route in routes.values())
-
-        self.assertIn("base_core", routes)
-        self.assertIn("upgraded_core", routes)
-        self.assertIn("bundle_or_set", routes)
-        self.assertIn("scenario_specialized", routes)
-        self.assertIn("窗户刮水器", names)
-        self.assertIn("extendable", names)
-        self.assertTrue(any("套装" in term for term in route_plan["bundle_or_set"]["route_search_terms"]))
-        self.assertNotIn("牵引绳", names)
-        self.assertNotIn("腰包", names)
-
-    def test_market_boundary_filters_off_category_competitors_and_downgrades_score(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            candidate_pool = build_candidate_pool(_minimal_import_manifest(Path(tmp)))
-        candidate = candidate_pool["candidates"][0]
-        candidate["name"] = "窗户刮水器 / window squeegee"
-        candidate.setdefault("demand_evidence", {})["top_keyword"] = "car accessories"
-        candidate["demand_evidence"]["aba_keyword_signal"] = {
-            "top_keywords": [
-                {"keyword": "window squeegee", "monthly_searches": 84045},
-                {"keyword": "window cleaning kit", "monthly_searches": 47039},
-            ]
-        }
-        candidate.setdefault("market_structure", {})["tagged_products"] = [
-            {"asin": "B0SQUEEGEE1", "title": "Window Squeegee Cleaning Kit with Extendable Pole"},
-            {"asin": "B0SQUEEGEE2", "title": "Shower Squeegee for Glass Doors and Window Cleaning"},
-        ]
-        candidate.setdefault("competitor_candidates", {})["top10"] = [
-            {
-                "asin": "B0SQUEEGEE1",
-                "title": "Window Squeegee Cleaning Kit with Extendable Pole",
-                "monthly_units": 900,
-            }
-        ]
-        candidate["competitor_candidates"]["recent_winners"] = [
-            {
-                "asin": "B0WIPES",
-                "title": "DUDE Wipes Flushable Adult Wet Wipes Coffee Scented",
-                "monthly_units": 300604,
-            }
-        ]
-        candidate["competitor_candidates"]["structure_supplement"] = [
-            {
-                "asin": "B0BATTERY",
-                "title": "Amazon Basics 12-Pack AA Alkaline Batteries",
-                "monthly_units": 386097,
-            }
-        ]
-        voc_package = {
-            "summary": {"review_count": 1143, "asin_count": 12, "low_rating_count": 295},
-            "normalized_reviews": [
-                {
-                    "review_id": "R1",
-                    "asin": "B0SQUEEGEE1",
-                    "rating": 1,
-                    "review_text": "Leaves streaks and the rubber blade falls apart.",
-                }
-            ],
-            "pain_points": [],
-            "highlights": [],
-        }
-
-        research_package = build_research_package(candidate_pool, candidate["candidate_id"], voc_package)
-        scorecard = research_package["decision_review"]["go_nogo_scorecard"]
-        audit = research_package["competitor_pool"]["market_boundary_audit"]
-        effective_competitors = json.dumps(
-            {
-                "competitor_pool": {
-                    "top10": research_package["competitor_pool"]["top10"],
-                    "recent_winners": research_package["competitor_pool"]["recent_winners"],
-                    "structure_supplement": research_package["competitor_pool"]["structure_supplement"],
-                },
-                "competitor_deep_dive": research_package["competitor_deep_dive"],
-                "selection_logic": research_package["competitor_selection_logic"],
-            },
-            ensure_ascii=False,
-        )
-
-        self.assertEqual(audit["excluded_competitor_count"], 2)
-        self.assertNotIn("DUDE Wipes", effective_competitors)
-        self.assertNotIn("AA Alkaline Batteries", effective_competitors)
-        self.assertLessEqual(scorecard["dimensions"]["小类边界清晰度"]["score"], 4.5)
-        self.assertLessEqual(scorecard["dimensions"]["数据完整度"]["score"], 6.0)
-        self.assertTrue(any("竞品池存在" in item for item in scorecard["gating_reasons"]))
-        self.assertTrue(research_package["voc_analysis"]["pain_points"])
-
-    def test_product_route_matrix_does_not_leak_fixture_categories_for_new_category(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            manifest = _minimal_import_manifest(Path(tmp))
-            manifest["metadata"]["task_name"] = "爆米花机 / popcorn maker"
-            candidate_pool = build_candidate_pool(manifest)
-        candidate = candidate_pool["candidates"][0]
-        candidate["name"] = "爆米花机 / popcorn maker"
-        candidate.setdefault("demand_evidence", {})["top_keyword"] = "popcorn maker"
-        candidate.setdefault("competitor_candidates", {})["recent_winners"] = [
-            {
-                "asin": "B0POPCORN1",
-                "title": "Hot Air Popcorn Maker with Measuring Cup and Removable Chute",
-                "price": 29.99,
-                "monthly_units": 1500,
-                "rating_count": 4200,
-            }
-        ]
-        candidate.setdefault("market_structure", {})["tagged_products"] = [
-            {
-                "asin": "B0POPCORN1",
-                "title": "Hot Air Popcorn Maker with Measuring Cup and Removable Chute",
-                "price": 29.99,
-            }
-        ]
-
-        research_package = build_research_package(candidate_pool, candidate["candidate_id"])
-        rendered = json.dumps(research_package, ensure_ascii=False)
-
-        self.assertIn("爆米花机", rendered)
-        self.assertIn("popcorn maker", rendered)
-        for fixture_term in ("牵引绳", "狗绳", "腰包", "刮窗器", "刮水器", "window squeegee", "dog leash"):
-            self.assertNotIn(fixture_term, rendered)
 
     def test_interactive_workflow_initial_broad_discovery_requires_operator_boundary(self) -> None:
         state = create_initial_state(
@@ -1306,40 +819,6 @@ def _write_complete_delivery(workflow_dir: Path, report_markdown: str) -> None:
     write_xlsx(final_report / "data.xlsx", _minimal_delivery_sheets(top100_rows=100))
 
 
-def _valid_research_package_for_chapter_validation() -> dict:
-    return {
-        "metadata": {
-            "site": "US",
-            "candidate_id": "cand-1",
-            "seed_keyword_or_category": "window cleaning kit",
-            "data_sources": ["seller-sprite-export"],
-        },
-        "normalized_tables": {"candidate": {}, "top100": []},
-        "market_structure": {},
-        "market_analysis": {
-            "market_size": "样本 100 个",
-            "price_band": "20-30 USD",
-            "brand_concentration": "Top10 分散",
-        },
-        "review_sources": {},
-        "voc_analysis": {},
-        "decision_review": {
-            "go_nogo_scorecard": {
-                "weighted_score": 5.5,
-                "decision": "WAIT",
-            }
-        },
-        "competitor_selection_logic": [
-            {
-                "asin": "B000000001",
-                "competitor_type": "Top10 标杆",
-                "selection_reason": "测试",
-            }
-        ],
-        "status_card": {},
-    }
-
-
 def _workflow_state_for_test(base, stage: str):
     from packages.research_core.workflows import WorkflowState, plan_next_action
 
@@ -1455,34 +934,6 @@ def _sample_sorftime_verification() -> dict:
                     "listing_days": 260,
                 },
             ],
-        },
-    }
-
-
-def _dog_leash_route_profile() -> dict:
-    return {
-        "profile_id": "dog_leash_test_fixture",
-        "route_overrides": {
-            "base_core": {
-                "route_name": "基础款：腰包/腰带 + 单牵引绳",
-                "match_terms": ("腰包", "腰带", "腰部", "束腰", "pouch", "waist", "belt", "hands free"),
-                "competitor_terms": ("hands free", "waist", "belt", "pouch", "bungee", "running", "jogging"),
-                "review_terms": ("hands free", "waist", "belt", "pouch", "bungee", "running", "jogging", "腰", "免手持"),
-                "route_search_terms": ["跑步牵引绳 腰包", "免手持 狗绳 腰带", "宠物跑步牵引绳 腰包", "腰带 弹力 牵引绳"],
-            },
-            "upgraded_core": {
-                "route_name": "升级款：双牵引绳 + 腰包/腰带",
-                "match_terms": ("一拖二", "双牵", "双头", "双体", "双套", "两犬", "两只狗", "多狗", "two dog", "dual leash"),
-                "require_any_terms": ("腰包", "腰带", "腰部", "束腰", "pouch", "waist", "belt", "hands free", "免手持"),
-                "competitor_terms": ("double", "dual dog", "dual leash", "two dog", "2 dog", "multiple dogs", "waist", "belt", "pouch"),
-                "review_terms": ("double", "dual dog", "dual leash", "two dog", "two dogs", "2 dog", "2 dogs", "multiple dogs", "双", "两只", "多狗", "一拖二"),
-                "route_search_terms": ["双牵引绳 腰包", "双狗 跑步 腰带", "一拖二 腰包 牵引绳", "双体 牵引绳 腰包"],
-            },
-            "adjacent_or_watch": {
-                "route_name": "旁支观察：一拖二/斜挎/普通弹力绳",
-                "match_terms": ("一拖二", "双头", "斜挎", "普通弹力绳", "splitter", "crossbody"),
-                "route_search_terms": ["一拖二 狗绳", "双头 狗狗牵引绳", "双狗 防缠绕 牵引绳", "多狗 牵引绳"],
-            },
         },
     }
 
@@ -1656,16 +1107,11 @@ def _minimal_analysis_report_html() -> str:
 
 def _minimal_analysis_delivery_sheets() -> list[tuple[str, list[list[object]]]]:
     return [
-        ("Summary", [["字段", "值"], ["verdict", "继续看"]]),
-        ("Source Packets", [["packet", "status"], ["market_structure", "ok"]]),
-        ("Category Derivation", [["step", "detail"], ["1", "测试"]]),
-        ("Category Candidates", [["nodeId", "name"], ["123", "测试类目"]]),
-        ("Reference ASINs", [["ASIN", "role"], ["B000000001", "primary_reference"]]),
-        ("Market Opportunity", [["band", "share"], ["$10-20", "30%"]]),
-        ("Keyword Pool", [["keyword", "role"], ["test keyword", "主攻意图词"]]),
-        ("VOC", [["dimension", "count"], ["测试痛点", 5]]),
-        ("Route Judgment", [["route", "judgment"], ["主线", "建议进入"]]),
-        ("Risks And Next", [["type", "detail"], ["risk", "测试风险"]]),
+        ("路线计分卡", [["路线名", "综合判断"], ["主线", "建议进入"]]),
+        ("竞品拆解", [["ASIN", "品牌"], ["B000000001", "测试"]]),
+        ("关键词矩阵", [["关键词", "意图"], ["test keyword", "主攻意图"]]),
+        ("样品检查表", [["痛点", "检测项"], ["测试痛点", "测试项"]]),
+        ("冷启动预算", [["项目", "预估"], ["样品费", "5000"]]),
     ]
 
 

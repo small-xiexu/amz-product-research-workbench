@@ -44,6 +44,18 @@ def build_integrated_judgment(run_dir: Path) -> dict[str, Any]:
     evidence_refs = _collect_evidence_refs(evaluations, summary)
     confidence = _determine_confidence(evaluations, summary)
 
+    # v2 深度运营分析字段（脚本生成骨架，Agent 填充内容）
+    route_recommendation = _build_route_recommendation(route_matrix)
+    route_tradeoff = _build_route_tradeoff(route_matrix)
+    competitor_benchmark = _build_competitor_benchmark(run_dir)
+    competitor_weakness_map = _build_competitor_weakness_map(run_dir)
+    cold_start_estimate = _build_cold_start_estimate(run_dir)
+    price_band_analysis = _build_price_band_analysis(run_dir)
+    voc_to_spec = _build_voc_to_spec(run_dir)
+    keyword_strategy = _build_keyword_strategy(run_dir)
+    risk_mitigation = _build_risk_mitigation(evaluations)
+    validation_roadmap = _build_validation_roadmap(evaluations)
+
     return {
         "schema_version": P7_SCHEMA_VERSION,
         "packet_id": "integrated_operator_judgment",
@@ -59,6 +71,16 @@ def build_integrated_judgment(run_dir: Path) -> dict[str, Any]:
         "constraints_applied": constraints_applied,
         "evidence_refs": evidence_refs,
         "confidence": confidence,
+        "route_recommendation": route_recommendation,
+        "route_tradeoff": route_tradeoff,
+        "competitor_benchmark": competitor_benchmark,
+        "competitor_weakness_map": competitor_weakness_map,
+        "cold_start_estimate": cold_start_estimate,
+        "price_band_analysis": price_band_analysis,
+        "voc_to_spec": voc_to_spec,
+        "keyword_strategy": keyword_strategy,
+        "risk_mitigation": risk_mitigation,
+        "validation_roadmap": validation_roadmap,
         "generated_at": now,
         "execution_provenance": {
             "executed_by_agent": False,
@@ -389,6 +411,222 @@ def run_integrated_judgment(run_dir: Path) -> dict[str, Any]:
     )
     update_progress(run_dir, judgment)
     return judgment
+
+
+def _build_route_recommendation(route_matrix: dict[str, Any] | None) -> dict[str, Any]:
+    """生成路线推荐骨架。Agent 需填充每条路线的 opportunity/risk/differentiation/benchmark_asins。"""
+    routes: list[dict[str, Any]] = []
+    if route_matrix:
+        for route in (route_matrix.get("selected_routes") or []):
+            if isinstance(route, dict):
+                routes.append({
+                    "name": route.get("route_name", route.get("name", "")),
+                    "role": route.get("role", ""),
+                    "priority": route.get("priority", ""),
+                    "opportunity": "",
+                    "risk": "",
+                    "differentiation": "",
+                    "benchmark_asins": [],
+                })
+    return {
+        "routes": routes,
+        "primary_recommendation": "",
+        "alternative_routes": [],
+        "exclusion_reasons": [],
+    }
+
+
+def _build_competitor_benchmark(run_dir: Path) -> list[dict[str, Any]]:
+    """从市场结构证据包提取竞品骨架。Agent 需填充 differentiation/pricing_anchor。"""
+    ms_packet = load_json(run_dir / "market_structure" / "market_structure_evidence_packet.json", required=False)
+    if not ms_packet:
+        return []
+    facts = ms_packet.get("facts") or {}
+    top_asins = facts.get("top_asins") or facts.get("reference_asin_pool") or []
+    if isinstance(top_asins, dict):
+        top_asins = list(top_asins.values())
+    result: list[dict[str, Any]] = []
+    for asin_data in (top_asins if isinstance(top_asins, list) else [])[:10]:
+        if isinstance(asin_data, dict):
+            result.append({
+                "asin": asin_data.get("asin", ""),
+                "name": asin_data.get("name", asin_data.get("title", "")),
+                "price": asin_data.get("price", ""),
+                "monthly_sales": asin_data.get("monthly_sales", ""),
+                "rating": asin_data.get("rating", ""),
+                "route": asin_data.get("route_ref", ""),
+                "differentiation_direction": "",
+                "pricing_anchor": "",
+                "why_benchmark": "",
+            })
+    return result
+
+
+def _build_price_band_analysis(run_dir: Path) -> list[dict[str, Any]]:
+    """从市场结构证据包提取价格带骨架。Agent 需填充 competitive_meaning/entry_recommendation。"""
+    ms_packet = load_json(run_dir / "market_structure" / "market_structure_evidence_packet.json", required=False)
+    if not ms_packet:
+        return []
+    facts = ms_packet.get("facts") or {}
+    price_dist = facts.get("price_distribution") or {}
+    bands = price_dist.get("bands") or price_dist.get("price_bands") or []
+    result: list[dict[str, Any]] = []
+    for band in (bands if isinstance(bands, list) else []):
+        if isinstance(band, dict):
+            result.append({
+                "range": band.get("range", band.get("price_range", "")),
+                "product_count": band.get("count", band.get("product_count", "")),
+                "sales_share": band.get("sales_share", ""),
+                "avg_rating": band.get("avg_rating", ""),
+                "new_product_share": band.get("new_product_share", ""),
+                "competitive_meaning": "",
+                "entry_recommendation": "",
+            })
+    return result
+
+
+def _build_voc_to_spec(run_dir: Path) -> list[dict[str, Any]]:
+    """从 VOC 证据包提取痛点骨架。Agent 需填充 spec_requirement/benchmark_gap/differentiation_opportunity。"""
+    voc_packet = load_json(run_dir / "review_voc" / "voc_evidence_packet.json", required=False)
+    if not voc_packet:
+        return []
+    facts = voc_packet.get("facts") or {}
+    pain_points = facts.get("pain_points") or facts.get("top_pain_points") or []
+    result: list[dict[str, Any]] = []
+    for pp in (pain_points if isinstance(pain_points, list) else [])[:8]:
+        if isinstance(pp, dict):
+            result.append({
+                "priority": pp.get("priority", "P1"),
+                "dimension": pp.get("dimension", ""),
+                "frequency": pp.get("review_count", pp.get("frequency", "")),
+                "evidence_quotes": pp.get("evidence_quotes", [])[:3],
+                "spec_requirement": "",
+                "benchmark_gap": "",
+                "differentiation_opportunity": "",
+            })
+    return result
+
+
+def _build_keyword_strategy(run_dir: Path) -> dict[str, Any]:
+    """从搜索需求证据包提取关键词骨架。Agent 需填充 strategy_rationale。"""
+    sd_packet = load_json(run_dir / "search_demand" / "search_demand_evidence_packet.json", required=False)
+    if not sd_packet:
+        return {"primary_attack": [], "testable": [], "negative": [], "strategy_note": ""}
+    facts = sd_packet.get("facts") or {}
+    kw_pool = facts.get("keyword_pool_by_role") or facts.get("keyword_pool") or {}
+    result: dict[str, Any] = {"primary_attack": [], "testable": [], "negative": [], "strategy_note": ""}
+    for role_key, target_key in [("primary_attack", "primary_attack"), ("testable", "testable"), ("negative", "negative")]:
+        kws = kw_pool.get(role_key) or []
+        for kw in (kws if isinstance(kws, list) else [])[:10]:
+            if isinstance(kw, dict):
+                result[target_key].append({
+                    "keyword": kw.get("keyword", kw.get("term", "")),
+                    "monthly_search_volume": kw.get("monthly_search_volume", ""),
+                    "cpc": kw.get("cpc", ""),
+                    "competitor_count": kw.get("competitor_count", ""),
+                    "strategy_rationale": "",
+                })
+    return result
+
+
+def _build_risk_mitigation(evaluations: dict[str, Any]) -> list[dict[str, Any]]:
+    """从风险评价提取风险骨架。Agent 需填充 operational_meaning/mitigation_path。"""
+    risk_eval = evaluations.get("risk") or {}
+    risks = risk_eval.get("risks") or []
+    result: list[dict[str, Any]] = []
+    for risk in (risks if isinstance(risks, list) else [])[:8]:
+        if isinstance(risk, dict):
+            result.append({
+                "risk": risk.get("risk", risk.get("description", "")),
+                "severity": risk.get("severity", risk.get("level", "")),
+                "likelihood": risk.get("likelihood", ""),
+                "operational_meaning": "",
+                "mitigation_path": "",
+            })
+        elif isinstance(risk, str):
+            result.append({
+                "risk": risk,
+                "severity": "",
+                "likelihood": "",
+                "operational_meaning": "",
+                "mitigation_path": "",
+            })
+    return result
+
+
+def _build_route_tradeoff(route_matrix: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """生成路线取舍分析骨架。Agent 需填充 gain/lose/best_for/worst_for。"""
+    routes: list[dict[str, Any]] = []
+    if route_matrix:
+        for route in (route_matrix.get("selected_routes") or []):
+            if isinstance(route, dict):
+                routes.append({
+                    "route_name": route.get("route_name", route.get("name", "")),
+                    "gain": "",
+                    "lose": "",
+                    "best_for": "",
+                    "worst_for": "",
+                })
+    return routes
+
+
+def _build_competitor_weakness_map(run_dir: Path) -> list[dict[str, Any]]:
+    """从 VOC 证据包提取竞品弱点骨架。Agent 需填充 fatal_weakness/voc_evidence/my_counter。"""
+    voc_packet = load_json(run_dir / "review_voc" / "voc_evidence_packet.json", required=False)
+    if not voc_packet:
+        return []
+    facts = voc_packet.get("facts") or {}
+    # 从差评中提取 ASIN 列表
+    pain_points = facts.get("pain_points") or facts.get("top_pain_points") or []
+    seen_asins: set[str] = set()
+    result: list[dict[str, Any]] = []
+    for pp in (pain_points if isinstance(pain_points, list) else []):
+        if isinstance(pp, dict):
+            for ref in (pp.get("evidence_refs") or [])[:2]:
+                if isinstance(ref, dict):
+                    asin = ref.get("asin", "")
+                    if asin and asin not in seen_asins:
+                        seen_asins.add(asin)
+                        result.append({
+                            "asin": asin,
+                            "route": "",
+                            "fatal_weakness": "",
+                            "voc_evidence": ref.get("quote", ""),
+                            "my_counter": "",
+                            "counter_difficulty": "",
+                        })
+    return result
+
+
+def _build_cold_start_estimate(run_dir: Path) -> dict[str, Any]:
+    """从市场结构证据包提取冷启动数据骨架。Agent 需填充 review_threshold/cpc_estimate/timeline/budget_range。"""
+    ms_packet = load_json(run_dir / "market_structure" / "market_structure_evidence_packet.json", required=False)
+    facts = (ms_packet or {}).get("facts") or {}
+    top_asins = facts.get("top_asins") or facts.get("reference_asin_pool") or []
+    if isinstance(top_asins, dict):
+        top_asins = list(top_asins.values())
+    # 取头部评论数作为门槛参考
+    review_counts = []
+    for a in (top_asins if isinstance(top_asins, list) else [])[:20]:
+        if isinstance(a, dict):
+            rc = a.get("rating_count") or a.get("review_count") or 0
+            try:
+                review_counts.append(int(rc))
+            except (ValueError, TypeError):
+                pass
+    avg_reviews = sum(review_counts) // len(review_counts) if review_counts else 0
+    return {
+        "review_threshold": f"头部竞品平均{avg_reviews}评" if avg_reviews else "",
+        "cpc_estimate": "",
+        "timeline": "",
+        "budget_range": "",
+        "confidence_note": "以上为数量级估算，基于类目平均数据。实际取决于产品力、Listing质量和广告效率。",
+    }
+
+
+def _build_validation_roadmap(evaluations: dict[str, Any]) -> list[dict[str, Any]]:
+    """生成验证路线图骨架。Agent 需根据品类特征自行定义阶段数、时间线和每步的 actions/exit_criteria/if_fail。"""
+    return []  # 阶段数、时间线、决策条件完全由 Agent 根据证据决定，脚本不预设模板
 
 
 def update_progress(run_dir: Path, judgment: dict[str, Any]) -> None:

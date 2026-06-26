@@ -33,20 +33,22 @@ class P3ContractError(ValueError):
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build P3 route matrix confirmation artifacts.")
     parser.add_argument("run_dir", type=Path, help="Path to runs/<run_id> directory")
+    parser.add_argument("--force-confirm", action="store_true",
+                        help="Bypass needs_user_review checks; treat all non-blocker routes as confirmed")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        run_route_matrix_confirmation(args.run_dir)
+        run_route_matrix_confirmation(args.run_dir, force_confirm=args.force_confirm)
     except Exception as exc:  # pragma: no cover - CLI guard
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     return 0
 
 
-def run_route_matrix_confirmation(run_dir: Path | str) -> dict[str, Path]:
+def run_route_matrix_confirmation(run_dir: Path | str, force_confirm: bool = False) -> dict[str, Path]:
     run_path = Path(run_dir).expanduser().resolve()
     if not run_path.exists():
         raise P3ContractError(f"run_dir not found: {run_path}")
@@ -73,6 +75,7 @@ def run_route_matrix_confirmation(run_dir: Path | str) -> dict[str, Path]:
             quick_gate,
             quick_gate_present,
             progress,
+            force_confirm=force_confirm,
         )
         validate_route_matrix_confirm(route_packet)
         validate_data_completeness_check(completeness)
@@ -131,6 +134,7 @@ def build_route_matrix_confirmation_bundle(
     quick_gate: dict[str, Any],
     quick_gate_present: bool,
     progress: dict[str, Any] | None,
+    force_confirm: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     now = _now_iso()
     progress = _progress_template(workflow_state, progress)
@@ -147,7 +151,7 @@ def build_route_matrix_confirmation_bundle(
     )
 
     for candidate in candidates:
-        route_check = _assess_route_completeness(candidate, candidate_pool, quick_packets, quick_gate, quick_gate_present)
+        route_check = _assess_route_completeness(candidate, candidate_pool, quick_packets, quick_gate, quick_gate_present, force_confirm)
         route_option = _build_route_option(candidate, candidate_pool, route_check)
         route_checks.append(route_check)
         route_options.append(route_option)
@@ -163,7 +167,7 @@ def build_route_matrix_confirmation_bundle(
         quick_gate_present,
         route_checks,
     )
-    decision = _decide_route_matrix(candidate_pool, route_checks, completeness)
+    decision = _decide_route_matrix(candidate_pool, route_checks, completeness, force_confirm)
     selected_routes = [route for route in route_options if route.get("selection_status") == "selected"]
     rejected_routes = [route for route in route_options if route.get("selection_status") != "selected"]
     voc_readiness = _build_voc_readiness(selected_routes, route_checks, decision, completeness)
@@ -286,6 +290,7 @@ def _assess_route_completeness(
     quick_packets: dict[str, dict[str, Any] | None],
     quick_gate: dict[str, Any],
     quick_gate_present: bool,
+    force_confirm: bool = False,
 ) -> dict[str, Any]:
     candidate_id = first_text(candidate.get("candidate_id"), candidate.get("name"))
     route_name = first_text(candidate.get("name"), candidate_id)
@@ -399,7 +404,7 @@ def _assess_route_completeness(
         "voc_signal": "needs_voc_validation" if needs_voc_validation else "light_prepared",
         "role": _route_role(candidate, gap_level, readiness_status),
         "recommended_role": _route_role(candidate, gap_level, readiness_status),
-        "selection_status": _selection_status(candidate, gap_level),
+        "selection_status": _selection_status(candidate, gap_level, force_confirm),
         "selection_reason": _selection_reason(candidate, gap_level, gap_reasons),
         "next_check": next_check,
         "top_products": [],
@@ -612,6 +617,7 @@ def _decide_route_matrix(
     candidate_pool: dict[str, Any],
     route_checks: list[dict[str, Any]],
     completeness: dict[str, Any],
+    force_confirm: bool = False,
 ) -> str:
     overall_level = first_text(completeness.get("overall_level"), "warning")
     selected = [route for route in route_checks if route.get("selection_status") == "selected"]
@@ -624,6 +630,9 @@ def _decide_route_matrix(
         return "revise_candidate_pool"
     if selected:
         return "confirm"
+    if force_confirm and pool_status not in ("excluded",):
+        if not all(status == "先放弃" for status in candidate_statuses):
+            return "confirm"
     if pool_status == "excluded" or not route_checks or all(status == "先放弃" for status in candidate_statuses):
         return "stop"
     return "revise_candidate_pool"
@@ -678,15 +687,20 @@ def _route_role(candidate: dict[str, Any], gap_level: str, readiness_status: str
     if gap_level == "blocker":
         return "排除"
     if readiness_status == "ready_for_route_matrix" and first_text(candidate.get("support_level"), "") in {"strong", "moderate"}:
-        return "主线候选"
+        return "标准款候选"
     if readiness_status == "needs_user_review":
         return "待确认"
     return "观察"
 
 
-def _selection_status(candidate: dict[str, Any], gap_level: str) -> str:
+def _selection_status(candidate: dict[str, Any], gap_level: str, force_confirm: bool = False) -> str:
     if gap_level == "blocker":
         return "rejected"
+    if force_confirm:
+        # With --force-confirm, treat needs_user_review as ready when support is strong/moderate
+        support = first_text(candidate.get("support_level"), "")
+        if support in {"strong", "moderate"} and first_text(candidate.get("status"), "") != "先放弃":
+            return "selected"
     if first_text(candidate.get("readiness_status"), "") != "ready_for_route_matrix":
         return "rejected"
     if first_text(candidate.get("support_level"), "") not in {"strong", "moderate"}:

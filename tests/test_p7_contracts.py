@@ -61,6 +61,17 @@ def _judgment(
             "evaluations/evaluation_summary.json",
         ],
         "confidence": confidence,
+        # v2 深度运营分析字段（脚本生成骨架，Agent 填充内容）
+        "route_recommendation": {"routes": [{"name": "主线", "role": "mainline", "priority": "high"}]},
+        "route_tradeoff": [],
+        "competitor_benchmark": [],
+        "competitor_weakness_map": [],
+        "cold_start_estimate": {"budget_range": "待 Agent 填充"},
+        "price_band_analysis": [],
+        "voc_to_spec": [],
+        "keyword_strategy": {"primary_intent_keywords": [], "test_keywords": [], "negative_keywords": []},
+        "risk_mitigation": [],
+        "validation_roadmap": [],
         "generated_at": "2026-06-25T00:00:00",
         "execution_provenance": {
             "executed_by_agent": False,

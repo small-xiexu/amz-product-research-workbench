@@ -160,7 +160,7 @@ class ReportSeedHandoffTests(unittest.TestCase):
         self.assertTrue((analysis_dir / "analysis_packet.json").exists())
         self.assertFalse((analysis_dir / "report_data.json").exists())
         self.assertFalse(any(analysis_dir.glob("*_分析报告.html")))
-        self.assertFalse(any(analysis_dir.glob("*_数据回表.xlsx")))
+        self.assertFalse(any(analysis_dir.glob("*_决策工具包.xlsx")))
         self.assertFalse((analysis_dir / "delivery_qa_result.json").exists())
 
 
@@ -246,19 +246,14 @@ class XLSXBackTableTests(unittest.TestCase):
         analysis = build_analysis_packet(run_dir, packets)
         return seed_report_data_from_analysis(analysis)
 
-    def test_all_ten_sheets_generated(self) -> None:
-        """report_data.json → 10 XLSX sheets."""
+    def test_all_five_sheets_generated(self) -> None:
+        """report_data.json → 5-sheet decision workbook."""
         rd = self._build_report_data()
-        # Write RD to temp path for xlsx_sheets_from_report_data
         rd_path = self._tmp / "report_data.json"
         rd_path.write_text(json.dumps(rd, ensure_ascii=False, indent=2), encoding="utf-8")
         sheets = xlsx_sheets_from_report_data(rd_path)
         sheet_names = {s[0] for s in sheets}
-        expected = {
-            "Summary", "Source Packets", "Category Derivation",
-            "Category Candidates", "Reference ASINs", "Market Opportunity",
-            "Keyword Pool", "VOC", "Route Judgment", "Risks And Next",
-        }
+        expected = {"路线计分卡", "竞品拆解", "关键词矩阵", "样品检查表", "冷启动预算"}
         for name in expected:
             self.assertIn(name, sheet_names, f"Missing XLSX sheet: {name}")
 
@@ -367,7 +362,7 @@ class FullChainCLITests(unittest.TestCase):
         self.assertTrue((analysis_dir / "report_data.seed.json").exists())
         self.assertFalse((analysis_dir / "report_data.json").exists())
         self.assertFalse(any(analysis_dir.glob("*_分析报告.html")))
-        self.assertFalse(any(analysis_dir.glob("*_数据回表.xlsx")))
+        self.assertFalse(any(analysis_dir.glob("*_决策工具包.xlsx")))
 
         _write_agent_report_outputs(run_dir)
 
@@ -382,7 +377,7 @@ class FullChainCLITests(unittest.TestCase):
 
         self.assertTrue((analysis_dir / "report_data.json").exists())
         self.assertTrue(any(analysis_dir.glob("*_分析报告.html")))
-        self.assertTrue(any(analysis_dir.glob("*_数据回表.xlsx")))
+        self.assertTrue(any(analysis_dir.glob("*_决策工具包.xlsx")))
         self.assertTrue((analysis_dir / "delivery_qa_result.json").exists())
         self.assertTrue((analysis_dir / "qa_notes.md").exists())
         self.assertTrue((run_dir / "audit_run_status.json").exists())
@@ -550,6 +545,21 @@ class ReportAgentHTMLTests(unittest.TestCase):
             self.assertEqual(len(matches), 0,
                            f"Forbidden '{description}' found: {matches[:5]}")
 
+    def test_html_sanitizes_backend_source_names(self) -> None:
+        """Generated HTML does not expose backend data-source brand names."""
+        from packages.research_core.pipeline.report_agent import generate_operator_html
+        rd = _minimal_valid_report_data()
+        rd["hero"]["lead_analysis"] = (
+            "卖家精灵 market_research_statistics 待补；"
+            "Sorftime keyword_detail 与 product_traffic_terms 待补。"
+        )
+        html = generate_operator_html(rd)
+        self.assertNotIn("卖家精灵", html)
+        self.assertNotIn("Sorftime", html)
+        self.assertNotIn("market_research_statistics", html)
+        self.assertNotIn("keyword_detail", html)
+        self.assertNotIn("product_traffic_terms", html)
+
     def test_html_has_inline_style_not_external_css(self) -> None:
         """HTML embeds <style>, no report_template.css path."""
         from packages.research_core.pipeline.report_agent import generate_operator_html
@@ -623,6 +633,48 @@ class ReportAgentValidationTests(unittest.TestCase):
         rd_path.write_text(json.dumps(_minimal_valid_report_data(), ensure_ascii=False, indent=2), encoding="utf-8")
         result = validate_agent_output(rd_path, self._tmp / "missing.html")
         self.assertIn("HTML missing", result.get("issues", []))
+
+    def test_modified_template_css_detected(self) -> None:
+        """HTML style drift from report_template.css is caught."""
+        from packages.research_core.pipeline.report_agent import validate_agent_output
+        rd_path = self._tmp / "report_data.json"
+        rd_path.write_text(json.dumps(_minimal_valid_report_data(), ensure_ascii=False, indent=2), encoding="utf-8")
+        html_path = self._tmp / "test.html"
+        html_path.write_text(
+            _agent_report_html().replace("--bg: #f5f6f8;", "--bg: #ffffff;"),
+            encoding="utf-8",
+        )
+        result = validate_agent_output(rd_path, html_path)
+        self.assertFalse(result["valid"])
+        self.assertTrue(any("report_template.css" in i for i in result.get("issues", [])))
+
+    def test_unknown_class_detected(self) -> None:
+        """Template-external class names are caught."""
+        from packages.research_core.pipeline.report_agent import validate_agent_output
+        rd_path = self._tmp / "report_data.json"
+        rd_path.write_text(json.dumps(_minimal_valid_report_data(), ensure_ascii=False, indent=2), encoding="utf-8")
+        html_path = self._tmp / "test.html"
+        html_path.write_text(
+            _agent_report_html().replace("</body>", '<div class="bar-label">漂移类名</div></body>'),
+            encoding="utf-8",
+        )
+        result = validate_agent_output(rd_path, html_path)
+        self.assertFalse(result["valid"])
+        self.assertTrue(any("bar-label" in i for i in result.get("issues", [])))
+
+    def test_fixed_data_source_section_detected(self) -> None:
+        """The formal HTML must not add a fixed data source section."""
+        from packages.research_core.pipeline.report_agent import validate_agent_output
+        rd_path = self._tmp / "report_data.json"
+        rd_path.write_text(json.dumps(_minimal_valid_report_data(), ensure_ascii=False, indent=2), encoding="utf-8")
+        html_path = self._tmp / "test.html"
+        html_path.write_text(
+            _agent_report_html().replace("</body>", "<section><h2>数据来源与口径</h2></section></body>"),
+            encoding="utf-8",
+        )
+        result = validate_agent_output(rd_path, html_path)
+        self.assertFalse(result["valid"])
+        self.assertTrue(any("数据来源与口径" in i for i in result.get("issues", [])))
 
 
 class ReportAgentCLITests(unittest.TestCase):
@@ -741,7 +793,7 @@ class ReportAgentCLITests(unittest.TestCase):
         )
         self.assertEqual(r3.returncode, 0, f"Phase 3 failed: stdout={r3.stdout}, stderr={r3.stderr}")
         self.assertIn("Stage 7 report delivery: PASS", r3.stdout)
-        self.assertTrue(any(analysis_dir.glob("*_数据回表.xlsx")))
+        self.assertTrue(any(analysis_dir.glob("*_决策工具包.xlsx")))
         self.assertTrue((analysis_dir / "delivery_qa_result.json").exists())
         self.assertTrue((analysis_dir / "qa_notes.md").exists())
         self.assertTrue((run_dir / "audit_run_status.json").exists())
@@ -751,20 +803,27 @@ class ReportAgentCLITests(unittest.TestCase):
 
 def _agent_report_html() -> str:
     """Minimal formal HTML report as if written by Report Generation Agent."""
-    return (
-        '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
-        "<style>body{font-family:sans-serif}.go-nogo{width:100%}</style></head><body>"
-        '<section class="hero"><div class="verdict">建议补齐数据后再评估</div>'
-        "<p>样本边界：基于当前样本做市场判断。</p></section>"
-        "<section><h2>类目全景</h2><p>先看目标类目的需求、价格和竞争边界。</p></section>"
-        "<section><h2>核心竞品</h2><table><tbody><tr><td>代表 ASIN</td></tr></tbody></table></section>"
-        "<section><h2>用户痛点</h2><p>把评论痛点翻译成产品规格要求。</p></section>"
-        "<section><h2>价格带分布</h2><p>结合样本价格带判断可验证区间。</p></section>"
-        "<section><h2>关键词与流量策略</h2><p>区分主攻词、可测词和排除词。</p></section>"
-        '<section><h2>风险与下一步</h2><table class="go-nogo">'
-        "<tbody><tr><td>补齐样本后再进入下一轮验证</td></tr></tbody></table></section>"
-        "</body></html>"
-    )
+    css = (
+        ROOT
+        / "skills"
+        / "amazon-product-research"
+        / "references"
+        / "report_template.css"
+    ).read_text(encoding="utf-8")
+    return f"""<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
+<style>
+{css}
+</style></head><body><div class="page">
+<section class="hero"><div class="verdict">建议补齐数据后再评估</div>
+<p class="lead">样本边界：基于当前样本做市场判断。</p></section>
+<section class="section"><h2>类目全景</h2><p>先看目标类目的需求、价格和竞争边界。</p></section>
+<section class="section"><h2>核心竞品</h2><table><tbody><tr><td>代表 ASIN</td></tr></tbody></table></section>
+<section class="section"><h2>用户痛点</h2><p>把评论痛点翻译成产品规格要求。</p></section>
+<section class="section"><h2>价格带分布</h2><p>结合样本价格带判断可验证区间。</p></section>
+<section class="section"><h2>关键词与流量策略</h2><p>区分主攻词、可测词和排除词。</p></section>
+<section class="section"><h2>风险与下一步</h2><table class="go-nogo">
+<tbody><tr><td>补齐样本后再进入下一轮验证</td></tr></tbody></table></section>
+</div></body></html>"""
 
 
 def _write_agent_report_outputs(run_dir: Path) -> None:

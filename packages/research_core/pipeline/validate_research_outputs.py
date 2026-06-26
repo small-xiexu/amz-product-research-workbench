@@ -11,18 +11,13 @@ from openpyxl import load_workbook
 
 REQUIRED_FINAL_FILES = ("report.md", "report.html", "data.xlsx")
 # analysis/ 目录的预期文件后缀（需与中文品名拼接，如 钢丝地板刷_分析报告.html）
-ANALYSIS_REPORT_SUFFIXES = ("_分析报告.html", "_数据回表.xlsx")
+ANALYSIS_REPORT_SUFFIXES = ("_分析报告.html", "_决策工具包.xlsx")
 ANALYSIS_REQUIRED_SHEETS = (
-    "Summary",
-    "Source Packets",
-    "Category Derivation",
-    "Category Candidates",
-    "Reference ASINs",
-    "Market Opportunity",
-    "Keyword Pool",
-    "VOC",
-    "Route Judgment",
-    "Risks And Next",
+    "路线计分卡",
+    "竞品拆解",
+    "关键词矩阵",
+    "样品检查表",
+    "冷启动预算",
 )
 REQUIRED_WORKFLOW_FILES = ("workflow_summary.md", "workflow_summary.json")
 BASE_REQUIRED_SHEETS = (
@@ -144,7 +139,7 @@ def validate_workflow_output(input_dir: Path | str) -> ValidationResult:
         # analysis 模式不要求 workflow_summary（Link B 流水线不生成该文件）
         workflow_summary: dict[str, Any] = {}
         html_file = _find_file_by_suffix(final_report_dir, "_分析报告.html")
-        xlsx_file = _find_file_by_suffix(final_report_dir, "_数据回表.xlsx")
+        xlsx_file = _find_file_by_suffix(final_report_dir, "_决策工具包.xlsx")
     else:
         _check_required_files(result, final_report_dir, REQUIRED_FINAL_FILES, "final_report")
         _check_required_files(result, workflow_dir, REQUIRED_WORKFLOW_FILES, "workflow")

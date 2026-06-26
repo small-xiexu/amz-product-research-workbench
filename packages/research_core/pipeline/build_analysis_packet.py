@@ -212,7 +212,7 @@ def build_analysis_packet(run_dir: Path, packets: dict[str, Any]) -> dict[str, A
                 "report_data_seed": str(run_dir / "analysis" / "report_data.seed.json"),
                 "report_data": str(run_dir / "analysis" / "report_data.json"),
                 "html": str(run_dir / "analysis" / f"{_extract_product_name(run_dir)}_分析报告.html"),
-                "xlsx": str(run_dir / "analysis" / f"{_extract_product_name(run_dir)}_数据回表.xlsx"),
+                "xlsx": str(run_dir / "analysis" / f"{_extract_product_name(run_dir)}_决策工具包.xlsx"),
                 "qa": str(run_dir / "analysis" / "delivery_qa_result.json"),
             },
         },

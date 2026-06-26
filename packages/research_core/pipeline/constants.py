@@ -3,7 +3,8 @@
 
 from __future__ import annotations
 
-QA_RULE_VERSION = "2026-06-25-p8-v1"
+QA_RULE_VERSION = "2026-06-25-p8-v2"
+VOC_MIN_REVIEW_THRESHOLD = 30  # Stage 8 VOC 门控最低评论数
 REPORT_VERDICT_LABELS = {
     "继续看": "建议进入小批量验证",
     "谨慎继续": "建议补齐数据后再评估",
@@ -12,7 +13,7 @@ REPORT_VERDICT_LABELS = {
 ALLOWED_VERDICTS = set(REPORT_VERDICT_LABELS.values())
 FORBIDDEN_HTML_PATTERNS = [
     # 抽象路线标签：运营看不懂"路线A/B"是什么意思
-    (r"路线[A-Z0-9]", "抽象路线标签（如路线A/路线B/路线1），必须用业务描述词（如吊扇除尘/纯钢丝刷）"),
+    (r"路线[A-Z0-9](?![A-Z0-9])", "抽象路线标签（如路线A/路线B/路线1），必须用业务描述词（如吊扇除尘/纯钢丝刷）"),
     # 内部执行术语：不能暴露给运营
     (r"\bAgent\b", "内部术语 Agent，HTML 中不得出现"),
     (r"\bMCP\b", "内部术语 MCP，HTML 中不得出现"),

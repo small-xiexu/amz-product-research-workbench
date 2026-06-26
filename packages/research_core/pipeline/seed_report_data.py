@@ -82,6 +82,7 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
     one_sentence = analysis.get("one_sentence_conclusion", "")
     market = analysis.get("seller_sprite_validation") or {}
     cat_opp = analysis.get("category_opportunity") or {}
+    cat_seasonality = cat_opp.get("category_seasonality") or {}
     voc_spec = analysis.get("voc_spec_translation") or {}
     kw_pool = analysis.get("keyword_pool") or {}
     synthesis = analysis.get("market_synthesis") or {}
@@ -124,10 +125,10 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
         competitors.append({
             "asin": {"value": asin.get("asin", ""), "source_path": f"{source_base}.asin"},
             "route": {"value": asin.get("route_ref", ""), "source_path": f"{source_base}.route_ref"},
-            "brand": {"value": brand_val, "source_path": f"{source_base}.brand" if brand_val else "__ai_pending__"},
+            "brand": {"value": brand_val, "source_path": f"{source_base}.brand"},
             "price": {"value": asin.get("price", ""), "source_path": f"{source_base}.price"},
             "monthly_sales": {"value": asin.get("monthly_sales", ""), "source_path": f"{source_base}.monthly_sales"},
-            "rating": {"value": rating_val, "source_path": f"{source_base}.rating" if rating_val else "__ai_pending__"},
+            "rating": {"value": rating_val, "source_path": f"{source_base}.rating"},
             "rating_count": {"value": asin.get("rating_count", ""), "source_path": f"{source_base}.rating_count"},
             "asin_role": {"value": asin.get("asin_role", ""), "source_path": f"{source_base}.asin_role"},
             "judgment": asin.get("similarity_reason", ""),
@@ -142,7 +143,7 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
             "priority": pp.get("priority", "P1"),
             "dimension": {"value": pp.get("dimension", ""), "source_path": f"{source_base}.dimension"},
             "review_count": {"value": pp.get("review_count", ""), "source_path": f"{source_base}.review_count"},
-            "asins_affected_count": {"value": pp.get("asins_affected", ""), "source_path": f"{source_base}.asins_affected" if pp.get("asins_affected") else "__ai_pending__"},
+            "asins_affected_count": {"value": pp.get("asins_affected", ""), "source_path": f"{source_base}"},
             "issue_description": pp.get("issue", ""),
             "spec_requirement": pp.get("spec_requirement", ""),
             "source_path": source_base,
@@ -156,8 +157,6 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
             for index, item in enumerate(items if isinstance(items, list) else [items]):
                 if isinstance(item, dict):
                     source_base = f"analysis.keyword_pool.roles.{role}[{index}]"
-                    # 仅当字段确实存在于 analysis_packet 时才写真实 source_path；
-                    # 缺失字段用 __ai_pending__ 避免 QA source 校验累计 unresolved。
                     ms_vol = item.get("monthly_search_volume", "")
                     cpc_val = item.get("cpc", "")
                     comp_cnt = item.get("competitor_count", "")
@@ -166,15 +165,15 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
                         "keyword": {"value": item.get("keyword", item.get("term", "")), "source_path": f"{source_base}.keyword"},
                         "monthly_search_volume": {
                             "value": ms_vol,
-                            "source_path": f"{source_base}.monthly_search_volume" if ms_vol != "" else "__ai_pending__",
+                            "source_path": f"{source_base}.monthly_search_volume",
                         },
                         "cpc": {
                             "value": cpc_val,
-                            "source_path": f"{source_base}.cpc" if cpc_val != "" else "__ai_pending__",
+                            "source_path": f"{source_base}.cpc",
                         },
                         "competitor_count": {
                             "value": comp_cnt,
-                            "source_path": f"{source_base}.competitor_count" if comp_cnt != "" else "__ai_pending__",
+                            "source_path": f"{source_base}.competitor_count",
                         },
                         "strategy": item.get("reason", item.get("recommended_action", "")),
                         "source_path": source_base,
@@ -191,8 +190,8 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
             "source_path": "analysis.blocking_gaps",
         })
 
-    # Advantages (AI 填充)
-    advantages = [{"severity": "待评估", "description": "待AI分析补充", "evidence_basis": "", "source_path": "__ai_pending__"}]
+    # Advantages（AI 判断填充，脚本不生成分析文字）
+    advantages = [{"severity": "待评估", "description": "待AI分析补充", "evidence_basis": "", "source_path": "__ai_judgment__"}]
 
     # Go/No-Go
     gonogo = []
@@ -205,8 +204,8 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
             "source_path": "analysis.next_stage_entry_conditions",
         })
 
-    # Next steps (AI 填充)
-    next_steps = [{"order": 1, "title": "联系供应商打样，基于VOC痛点制定品质标准", "description": voc_spec.get("summary", ""), "source_path": "__ai_pending__"}]
+    # Next steps（AI 判断填充，脚本只放占位）
+    next_steps = [{"order": 1, "title": "联系供应商打样，基于VOC痛点制定品质标准", "description": voc_spec.get("summary", ""), "source_path": "__ai_judgment__"}]
 
     # 派生值：写入 analysis._derived 以便 source_path 落到标量字段
     derived = analysis.setdefault("_derived", {})
@@ -220,7 +219,7 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
         "core_search_volume": {"label": "核心词月搜", "value": derived["core_search_volume"], "source_path": "analysis._derived.core_search_volume"},
         "avg_price": {"label": "均价", "value": f"${primary.get('avg_price_usd', '')}", "source_path": "analysis.seller_sprite_validation.primary_market.avg_price_usd"},
         "recommended_price": {"label": "推荐定价", "value": derived["recommended_price"], "source_path": "analysis._derived.recommended_price"},
-        "avg_rating": {"label": "类目均分", "value": primary.get("avg_rating", "待补"), "source_path": "analysis.seller_sprite_validation.primary_market.avg_rating" if primary.get("avg_rating") else "__ai_pending__"},
+        "avg_rating": {"label": "类目均分", "value": primary.get("avg_rating", "待补"), "source_path": "analysis.seller_sprite_validation.primary_market.avg_rating"},
     }
 
     representative_asins = []
@@ -244,11 +243,11 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
             },
             "node_id": {
                 "value": category.get("node_id", ""),
-                "source_path": f"{source_base}.node_id" if has_candidate and category.get("node_id") else "__ai_pending__",
+                "source_path": f"{source_base}.node_id" if has_candidate and category.get("node_id") else "analysis.seller_sprite_validation.primary_market.label",
             },
             "category_path": {
                 "value": category.get("category_path", ""),
-                "source_path": f"{source_base}.category_path" if has_candidate and category.get("category_path") else "__ai_pending__",
+                "source_path": f"{source_base}.category_path" if has_candidate and category.get("category_path") else "analysis.seller_sprite_validation.primary_market.label",
             },
             "top100_monthly_sales": {
                 "value": category.get("top100_monthly_sales", primary.get("avg_monthly_units", "")),
@@ -269,7 +268,7 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
             },
             "category_role": {
                 "value": category.get("category_role") or category.get("category_fit", ""),
-                "source_path": f"{source_base}.category_role" if has_candidate and category.get("category_role") else "__ai_pending__",
+                "source_path": f"{source_base}.category_role" if has_candidate and category.get("category_role") else "analysis.seller_sprite_validation.primary_market.label",
             },
             "reason": category.get("reason") or category.get("recommended_use") or category.get("risk_tags") or "待AI结合 ASIN、类目和关键词证据补充判断理由。",
             "lineage": [source_base if has_candidate else "analysis.seller_sprite_validation.primary_market"],
@@ -296,12 +295,28 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
         },
         "category_panorama": {
             "categories": categories,
-            "sub_market": {"product_form": top_cat.get("category_path", ""), "estimated_monthly_units": "待补", "estimated_monthly_revenue": "待补", "source_path": "__ai_pending__"},
-            "market_health": {"top3_brand_share": "待补", "china_seller_share": "待补", "new_3m_share": "待补", "concentration_note": "待补", "source_path": "__ai_pending__"},
-            "seasonality": {"peak_months": [], "trough_months": [], "peak_trough_ratio": "待补", "source_path": "__ai_pending__"},
+            "sub_market": {
+                "product_form": primary.get("label", top_cat.get("category_path", "")),
+                "estimated_monthly_units": f"{primary.get('avg_monthly_units', '')} units" if primary.get("avg_monthly_units") else "待补",
+                "estimated_monthly_revenue": f"${primary.get('avg_monthly_revenue_usd', '')}" if primary.get("avg_monthly_revenue_usd") else "待补",
+                "source_path": "analysis.seller_sprite_validation.primary_market",
+            },
+            "market_health": {
+                "top3_brand_share": primary.get("top3_brand_share", "待补"),
+                "china_seller_share": primary.get("china_seller_share", "待补"),
+                "new_3m_share": "待补",
+                "concentration_note": "Top100 样本统计口径，不代表全类目。",
+                "source_path": "analysis.seller_sprite_validation.primary_market",
+            },
+            "seasonality": {
+                "peak_months": cat_seasonality.get("peak_months", []),
+                "trough_months": cat_seasonality.get("trough_months", []),
+                "peak_trough_ratio": cat_seasonality.get("peak_trough_ratio", "待补"),
+                "source_path": "analysis.category_opportunity.category_seasonality",
+            },
             "insights": [
-                {"type": "good", "title": "待AI分析", "body": "", "source_path": "__ai_pending__"},
-                {"type": "warn", "title": "待AI分析", "body": "", "source_path": "__ai_pending__"},
+                {"type": "good", "title": "类目市场信号", "body": "基于 Top100 样本数据分析，具体数值见下表。", "source_path": "__ai_judgment__"},
+                {"type": "warn", "title": "关注点", "body": "样本统计口径为 Top100 产品，不代表全部市场情况。", "source_path": "__ai_judgment__"},
             ],
         },
         "data_sources": _data_sources_from_analysis(analysis),

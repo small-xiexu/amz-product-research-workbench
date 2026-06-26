@@ -157,52 +157,13 @@ def yes_no_tag(value: Any) -> str:
 
 
 def product_route(text: str) -> str:
-    routes = []
-    if any(token in text for token in ["2 in 1", "3 in 1", "two in one", "three in one", "combo", "bundle", "set", "kit", "pack"]):
-        routes.append("套装/组合")
-    if any(token in text for token in ["extendable", "telescopic", "extension pole", "long handle", "pole"]):
-        routes.append("可伸缩/长杆")
-    if any(token in text for token in ["replacement", "refill", "extra", "spare", "compatible"]):
-        routes.append("替换件/耗材")
-    if any(token in text for token in ["portable", "compact", "mini", "travel", "foldable", "folding"]):
-        routes.append("便携/折叠")
-    if any(token in text for token in ["heavy duty", "professional", "commercial", "industrial"]):
-        routes.append("专业/重型")
-    if not routes:
-        return "待确认"
-    return "+".join(routes[:3])
+    """产品路线归类和特征标签由 AI 在 Stage 5 判断，脚本不再做关键词匹配。"""
+    return "待确认"
 
 
 def feature_tags(text: str) -> list[str]:
-    tags = []
-    for token, label in [
-        ("extendable", "可伸缩/长杆"),
-        ("telescopic", "可伸缩/长杆"),
-        ("extension pole", "可伸缩/长杆"),
-        ("long handle", "可伸缩/长杆"),
-        ("2 in 1", "多功能组合"),
-        ("3 in 1", "多功能组合"),
-        ("combo", "多功能组合"),
-        ("bundle", "套装"),
-        ("kit", "套装"),
-        ("set", "套装"),
-        ("replacement", "替换件/耗材"),
-        ("refill", "替换件/耗材"),
-        ("portable", "便携"),
-        ("compact", "便携"),
-        ("foldable", "折叠"),
-        ("folding", "折叠"),
-        ("heavy duty", "专业/重型"),
-        ("professional", "专业/重型"),
-        ("reflective", "反光/安全"),
-        ("waterproof", "防水"),
-        ("rechargeable", "可充电"),
-        ("wireless", "无线"),
-        ("adjustable", "可调节"),
-    ]:
-        if token in text and label not in tags:
-            tags.append(label)
-    return tags or ["待确认"]
+    """产品特征标签由 AI 在分析阶段判断，脚本不再做关键词匹配。"""
+    return ["待确认"]
 
 
 def tag_confidence(product: dict[str, Any], tags: dict[str, Any]) -> str:

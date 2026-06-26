@@ -7,10 +7,6 @@ from packages.research_core.pipeline.build_candidate_pool_from_import_manifest i
     _extract_asin_from_filename,
     _pick_core_keyword,
 )
-from packages.research_core.pipeline.market_boundary import (
-    _is_broad_market_keyword,
-    _normalize_market_text,
-)
 
 
 class ExtractAsinFromFilenameTests(unittest.TestCase):
@@ -93,48 +89,6 @@ class PickCoreKeywordTests(unittest.TestCase):
         ]
         result = _pick_core_keyword(records, None)
         self.assertEqual(result.get("月搜索量"), 90000)
-
-
-class IsBroadMarketKeywordTests(unittest.TestCase):
-    def test_category_label_is_broad(self) -> None:
-        self.assertTrue(_is_broad_market_keyword("accessories"))
-        self.assertTrue(_is_broad_market_keyword("car accessories"))
-        self.assertTrue(_is_broad_market_keyword("cleaning supplies"))
-        self.assertTrue(_is_broad_market_keyword("bathroom accessories"))
-
-    def test_specific_product_is_not_broad(self) -> None:
-        self.assertFalse(_is_broad_market_keyword("window squeegee"))
-        self.assertFalse(_is_broad_market_keyword("shower squeegee"))
-        self.assertFalse(_is_broad_market_keyword("window cleaner tool"))
-
-    def test_three_word_keyword_not_broad(self) -> None:
-        """Even if last word is a category noun, 3+ word phrases are specific enough."""
-        self.assertFalse(_is_broad_market_keyword("stainless steel accessories"))
-        self.assertFalse(_is_broad_market_keyword("window cleaning supplies kit"))
-
-    def test_single_product_noun_not_broad(self) -> None:
-        self.assertFalse(_is_broad_market_keyword("squeegee"))
-        self.assertFalse(_is_broad_market_keyword("mop"))
-        self.assertFalse(_is_broad_market_keyword("scraper"))
-
-    def test_empty_string_not_broad(self) -> None:
-        self.assertFalse(_is_broad_market_keyword(""))
-        self.assertFalse(_is_broad_market_keyword("  "))
-
-    def test_case_insensitive(self) -> None:
-        self.assertTrue(_is_broad_market_keyword("Car Accessories"))
-        self.assertTrue(_is_broad_market_keyword("HOME GOODS"))
-
-
-class NormalizeMarketTextTests(unittest.TestCase):
-    def test_lowercases_and_strips(self) -> None:
-        self.assertEqual(_normalize_market_text("  Window Squeegee  "), "window squeegee")
-
-    def test_removes_special_chars(self) -> None:
-        self.assertEqual(_normalize_market_text("window/squeegee-tool_cleaner"), "window squeegee tool cleaner")
-
-    def test_preserves_chinese(self) -> None:
-        self.assertEqual(_normalize_market_text("窗户 刮刀"), "窗户 刮刀")
 
 
 if __name__ == "__main__":

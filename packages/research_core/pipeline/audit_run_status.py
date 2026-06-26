@@ -72,7 +72,7 @@ def build_artifact_status(run_dir: Path) -> dict[str, dict[str, Any]]:
         "sorftime_verification": run_dir / "mcp" / "sorftime_verification.json",
         "analysis_report_data": run_dir / "analysis" / "report_data.json",
         "analysis_html": _find_analysis_file(run_dir, "_分析报告.html"),
-        "analysis_xlsx": _find_analysis_file(run_dir, "_数据回表.xlsx"),
+        "analysis_xlsx": _find_analysis_file(run_dir, "_决策工具包.xlsx"),
         "delivery_qa": run_dir / "analysis" / "delivery_qa_result.json",
     }
     return {

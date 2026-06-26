@@ -108,6 +108,11 @@ def run_review_asin_batch(run_dir: Path | str) -> dict[str, Path]:
     batch_path = output_dir / ASIN_BATCH_NAME
     batch_path.write_text(json.dumps(batch, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
+    # 自动创建 inputs/reviews/ 目录及导出说明
+    reviews_input_dir = run_path / "inputs" / "reviews"
+    reviews_input_dir.mkdir(parents=True, exist_ok=True)
+    _write_export_readme(reviews_input_dir, batch)
+
     progress_path = run_path / "progress.json"
     updated_progress = _update_progress(progress, workflow_state, batch, batch_path)
     progress_path.write_text(json.dumps(updated_progress, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -240,6 +245,47 @@ def _extract_evidence_asins(packet: dict[str, Any]) -> dict[str, dict[str, Any]]
                 "brand": first_text(row.get("brand") or row.get("Brand") or row.get("sellerName")),
                 "seller": first_text(row.get("seller") or row.get("sellerName") or row.get("Seller")),
             }
+    # Fallback: if no evidence_items, scan agent free-form facts structure
+    if not result:
+        result = _scan_facts_for_asins(packet.get("facts", {}))
+    return result
+
+
+def _scan_facts_for_asins(facts: Any) -> dict[str, dict[str, Any]]:
+    """Scan agent free-form facts dict for any nested ASIN entries (e.g. facts.top100_basic, reference_asin_pool)."""
+    result: dict[str, dict[str, Any]] = {}
+    if not isinstance(facts, dict):
+        return result
+
+    def _scan(obj: Any) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        if isinstance(obj, dict):
+            if _normalize_asin(obj.get("asin") or obj.get("ASIN")):
+                rows.append(obj)
+            for value in obj.values():
+                rows.extend(_scan(value))
+        elif isinstance(obj, list):
+            for item in obj:
+                if isinstance(item, dict):
+                    if _normalize_asin(item.get("asin") or item.get("ASIN")):
+                        rows.append(item)
+                    else:
+                        rows.extend(_scan(item))
+        return rows
+
+    for row in _scan(facts):
+        asin = _normalize_asin(row.get("asin") or row.get("ASIN"))
+        if not asin:
+            continue
+        result[asin] = {
+            "asin": asin,
+            "price": numeric_value(row.get("price") or row.get("Price")),
+            "rating": numeric_value(row.get("rating") or row.get("Rating")),
+            "ratings": numeric_value(row.get("ratings") or row.get("reviews") or row.get("Ratings")),
+            "monthly_sales": numeric_value(row.get("monthly_sales") or row.get("totalUnits") or row.get("monthlySales")),
+            "brand": first_text(row.get("brand") or row.get("Brand") or row.get("sellerName")),
+            "seller": first_text(row.get("seller") or row.get("sellerName") or row.get("Seller")),
+        }
     return result
 
 
@@ -648,6 +694,51 @@ def _site(workflow_state: dict[str, Any]) -> str:
     known = workflow_state.get("known_inputs") if isinstance(workflow_state, dict) else {}
     site = first_text(workflow_state.get("site") or (known.get("site") if isinstance(known, dict) else ""))
     return site or "US"
+
+
+def _write_export_readme(reviews_dir: Path, batch: dict[str, Any]) -> None:
+    """在 inputs/reviews/ 下写入导出说明，告诉运营怎么导出评论。"""
+    asin_items = as_list(batch.get("asin_items", []))
+    site = batch.get("site", "US")
+    asin_lines = []
+    for item in asin_items:
+        asin = item.get("asin", "")
+        role = item.get("asin_role", "")
+        route = item.get("route_ref", "")
+        label = f"{asin}  # {role} [{route}]" if role else asin
+        asin_lines.append(label)
+
+    asin_block = "\n".join(asin_lines[:30]) if asin_lines else "（无 ASIN，请检查 review_asin_batch.json）"
+    if len(asin_lines) > 30:
+        asin_block += f"\n... 共 {len(asin_lines)} 个 ASIN，完整列表见 review_voc/review_asin_batch.json"
+
+    readme = f"""# 评论导出说明
+
+## 当前站点
+{site}
+
+## 导出要求
+- 每个 ASIN 至少导出 30 条评论（含低分评论 <=3星 至少 10 条）
+- 支持的格式：CSV / XLSX
+- 命名建议：{{ASIN}}_reviews.csv（如 B0EXAMPLE1_reviews.csv）
+
+## ASIN 清单
+{asin_block}
+
+## 导出步骤
+1. 打开评论采集插件（评论慢速采集助手 / Review Export Tool）
+2. 将上方 ASIN 逐行粘贴到 ASIN 输入框
+3. 选择站点：{site}
+4. 开始采集 → 导出为 CSV 或 XLSX
+5. 将导出文件放入此目录：inputs/reviews/
+
+## 导出完成后
+告知 AI 继续，AI 会自动运行：
+  python3 scripts/build_review_voc_package.py <run_dir> <导出文件路径>
+  python3 scripts/build_voc_gate.py <run_dir>
+"""
+    readme_path = reviews_dir / "README.txt"
+    readme_path.write_text(readme, encoding="utf-8")
 
 
 # ── CLI ────────────────────────────────────────────────────────────────

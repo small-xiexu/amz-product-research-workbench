@@ -40,7 +40,7 @@ Delivery QA Agent（强制独立 spawn）
 运营 review + 下一轮补数
 ```
 
-这不是全阶段自动开 Agent，而是受控调度：Stage 0-5 默认由主 Agent 串行推进；Stage 6 以后在运行环境支持时，按 `references/multi_agent_dispatch.md` 启动 VOC、Sorftime 深扫、市场结构等专家 Agent。数据源专家 Agent 只产 Evidence Packet，资深运营专家 Agent 输出 `integrated_operator_judgment.json`，Report Generation Agent 基于 seed 和 judgment 生成 `report_data.json` 与 HTML，脚本只跑 XLSX 和 QA。
+这是受控多 Agent 调度：Stage 2-3（快验）和 Stage 6（深挖）默认并行 spawn；Stage 9（六维评价）推荐并行 spawn；Stage 10（资深判断）推荐独立 spawn；Stage 13（QA）强制独立 spawn。详细规则见 `references/multi_agent_dispatch.md`。数据源专家 Agent 只产 Evidence Packet，Lead Operator Agent 输出最终判断，Report Generation Agent 生成 `report_data.json` 与 HTML，脚本跑 XLSX 和 QA。
 
 Web 页面暂不作为主线。等 Codex 版闭环稳定后，再把 Web 作为外壳接入同一套脚本和产物。
 
@@ -60,10 +60,16 @@ Web 页面暂不作为主线。等 Codex 版闭环稳定后，再把 Web 作为�
 
 | 场景 | 命令/文件 |
 |---|---|
-| 市场快验 | `python3 scripts/run_quick_market_check.py <run_dir>` |
+| 初始化 workflow_state | `python3 scripts/init_workflow_state.py <run_dir> --intent "品类方向"` |
+| 补齐 Quick Packet 契约 | `python3 scripts/fill_quick_packet_contract.py <packet.json> --source sellersprite\|sorftime` |
+| 生成 Quick Gate | `python3 scripts/build_quick_market_gate.py <run_dir>` |
+| 流程编排 (Stage 1-4) | `python3 scripts/run_pipeline.py <run_dir> --intent "品类方向"` |
 | MCP 候选池 | `python3 scripts/build_mcp_candidate_pool.py <run_dir>` |
-| 路线矩阵确认 | `python3 scripts/build_route_matrix_confirm.py <run_dir>` |
-| 深挖 + 冲突复核 | `python3 scripts/build_sellersprite_deep_dive.py <run_dir> && python3 scripts/build_sorftime_deep_dive.py <run_dir> && python3 scripts/build_conflict_review.py <run_dir>` |
+| 路线矩阵确认 | `python3 scripts/build_route_matrix_confirm.py <run_dir> [--force-confirm]` |
+| 补齐 Deep Snapshot 契约 | `python3 scripts/build_deep_snapshot.py <mcp_dump.json> --source sellersprite\|sorftime` |
+| 补齐 Deep Evidence Packet 契约 | `python3 scripts/build_deep_evidence_packet.py <agent_output.json> --source sellersprite\|sorftime` |
+| 深挖 + 冲突复核 | `python3 scripts/build_conflict_review.py <run_dir>` |
+| ASIN 批次 + VOC Gate | `python3 scripts/build_review_asin_batch.py <run_dir> && python3 scripts/build_voc_gate.py <run_dir>` |
 | 运行报告 Agent | `python3 scripts/run_report_agent.py <run_dir>` |
 | 全量报告 + QA | `python3 -m packages.research_core.pipeline.build_analysis_report <run_dir>` |
 | 运行 Delivery QA | `python3 scripts/run_delivery_qa.py <run_dir>` |
@@ -97,7 +103,7 @@ runs/<yyyymmdd>_<中文品类方向>/
 ├── evaluations/
 ├── analysis/
 │   ├── <中文品名>_分析报告.html
-│   ├── <中文品名>_数据回表.xlsx
+│   ├── <中文品名>_决策工具包.xlsx
 │   ├── report_data.json
 │   └── delivery_qa_result.json
 ├── research_package.json

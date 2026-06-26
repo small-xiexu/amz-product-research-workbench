@@ -51,12 +51,28 @@ def _rv(val: Any) -> str:
 
 def _esc(text: str) -> str:
     """HTML-escape text content."""
+    text = _public_html_text(text)
     return (
         text.replace("&", "&amp;")
         .replace("<", "&lt;")
         .replace(">", "&gt;")
         .replace('"', "&quot;")
     )
+
+
+def _public_html_text(text: str) -> str:
+    """Remove backend data-source/tool names from operator-facing HTML."""
+    replacements = {
+        "卖家精灵": "第三方市场数据工具",
+        "Sorftime": "第三方关键词数据工具",
+        "market_research_statistics": "市场统计数据",
+        "keyword_detail": "关键词明细数据",
+        "product_traffic_terms": "商品流量词数据",
+    }
+    result = str(text)
+    for raw, public in replacements.items():
+        result = result.replace(raw, public)
+    return result
 
 
 def _tag_html(label: str, level: str) -> str:
@@ -147,48 +163,10 @@ def enhance_seed_to_report_data(
                 if not ins.get("title") or "待AI" in str(ins.get("title", "")):
                     ins["title"] = "类目市场信号"
                     ins["body"] = "基于 Top100 样本数据分析，具体数值见下表。"
-                    ins["source_path"] = ins.get("source_path", "__ai_pending__")
+                    ins["source_path"] = ins.get("source_path", "__ai_judgment__")
 
-    # Fill sub_market / market_health from analysis when available
-    if analysis:
-        market = analysis.get("seller_sprite_validation") or {}
-        primary = market.get("primary_market") or {}
-        sub = cp.setdefault("sub_market", {})
-        if _rv(sub.get("product_form")) in ("", "待补"):
-            sub["product_form"] = str(primary.get("label", "")) or _rv(sub.get("product_form"))
-        if _rv(sub.get("estimated_monthly_units")) in ("", "待补") and primary.get(
-            "avg_monthly_units"
-        ):
-            sub["estimated_monthly_units"] = f"{primary.get('avg_monthly_units', '')} units"
-        if _rv(sub.get("estimated_monthly_revenue")) in ("", "待补") and primary.get(
-            "avg_monthly_revenue_usd"
-        ):
-            sub["estimated_monthly_revenue"] = f"${primary.get('avg_monthly_revenue_usd', '')}"
-
-        health = cp.setdefault("market_health", {})
-        top3 = primary.get("top3_brand_share", "")
-        if top3 and _rv(health.get("top3_brand_share")) in ("", "待补"):
-            health["top3_brand_share"] = str(top3)
-        china = primary.get("china_seller_share", "")
-        if china and _rv(health.get("china_seller_share")) in ("", "待补"):
-            health["china_seller_share"] = str(china)
-        if _rv(health.get("concentration_note")) in ("", "待补"):
-            health["concentration_note"] = "Top100 样本统计口径，不代表全类目。"
-
-        # Seasonality from category_opportunity
-        cat_opp = analysis.get("category_opportunity") or {}
-        cat_season = cat_opp.get("category_seasonality") or {}
-        if isinstance(cat_season, dict):
-            season = cp.setdefault("seasonality", {})
-            peaks = cat_season.get("peak_months") or []
-            troughs = cat_season.get("trough_months") or []
-            if not season.get("peak_months") and peaks:
-                season["peak_months"] = peaks
-            if not season.get("trough_months") and troughs:
-                season["trough_months"] = troughs
-            ptr = cat_season.get("peak_trough_ratio", "")
-            if ptr and _rv(season.get("peak_trough_ratio")) in ("", "待补"):
-                season["peak_trough_ratio"] = str(ptr)
+    # sub_market / market_health / seasonality 已在 seed_report_data 中由脚本填充，
+    # 此处的 enhance 仅做判断文本增强，不再回填数据字段。
 
     # ── Competitor judgments ────────────────────────────────────────────
     competitors = rd.get("competitors")
@@ -777,7 +755,7 @@ def validate_agent_output(
     - All 11 required sections present
     - No empty string source_path (blocker)
     - HTML exists and has all 6 required sections
-    - HTML has inline <style> (not external CSS)
+    - HTML uses the exact report_template.css and only allowed template classes
     """
     issues: list[str] = []
 
@@ -814,8 +792,27 @@ def validate_agent_output(
         if marker not in html:
             issues.append(f"HTML missing section: {marker}")
 
-    if "<style>" not in html:
-        issues.append("HTML missing inline <style> block")
+    from packages.research_core.pipeline.delivery_qa import (
+        _has_inline_style,
+        _has_no_fixed_data_source_section,
+        _has_only_allowed_report_classes,
+        _uses_report_template_css,
+    )
+
+    if not _has_inline_style(html_path):
+        issues.append("HTML missing inline <style> block or uses external CSS")
+
+    template_css = _uses_report_template_css(html_path)
+    if not template_css["pass"]:
+        issues.extend(template_css.get("hits", []))
+
+    class_check = _has_only_allowed_report_classes(html_path)
+    if not class_check["pass"]:
+        issues.extend(class_check.get("hits", []))
+
+    data_source_section = _has_no_fixed_data_source_section(html_path)
+    if not data_source_section["pass"]:
+        issues.extend(data_source_section.get("hits", []))
 
     return {"valid": len(issues) == 0, "issues": issues}
 

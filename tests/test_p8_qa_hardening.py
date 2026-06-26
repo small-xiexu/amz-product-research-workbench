@@ -17,8 +17,11 @@ from packages.research_core.pipeline.constants import (
 from packages.research_core.pipeline.delivery_qa import (
     run_delivery_qa,
     _has_no_forbidden_html_patterns,
+    _has_no_fixed_data_source_section,
+    _has_only_allowed_report_classes,
     _scan_conflict_leak,
     _try_resolve_path,
+    _uses_report_template_css,
     _validate_report_data_sources,
     _validate_values_against_sources,
     _validate_p0_delivery_blockers,
@@ -37,6 +40,16 @@ from packages.research_core.pipeline.report_agent import (
 def _write_json(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+
+def _report_template_css() -> str:
+    return (
+        Path(__file__).resolve().parents[1]
+        / "skills"
+        / "amazon-product-research"
+        / "references"
+        / "report_template.css"
+    ).read_text(encoding="utf-8")
 
 
 def _minimal_report_data(**overrides) -> dict:
@@ -64,19 +77,24 @@ def _minimal_report_data(**overrides) -> dict:
 
 
 def _minimal_html(title: str = "测试品分析报告") -> str:
+    css = _report_template_css()
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head><meta charset="utf-8"><title>{title}</title>
-<style>body {{ font-family: sans-serif; }}</style>
+<style>
+{css}
+</style>
 </head>
 <body>
+<div class="page">
 <h1>{title}</h1>
-<section><h2>类目全景</h2><p>测试类目内容</p></section>
-<section><h2>核心竞品</h2><p>测试竞品内容</p></section>
-<section><h2>用户痛点</h2><p>测试痛点内容</p></section>
-<section><h2>价格带分布</h2><p>测试价格带内容</p></section>
-<section><h2>关键词与流量策略</h2><p>测试关键词内容</p></section>
-<section><h2>风险与下一步</h2><p class="go-nogo">建议进入小批量验证</p></section>
+<section class="section"><h2>类目全景</h2><p>测试类目内容</p></section>
+<section class="section"><h2>核心竞品</h2><p>测试竞品内容</p></section>
+<section class="section"><h2>用户痛点</h2><p>测试痛点内容</p></section>
+<section class="section"><h2>价格带分布</h2><p>测试价格带内容</p></section>
+<section class="section"><h2>关键词与流量策略</h2><p>测试关键词内容</p></section>
+<section class="section"><h2>风险与下一步</h2><table class="go-nogo"><tbody><tr><td>建议进入小批量验证</td></tr></tbody></table></section>
+</div>
 </body>
 </html>"""
 
@@ -84,6 +102,41 @@ def _minimal_html(title: str = "测试品分析报告") -> str:
 # ---------------------------------------------------------------------------
 # Script-layer: forbidden HTML patterns
 # ---------------------------------------------------------------------------
+
+class ReportVisualContractTests(unittest.TestCase):
+    """报告视觉模板契约：CSS、class 和固定板块漂移必须被拦截。"""
+
+    def test_report_template_css_must_match_exactly(self):
+        tmp = Path(tempfile.mkdtemp()) / "test.html"
+        html = _minimal_html().replace("--bg: #f5f6f8;", "--bg: #ffffff;")
+        tmp.write_text(html, encoding="utf-8")
+        try:
+            result = _uses_report_template_css(tmp)
+            self.assertFalse(result["pass"], f"修改模板 CSS 应被拦截: {result}")
+        finally:
+            tmp.unlink(missing_ok=True)
+
+    def test_unknown_report_class_is_rejected(self):
+        tmp = Path(tempfile.mkdtemp()) / "test.html"
+        html = _minimal_html().replace("</body>", '<div class="bar-label">漂移类名</div></body>')
+        tmp.write_text(html, encoding="utf-8")
+        try:
+            result = _has_only_allowed_report_classes(tmp)
+            self.assertFalse(result["pass"], f"模板外 class 应被拦截: {result}")
+            self.assertTrue(any("bar-label" in hit for hit in result.get("hits", [])))
+        finally:
+            tmp.unlink(missing_ok=True)
+
+    def test_fixed_data_source_section_is_rejected(self):
+        tmp = Path(tempfile.mkdtemp()) / "test.html"
+        html = _minimal_html().replace("</body>", "<section><h2>数据来源与口径</h2></section></body>")
+        tmp.write_text(html, encoding="utf-8")
+        try:
+            result = _has_no_fixed_data_source_section(tmp)
+            self.assertFalse(result["pass"], f"固定数据来源板块应被拦截: {result}")
+        finally:
+            tmp.unlink(missing_ok=True)
+
 
 class ForbiddenHTMLPatternTests(unittest.TestCase):
     """P8 Task 1 — new forbidden patterns in constants.py + _has_no_forbidden_html_patterns."""
@@ -565,7 +618,7 @@ class AgentEvidenceExistenceTests(unittest.TestCase):
         _write_json(rd_path, _minimal_report_data())
         html_path = analysis_dir / "测试品_分析报告.html"
         html_path.write_text(_minimal_html(), encoding="utf-8")
-        xlsx_path = analysis_dir / "测试品_数据回表.xlsx"
+        xlsx_path = analysis_dir / "测试品_决策工具包.xlsx"
         xlsx_path.write_bytes(b"fake xlsx content")
 
         result = run_delivery_qa(rd_path, html_path, xlsx_path)
@@ -625,7 +678,7 @@ class DeliveryQACLISmokeTests(unittest.TestCase):
         html_path = analysis_dir / "测试品_分析报告.html"
         html_path.write_text(_minimal_html(), encoding="utf-8")
 
-        xlsx_path = analysis_dir / "测试品_数据回表.xlsx"
+        xlsx_path = analysis_dir / "测试品_决策工具包.xlsx"
         xlsx_path.write_bytes(b"fake xlsx content")
 
         result = subprocess.run(
@@ -643,7 +696,7 @@ class DeliveryQACLISmokeTests(unittest.TestCase):
         analysis_dir.mkdir(parents=True)
         _write_json(analysis_dir / "report_data.json", _minimal_report_data())
         (analysis_dir / "测试品_分析报告.html").write_text(_minimal_html(), encoding="utf-8")
-        (analysis_dir / "测试品_数据回表.xlsx").write_bytes(b"fake xlsx content")
+        (analysis_dir / "测试品_决策工具包.xlsx").write_bytes(b"fake xlsx content")
 
         result = subprocess.run(
             ["python3", "scripts/run_delivery_qa.py", str(self.tmp), "--json"],

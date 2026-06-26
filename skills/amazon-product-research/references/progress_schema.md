@@ -1,12 +1,14 @@
 # progress.json 断点恢复契约
 
-每个 run 目录下必须有 `progress.json`，AI 在以下节点自动写入：
+每个 run 目录下必须有 `progress.json`，AI 在每个阶段完成后自动写入：
 
-- Stage 1 数据导入完成
+- Stage 1 意图收集完成
+- Stage 3 快验门控通过
 - Stage 4 候选池生成
 - Stage 5 路线确认（**尤其等运营决策时**）
-- Stage 6 VOC 分析完成
-- Stage 7 报告生成/QA 完成
+- Stage 6 双 MCP 深挖完成
+- Stage 8 VOC 分析完成
+- Stage 13 QA 完成
 - 任何需要**等待运营回复**的时刻
 
 ## 结构
@@ -14,15 +16,15 @@
 ```json
 {
   "run_id": "YYYYMMDD_示例品类",
-  "current_stage": "stage_5_route_calibration",
+  "current_stage": "stage_5_route_matrix",
   "status": "waiting_operator",
-  "stages_completed": ["stage_1_inputs", "stage_4_candidate_pool"],
-  "last_updated": "2026-06-22T22:00:00",
-  "context_brief": "已确认Biothane牵引绳为主线方向，排除尼龙材质和皮革装饰路线",
+  "stages_completed": ["stage_1_intent", "stage_2_3_quick_check", "stage_4_candidate_pool"],
+  "last_updated": "2026-06-25T22:00:00",
+  "context_brief": "已确认{品类方向}为优先方向，排除{具体排除方向}",
   "pending_questions": [
-    "目标价格带是$15-25还是$25-35？"
+    "目标价格带是$X-Y还是$Y-Z？"
   ],
-  "next_step": "等待运营确认价格带后进入Stage 6 VOC分析"
+  "next_step": "等待运营确认路线后进入Stage 6双MCP深挖"
 }
 ```
 

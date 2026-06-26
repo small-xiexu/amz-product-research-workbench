@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from packages.research_core.pipeline._utils import as_list, compact_list, first_text, load_json
+from packages.research_core.pipeline.constants import VOC_MIN_REVIEW_THRESHOLD
 
 
 P5_SCHEMA_VERSION = "p5-voc-gate-v1"
@@ -34,7 +35,6 @@ REVIEW_VOC_DIR = "review_voc"
 P5_GATE_INPUT_ARTIFACTS = [
     "workflow_state.json",
     "progress.json",
-    "review_voc/review_voc_package.json",
     "review_voc/review_asin_batch.json",
     "conflict_review/deep_data_completeness_check.json",
     "conflict_review/conflict_resolution_packet.json",
@@ -52,11 +52,17 @@ class P5GateError(Exception):
 # ── Main entry ─────────────────────────────────────────────────────────
 
 def run_voc_gate(run_dir: Path | str) -> dict[str, Path]:
-    """Run full P5-3: generate voc_evidence_packet.json and voc_gate.json."""
+    """Run full P5-3: generate voc_evidence_packet.json and voc_gate.json.
+
+    review_voc_package.json is optional at this stage — the gate only requires
+    review_asin_batch.json. If voc_package is missing, the evidence packet is
+    generated as a skeleton and the gate defaults to 'need_more_reviews'.
+    """
     run_path = Path(run_dir).expanduser().resolve()
     _validate_inputs(run_path)
 
-    voc_package = load_json(run_path / REVIEW_VOC_DIR / "review_voc_package.json")
+    voc_package_path = run_path / REVIEW_VOC_DIR / "review_voc_package.json"
+    voc_package = load_json(voc_package_path) if voc_package_path.exists() else {}
     asin_batch = load_json(run_path / REVIEW_VOC_DIR / "review_asin_batch.json")
     completeness = load_json(run_path / "conflict_review" / "deep_data_completeness_check.json")
     conflict = load_json(run_path / "conflict_review" / "conflict_resolution_packet.json")
@@ -199,7 +205,7 @@ def _build_asin_coverage(
             "asin_count": len(set(r.get("asin", "") for r in route_revs)),
             "review_count": len(route_revs),
             "low_rating_count": low_count,
-            "meets_minimum_threshold": len(route_revs) >= 30,
+            "meets_minimum_threshold": len(route_revs) >= VOC_MIN_REVIEW_THRESHOLD,
         })
 
     by_role: dict[str, dict[str, int]] = {}
@@ -289,12 +295,12 @@ def _build_quality_gaps(
 ) -> list[dict[str, Any]]:
     gaps: list[dict[str, Any]] = []
 
-    if len(normalized) < 30:
+    if len(normalized) < VOC_MIN_REVIEW_THRESHOLD:
         gaps.append({
             "gap_type": "low_review_count",
             "route_ref": "all",
-            "description": f"仅 {len(normalized)} 条评论（最低要求 30 条），VOC 结论置信度不足。",
-            "recommended_action": f"补抓至少 {30 - len(normalized)} 条评论。",
+            "description": f"仅 {len(normalized)} 条评论（最低要求 {VOC_MIN_REVIEW_THRESHOLD} 条），VOC 结论置信度不足。",
+            "recommended_action": f"补抓至少 {VOC_MIN_REVIEW_THRESHOLD - len(normalized)} 条评论。",
         })
 
     low_count = sum(1 for r in normalized if _rating(r) <= 3)
@@ -349,7 +355,7 @@ def _assess_confidence(
 
     if completeness_level == "blocker" or conflict_level == "blocker":
         return "low"
-    if len(normalized) < 30:
+    if len(normalized) < VOC_MIN_REVIEW_THRESHOLD:
         return "low"
     low_count = sum(1 for r in normalized if _rating(r) <= 3)
     if low_count < 10:
@@ -385,7 +391,7 @@ def build_gate(
     )
 
     # Threshold checks
-    min_review_met = total_reviews >= 30
+    min_review_met = total_reviews >= VOC_MIN_REVIEW_THRESHOLD
     low_rating_met = low_rating_count >= 10
     route_coverage_complete = all_routes_covered
     asin_role_coverage_complete = len(asin_coverage.get("uncovered_roles", [])) == 0
@@ -402,7 +408,7 @@ def build_gate(
     }
 
     thresholds = {
-        "min_total_reviews": 30,
+        "min_total_reviews": VOC_MIN_REVIEW_THRESHOLD,
         "min_low_rating_reviews": 10,
         "current_total_reviews": total_reviews,
         "current_low_rating_reviews": low_rating_count,
@@ -506,8 +512,8 @@ def _decide_gate(
 
     # Insufficient reviews → need_more_reviews
     if not min_review_met:
-        reasons.append(f"有效评论仅 {total_reviews} 条（最低要求 30 条），样本不足以支撑 VOC 结论。")
-        actions.append(f"补抓至少 {30 - total_reviews} 条评论，优先覆盖主推路线的 primary_reference ASIN。")
+        reasons.append(f"有效评论仅 {total_reviews} 条（最低要求 {VOC_MIN_REVIEW_THRESHOLD} 条），样本不足以支撑 VOC 结论。")
+        actions.append(f"补抓至少 {VOC_MIN_REVIEW_THRESHOLD - total_reviews} 条评论，优先覆盖主推路线的 primary_reference ASIN。")
 
         uncovered = asin_coverage.get("uncovered_roles", [])
         if uncovered:

@@ -8,12 +8,12 @@
 
 ## 当前目标
 
-- V1 采用三源融合：卖家精灵手动导出（广域候选池）+ Sorftime MCP（类目/关键词/竞品深度验证）+ 自有评论插件（VOC 证据链）。
+- V1 采用双 MCP 融合：卖家精灵 MCP（类目市场/关键词/竞品）+ Sorftime MCP（类目/关键词/竞品深度验证）+ 自有评论插件（VOC 证据链）。
 - 主产品体验是 AI 与运营交互式推进：AI 判断当前阶段、下一步动作、是否需要运营决策；最终报告沉淀整个交互过程。
-- 当前已跑通完整 7 阶段主链路：`运营意图 -> Sorftime 快验 -> 卖家精灵导出 -> 数据盘点 -> 候选池 -> 路线矩阵 -> 评论 VOC -> AI 手写决策报告 + 脚本 XLSX`。
-- 最终交付物：`<中文品名>_分析报告.html`（AI 以资深运营专家视角手写）+ `<中文品名>_数据回表.xlsx`（脚本生成数据回表）。
+- 当前已跑通完整 13 阶段主链路：`运营意图 -> 双 Agent 快验 -> 快验门控 -> 候选池 -> 路线矩阵确认 -> 双 MCP 深挖 -> 冲突复核 -> VOC 评论分析 -> 六维评价 -> 资深运营综合判断 -> seed 生成 -> 报告生成 -> QA 双层门禁`。
+- 最终交付物：`<中文品名>_分析报告.html`（AI 以资深运营专家视角手写）+ `<中文品名>_决策工具包.xlsx`（脚本生成运营决策工具包，5 Sheet）。
 - 保留 Excel 数据底表和可追溯证据链。
-- 自有评论插件已通过 Excel/HTML 文件导入方式接入重点候选深挖。
+- 自有评论插件已通过 Excel/HTML 文件导入方式接入 VOC 分析阶段。
 
 ## 当前架构
 
@@ -94,11 +94,11 @@ python3 scripts/plan_interactive_workflow.py \
 - AI 应该问运营的问题
 - 下一步动作卡
 
-交互推进到 Stage 7 后，AI 以资深运营专家身份手写 `<中文品名>_分析报告.html`，脚本生成 `<中文品名>_数据回表.xlsx` 数据回表。
+交互推进到 Stage 7 后，AI 以资深运营专家身份手写 `<中文品名>_分析报告.html`，脚本生成 `<中文品名>_决策工具包.xlsx` 运营决策工具包。
 
 ## Stage 7 交付
 
-AI 完成 7 阶段分析后，运行脚本生成数据回表和 QA：
+AI 完成 7 阶段分析后，运行脚本生成决策工具包和 QA：
 
 ```bash
 python3 -m packages.research_core.pipeline.build_analysis_report runs/<yyyymmdd_中文品类方向>
@@ -106,7 +106,7 @@ python3 -m packages.research_core.pipeline.build_analysis_report runs/<yyyymmdd_
 
 产物：
 - `analysis/<中文品名>_分析报告.html` — AI 手写决策报告（最终交付）
-- `analysis/<中文品名>_数据回表.xlsx` — 脚本生成数据回表（最终交付）
+- `analysis/<中文品名>_决策工具包.xlsx` — 脚本生成运营决策工具包（最终交付）
 - `analysis/report_data.json` — 唯一数据中枢，所有事实含 source_path 溯源（中间产物）
 - `analysis/delivery_qa_result.json` — QA 校验结果（中间产物）
 
@@ -122,9 +122,9 @@ python3 scripts/check_generic_redlines.py
 python3 -m unittest tests.test_regression -v
 ```
 
-## 手动导出数据盘点
+## 手动导出数据盘点（Legacy 回退）
 
-卖家精灵 MCP 接入前，V1 优先读取运营手动导出的 Excel/CSV。详见 Skill Stage 2-3。
+MCP 不可用时的 fallback 路径：运营手动导出卖家精灵 Excel/CSV，通过 `scripts/inspect_manual_exports.py` 盘点后构建候选池。详见 Skill 附录。
 
 ## 自有评论插件导入
 
@@ -146,26 +146,17 @@ python3 scripts/build_review_voc_from_plugin_export.py \
 - `/tmp/review_voc_hands_free_leashes/voc_summary.md`
 - `/tmp/review_voc_hands_free_leashes/voc_evidence.xlsx`
 
-合并进重点候选深挖数据包：
-
-```bash
-python3 scripts/build_research_package_from_candidate.py \
-  /tmp/manual_export_candidate_pool.json \
-  /tmp/manual_export_research_package.json \
-  cand-dog-running-leash \
-  --voc-package /tmp/review_voc_hands_free_leashes/review_voc_package.json
-```
+VOC 包可直接用于 Stage 9 六维评价阶段。
 
 ## 当前阶段
 
-Codex 版主线已闭环（2026-06-21）。完整 7 阶段流程：运营意图 → Sorftime 快验 → 卖家精灵导出 → 数据盘点 → 候选池 → 路线矩阵 → 评论 VOC → AI 手写决策报告 + 脚本 XLSX。
+Codex 版主线已闭环（2026-06-25）。完整 13 阶段流程：运营意图 → 双 Agent 快验 → 门控 → 候选池 → 路线矩阵 → 双 MCP 深挖 → 冲突复核 → VOC → 六维评价 → 资深运营判断 → seed → 报告 → QA 门禁。
 
-已收敛：1 个主 Skill、4 个 Agent、5 个 Reference、2 份最终产物。
+已收敛：1 个主 Skill、15 个 Agent、5 个 Reference、2 份最终产物（HTML + XLSX）。
 
 ## 暂不包含
 
 - 不包含完整 Web 应用代码（server/ 有骨架）。
-- 不包含卖家精灵 MCP 调用实现（目前手动导出）。
 - 不包含自有评论插件源码。
 - 不包含 1688 供应链、知产合规、利润核算等后置落地模块。
 - 不包含历史调研数据、备份文件和临时输出。

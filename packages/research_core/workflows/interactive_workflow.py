@@ -429,7 +429,7 @@ def _candidate_pool_review_card(state: WorkflowState) -> NextActionCard:
     return NextActionCard(
         stage=state.stage,
         decision_required=True,
-        question="请先看候选池和产品路线矩阵：基础款、升级款、场景款、组合/套装款、功能/材质升级、旁支观察分别保留还是排除？",
+        question="请先看候选池和产品路线矩阵：基础款、升级款、场景款、组合/套装款、功能/材质升级、小众形态分别保留还是排除？",
         recommended_action=RecommendedAction(
             "operator_decision",
             "确认候选池和路线矩阵",
@@ -439,7 +439,7 @@ def _candidate_pool_review_card(state: WorkflowState) -> NextActionCard:
             NextActionOption("confirm_route_matrix", "确认路线矩阵", "进入路线边界确认和路线级补数计划。"),
             NextActionOption("rename_routes", "改路线名称", "当路线名还是目标产品/标准配置这类泛称时，先按真实产品形态重命名。"),
             NextActionOption("merge_sparse_routes", "合并空路线", "把没有候选、没有 ASIN、没有关键词证据的路线合并或隐藏。"),
-            NextActionOption("adjust_route_labels", "调整路线分类", "修正基础/升级/场景/组合/旁支后重新生成候选池。"),
+            NextActionOption("adjust_route_labels", "调整路线分类", "修正基础/升级/场景/组合/小众形态后重新生成候选池。"),
             NextActionOption("exclude_mixed_pool", "排除混池项", "更新排除词、形态禁区或场景边界后重跑。"),
         ],
         evidence_refs=_refs_from_known_inputs(state),
@@ -450,7 +450,7 @@ def _boundary_confirmation_card(state: WorkflowState) -> NextActionCard:
     return NextActionCard(
         stage=state.stage,
         decision_required=True,
-        question="请确认每条保留路线的角色：哪条做主推基准，哪条做升级验证，哪条只是场景/组合/旁支观察？",
+        question="请确认每条保留路线的角色：哪条做主推基准，哪条做升级验证，哪条只是场景/组合/小众形态观察？",
         recommended_action=RecommendedAction(
             "operator_decision",
             "确认路线边界",
@@ -470,7 +470,7 @@ def _voc_batch_planning_card(state: WorkflowState) -> NextActionCard:
     return NextActionCard(
         stage=state.stage,
         decision_required=True,
-        question="请确认每条保留路线的 VOC ASIN 批次：主线、升级、场景、组合和旁支要分开抓评论，不能混成一个结论。",
+        question="请确认每条保留路线的 VOC ASIN 批次：标准款、升级、场景、组合和小众形态要分开抓评论，不能混成一个结论。",
         recommended_action=RecommendedAction(
             "mcp_call",
             "路线补数 + 确认 VOC ASIN 批次",
@@ -527,7 +527,7 @@ def _deep_dive_card(state: WorkflowState) -> NextActionCard:
                     "purpose": "按路线查看重点竞品靠哪些词拿流量，找词位空隙",
                     "params_hint": "asin: 每条保留路线 Top2-3 代表 ASIN（逐个调用）",
                     "credits": 1,
-                    "repeat": "每个路线代表 ASIN 各调一次，先主线和升级路线",
+                    "repeat": "每个路线代表 ASIN 各调一次，先标准款和升级路线",
                 },
                 {
                     "tool": "competitor_product_keywords",
@@ -548,13 +548,12 @@ def _deep_dive_card(state: WorkflowState) -> NextActionCard:
                     "purpose": "路线确认后看同类热销品共有特征，指导卖点提炼",
                     "params_hint": "productName: 已选主路线英文品类名",
                     "credits": 5,
-                    "timing": "⚠️ 高积分，仅在选定 1-2 条主路线后调用，不给所有旁支都调",
+                    "timing": "⚠️ 高积分，仅在选定 1-2 条主攻路线后调用，不给所有小众形态都调",
                 },
             ],
         ),
         options=[
             NextActionOption("call_route_traffic_terms", "按路线调流量词", "补充卖家精灵看不到的路线流量结构。"),
-            NextActionOption("build_research_package", "生成深挖数据包", "沉淀路线矩阵、路线小深挖和最终候选。"),
         ],
         evidence_refs=_refs_from_known_inputs(state),
     )
@@ -600,10 +599,10 @@ def _missing_inputs_for_stage(
         "seller_sprite_request": ["卖家精灵导出文件夹"],
         "data_inventory": ["import_manifest"],
         "candidate_pool_review": ["candidate_pool"],
-        "boundary_confirmation": ["运营确认的主线/排除项"],
+        "boundary_confirmation": ["运营确认的标准形态/排除项"],
         "voc_batch_planning": ["VOC ASIN 批次确认"],
         "voc_analysis": ["评论插件导出数据"],
-        "deep_dive": ["research_package"],
+        "deep_dive": [],
         "final_decision": ["最终报告输出确认"],
     }
     missing = []
@@ -619,10 +618,9 @@ def _known_input_key(label: str) -> str:
         "卖家精灵导出文件夹": "seller_sprite_export_folder",
         "import_manifest": "import_manifest",
         "candidate_pool": "candidate_pool",
-        "运营确认的主线/排除项": "confirmed_boundary",
+        "运营确认的标准形态/排除项": "confirmed_boundary",
         "VOC ASIN 批次确认": "review_asin_batch",
         "评论插件导出数据": "review_voc_package",
-        "research_package": "research_package",
         "最终报告输出确认": "final_report",
     }
     return mapping.get(label, label)

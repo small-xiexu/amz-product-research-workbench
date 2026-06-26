@@ -199,13 +199,15 @@ class P5EndToEndChainTests(unittest.TestCase):
         with self.assertRaises((P5VocPackageError, P5AsinBatchError)):
             run_review_voc_package(run_dir, xlsx)
 
-    def test_p5_3_blocked_without_voc_package(self) -> None:
-        """P5-3 cannot run without P5-2 output."""
+    def test_p5_3_runs_without_voc_package(self) -> None:
+        """P5-3 runs with optional voc_package (gate only requires asin_batch)."""
         run_dir = self._seed_p4_done()
         run_review_asin_batch(run_dir)
-        # Skip P5-2 — no review_voc_package.json exists
-        with self.assertRaises(P5GateError):
-            run_voc_gate(run_dir)
+        # P5-2 skipped — review_voc_package.json does not exist, gate still runs
+        outputs = run_voc_gate(run_dir)
+        self.assertTrue(outputs["gate"].exists())
+        gate = json.loads(outputs["gate"].read_text())
+        self.assertEqual(gate["decision"], "need_more_reviews")
 
     def test_p5_3_blocked_without_p4_conflict_artifacts(self) -> None:
         """P5-3 cannot run without P4 conflict resolution outputs."""

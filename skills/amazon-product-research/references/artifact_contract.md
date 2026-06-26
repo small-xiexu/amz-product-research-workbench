@@ -46,7 +46,7 @@ runs/<yyyymmdd>_<中文品类方向>/
 └── analysis/
     ├── integrated_operator_judgment.json
     ├── <中文品名>_分析报告.html
-    ├── <中文品名>_数据回表.xlsx
+    ├── <中文品名>_决策工具包.xlsx
     ├── report_data.seed.json
     ├── report_data.json
     ├── delivery_qa_result.json
@@ -88,7 +88,7 @@ Stage 7 市场机会报告和最终报告都必须校验。最终正式报告以
 
 Stage 7 最低要求：
 
-- `<中文品名>_分析报告.html`、`<中文品名>_数据回表.xlsx` 存在（最终交付物）
+- `<中文品名>_分析报告.html`、`<中文品名>_决策工具包.xlsx` 存在（最终交付物）
 - `report_data.seed.json`、`report_data.json`、`delivery_qa_result.json` 存在；`report_data.seed.json` 只是脚本初始草稿，`report_data.json` 才是正式数据中枢
 - `<中文品名>_分析报告.html` 由 AI 以资深运营专家视角手写，覆盖运营必备板块，用词克制，决策导向
 - HTML 包含资深亚马逊运营专家综合分析，不只是多源摘要拼接
@@ -111,7 +111,7 @@ Stage 7 最低要求：
 - `report_data.seed.json`：**脚本初始草稿**。只提供字段骨架和可自动提取的数据，不是正式交付数据底座，不作为 HTML / XLSX 的最终依据。
 - `report_data.json`：**正式数据中枢**。Report Generation Agent 基于 seed 和证据包增强生成；HTML 和 XLSX 均以此文件为准，所有数据声明通过 `source_path` 可追溯到证据包。
 - `<中文品名>_分析报告.html`：**最终交付**。AI 以资深亚马逊运营专家视角手写的决策建议书，给人看。HTML 不固定展示“数据来源与口径”板块，可在业务板块中自然表达“样本边界 / 判断口径”。
-- `<中文品名>_数据回表.xlsx`：**最终交付**。脚本自动生成的数据回表，10 个 Sheet，给数字溯源。
+- `<中文品名>_决策工具包.xlsx`：**最终交付**。脚本生成的运营决策工具包，5 个 Sheet（路线计分卡、竞品拆解、关键词矩阵、样品检查表、冷启动预算），运营可直接使用。
 - `delivery_qa_result.json`：**中间产物**。QA Agent 对证据边界、硬缺口和报告完整性的检查。
 
 职责边界：
@@ -119,7 +119,7 @@ Stage 7 最低要求：
 - 数据源专家 Agent 只产 evidence、缺口、置信度和待补动作，不输出最终报告。
 - 脚本先生成 `analysis/report_data.seed.json`。
 - Report Generation Agent 以资深亚马逊运营专家身份，基于 seed 增强 `analysis/report_data.json`，再手写 `<中文品名>_分析报告.html`。
-- 脚本基于 `analysis/report_data.json` + HTML 生成 `<中文品名>_数据回表.xlsx` 和 `delivery_qa_result.json`。
+- 脚本基于 `analysis/report_data.json` + `integrated_operator_judgment.json` 生成 `<中文品名>_决策工具包.xlsx`（5 Sheet 运营决策工具包）和 `delivery_qa_result.json`。
 - 脚本不手写正式 HTML，不重写 Report Generation Agent 产出的正式 `report_data.json`。
 - HTML 不暴露 MCP、Agent、tool、packet、source_path、冲突复核过程或内部数据来源分歧；后台 `report_data.json` 和 XLSX 继续保留 source_path 与证据链。
 

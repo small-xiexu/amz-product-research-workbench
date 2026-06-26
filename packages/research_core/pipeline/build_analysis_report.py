@@ -165,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
     report_data_path = analysis_dir / "report_data.json"
     product_name = _extract_product_name(run_dir)
     html_path = analysis_dir / f"{product_name}_分析报告.html"
-    xlsx_path = analysis_dir / f"{product_name}_数据回表.xlsx"
+    xlsx_path = analysis_dir / f"{product_name}_决策工具包.xlsx"
 
     # ── Step 1: Generate seed ───────────────────────────────────────────
     seed = seed_report_data_from_analysis(analysis)
@@ -192,8 +192,8 @@ def main(argv: list[str] | None = None) -> int:
         print("XLSX/QA SKIPPED — rerun this script after the formal HTML report exists")
         return 0
 
-    # ── Step 4: Generate XLSX ───────────────────────────────────────────
-    write_xlsx(xlsx_path, xlsx_sheets_from_report_data(report_data_path))
+    # ── Step 4: Generate XLSX decision workbook ─────────────────────────
+    write_xlsx(xlsx_path, xlsx_sheets_from_report_data(report_data_path, judgment_path))
     print(f"Wrote {xlsx_path}")
 
     # ── Step 5: Run QA ──────────────────────────────────────────────────

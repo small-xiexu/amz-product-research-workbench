@@ -52,7 +52,7 @@ def find_report_files(run_dir: Path) -> tuple[Path | None, Path | None, Path | N
         for f in analysis_dir.iterdir():
             if f.suffix == ".html" and f.name.endswith("_分析报告.html"):
                 html_path = f
-            elif f.suffix == ".xlsx" and f.name.endswith("_数据回表.xlsx"):
+            elif f.suffix == ".xlsx" and f.name.endswith("_决策工具包.xlsx"):
                 xlsx_path = f
 
     return report_data, html_path, xlsx_path
@@ -74,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     if not html_path:
         missing.append("<品名>_分析报告.html")
     if not xlsx_path:
-        missing.append("<品名>_数据回表.xlsx")
+        missing.append("<品名>_决策工具包.xlsx")
 
     if missing:
         print(f"ERROR: missing required files in {run_dir / 'analysis'}: {', '.join(missing)}", file=sys.stderr)
@@ -105,7 +105,9 @@ def _print_summary(result: dict) -> None:
     for name, passed in checks.items():
         if name in ("report_data_sources_note", "report_data_values_note",
                      "report_data_value_mismatches", "forbidden_html_hits",
-                     "p0_blocker_hits", "conflict_leak_hits"):
+                     "p0_blocker_hits", "conflict_leak_hits",
+                     "report_template_css_hits", "report_class_hits",
+                     "fixed_data_source_section_hits"):
             continue
         if isinstance(passed, bool):
             icon = "PASS" if passed else "FAIL"
@@ -130,6 +132,21 @@ def _print_summary(result: dict) -> None:
     if checks.get("p0_blocker_hits"):
         print("\nP0 Blocker hits:")
         for hit in checks["p0_blocker_hits"]:
+            print(f"  - {hit}")
+
+    if checks.get("report_template_css_hits"):
+        print("\nReport template CSS issues:")
+        for hit in checks["report_template_css_hits"]:
+            print(f"  - {hit}")
+
+    if checks.get("report_class_hits"):
+        print("\nReport class issues:")
+        for hit in checks["report_class_hits"]:
+            print(f"  - {hit}")
+
+    if checks.get("fixed_data_source_section_hits"):
+        print("\nReport section issues:")
+        for hit in checks["fixed_data_source_section_hits"]:
             print(f"  - {hit}")
 
     if checks.get("report_data_sources_note"):

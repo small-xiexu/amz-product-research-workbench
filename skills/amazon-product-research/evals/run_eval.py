@@ -90,7 +90,7 @@ def _run_stage7_qa_pipeline_eval() -> int:
         analysis = build_analysis_packet(run_dir, packets)
         report_data_path = analysis_dir / "report_data.json"
         html_path = analysis_dir / "eval_分析报告.html"
-        xlsx_path = analysis_dir / "eval_数据回表.xlsx"
+        xlsx_path = analysis_dir / "eval_决策工具包.xlsx"
 
         # ---- Case 1: 空 source_path 应阻断 QA ----
         bad_seed = seed_report_data_from_analysis(analysis)
@@ -105,14 +105,14 @@ def _run_stage7_qa_pipeline_eval() -> int:
         assert not qa1["checks"]["report_data_sources_valid"], "report_data_sources_valid should be False"
         print("  [PASS] Case 1: empty source_path → QA fail")
 
-        # ---- Case 2: __ai_pending__ 应允许通过 ----
+        # ---- Case 2: __ai_judgment__ 应允许通过 ----
         clean_seed = seed_report_data_from_analysis(analysis)
         report_data_path.write_text(json.dumps(clean_seed, ensure_ascii=False, indent=2), encoding="utf-8")
         qa2 = run_delivery_qa(report_data_path, html_path, xlsx_path, analysis)
-        # seed 只有 __ai_pending__，无空字符串，应 pass（或在仅有其他非 source 相关失败时也合理）
+        # seed 只有 __ai_judgment__，无空字符串，应 pass（或在仅有其他非 source 相关失败时也合理）
         src_valid = qa2["checks"]["report_data_sources_valid"]
-        assert src_valid, f"qa2 source validation should pass with __ai_pending__, got note: {qa2['checks'].get('report_data_sources_note', '')}"
-        print(f"  [PASS] Case 2: __ai_pending__ → source_valid={src_valid}")
+        assert src_valid, f"qa2 source validation should pass with __ai_judgment__, got note: {qa2['checks'].get('report_data_sources_note', '')}"
+        print(f"  [PASS] Case 2: __ai_judgment__ → source_valid={src_valid}")
 
         # ---- Case 3: 值一致性校验 ----
         # 构造值不匹配的场景：source_path 指向可解析的标量字段，value 故意写错
@@ -180,7 +180,7 @@ def _write_minimal_evidence_packets(run_dir: Path) -> None:
     }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     (run_dir / "route_matrix_confirm.json").write_text(json.dumps({
-        "routes": [{"route_name": "eval route", "route_type": "主线"}],
+        "routes": [{"route_name": "eval route", "route_type": "标准款"}],
         "reference_asins": [],
     }, ensure_ascii=False, indent=2), encoding="utf-8")
 

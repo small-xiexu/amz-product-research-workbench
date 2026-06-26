@@ -49,10 +49,10 @@
 
 ### QA 结论规则
 
-- **PASS**：0 个数据真实性阻断项，且运营判断质量项均已修复或标注为已知限制。
+- **PASS**：0 个数据真实性阻断项（含 HTML-XLSX 交叉比对），且运营判断质量项均已修复或标注为已知限制。
 - **BLOCKED**：≥1 个数据真实性阻断项，且已尝试 3 轮修复仍未解决 → 需人工介入。
 
-## 数据真实性阻断规则（6 条，任一命中 → BLOCKED）
+## 数据真实性阻断规则（7 条，任一命中 → BLOCKED）
 
 这些规则是 QA 的最高优先级，直接防止捏造数据进入最终报告。
 
@@ -97,6 +97,34 @@ HTML 中出现的任何数字（销量、金额、百分比、评分、排名、
 ### 6. 空 source_path `[blocker]`
 
 `report_data.json` 中任何 `"value"` 所在对象的 `source_path` 为空字符串 `""`。这表示 AI 未填充溯源路径，数据来源不明。
+
+### 7. HTML 与 XLSX 核心指标不一致 `[blocker]`
+
+HTML 和 XLSX 是运营看到的最终文件。即使两者各自能溯源到 `report_data.json`，也可能取了不同的字段路径，导致同一个指标在两个文件中显示不同的数字。这是交付前的最后一道防线。
+
+**必须交叉比對的核心指标**：
+
+| # | 指标 | 查找方式 |
+|---|------|----------|
+| 1 | 代表 ASIN 月销量 | HTML：首屏或竞品表格中的 "月销 XX 单" → XLSX：asin_detail sheet 对应 ASIN 行 |
+| 2 | 代表 ASIN 价格 | HTML：竞品价格 → XLSX：asin_detail sheet price 列 |
+| 3 | 节点总月销额 | HTML：市场容量段 → XLSX：market_overview sheet |
+| 4 | 节点总月销量 | HTML：市场容量段 → XLSX：market_overview sheet |
+| 5 | 各路线 ASIN 数 | HTML：路线概览 → XLSX：route_matrix sheet |
+| 6 | 价格带占比 | HTML：价格带分析段 → XLSX：price_band sheet |
+| 7 | 品牌集中度（Top3/Top10） | HTML：竞争结构段 → XLSX：brand_concentration sheet |
+| 8 | 商品集中度（Top3/Top10） | HTML：竞争结构段 → XLSX：product_concentration sheet |
+
+**检查方法**：
+1. 从 HTML 中提取以上指标的具体数值
+2. 从 XLSX 对应 sheet 中找到同名指标
+3. 逐一比对：数值偏差 ≤ 1%（允许四舍五入差异）
+4. 任一指标不一致 → 记录为阻断项，标注 HTML 值、XLSX 值、以及各自的 `source_path`
+
+**常见根因排查**：
+- HTML 取 `report_data.market.total_units`，XLSX 取 `report_data.asins[0].monthly_units` → 字段路径不同
+- HTML 取加总后的值，XLSX 取原始明细 → 单位或小数位数差异
+- HTML Agent 手写数字未溯源，XLSX 脚本从 JSON 自动提取 → 一方是捏造的
 
 ## 运营判断质量检查（8 条，不阻断但需修复）
 
@@ -176,6 +204,7 @@ Round 3: QA Agent 最终检查 → 仍有阻断项 → BLOCKED，需人工介入
 | HTML 禁止术语 | ✓ | — |
 | 冲突泄漏 | ✓ | — |
 | P0 阻断项 | ✓ | — |
+| HTML vs XLSX 交叉比对 | — | ✓ |
 | 数字可溯源到证据 | — | ✓ |
 | 数字与证据一致 | — | ✓ |
 | 凭空生成趋势 | — | ✓ |

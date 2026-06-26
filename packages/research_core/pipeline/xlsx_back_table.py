@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Generate XLSX back-table sheets from report_data.json."""
+"""Generate XLSX decision workbook (5 sheets) from report_data.json + integrated_operator_judgment.json.
+
+Sheet structure per report_design_spec.md Section 6:
+  1. 路线计分卡 — route × 6 dimensions + one-line judgment
+  2. 竞品拆解 — full competitor profile with weakness/counter
+  3. 关键词矩阵 — keyword × intent × search volume × CPC
+  4. 样品检查表 — VOC pain point → test item → pass criteria
+  5. 冷启动预算 — cost item × estimate (operator fills actual)
+"""
 
 from __future__ import annotations
 
@@ -8,257 +16,266 @@ from pathlib import Path
 from typing import Any
 
 from packages.research_core.pipeline._utils import (
-    _report_value, as_list, join_text,
+    _report_value, as_list,
 )
 
-def xlsx_sheets_from_report_data(report_data_path: Path) -> list[tuple[str, list[list[object]]]]:
-    """从 AI 手写的 report_data.json 重建 XLSX，保证与 HTML 数据一致。"""
-    rd = json.loads(report_data_path.read_text(encoding="utf-8"))
-    hero = rd.get("hero") or {}
-    verdict = hero.get("verdict", "")
-    if isinstance(verdict, dict):
-        verdict = verdict.get("value", verdict.get("label", str(verdict)))
 
-    def _as_list(val: Any) -> list[Any]:
-        if val is None:
-            return []
-        if isinstance(val, list):
-            return val
-        if isinstance(val, dict):
-            # dict-of-lists pattern: {"main_attack": [...], "testable": [...]}
-            if any(isinstance(v, list) for v in val.values()):
-                result = []
-                for v in val.values():
-                    if isinstance(v, list):
-                        result.extend(v)
-                return result
-            # wrapper pattern: {"market": "...", "list": [...]}
-            if "list" in val:
-                inner = val["list"]
-                return inner if isinstance(inner, list) else [inner]
-            # data-as-values pattern: {"step1": {...}, "step2": {...}}
-            return list(val.values())
-        return [val]
+def xlsx_sheets_from_report_data(
+    report_data_path: Path,
+    judgment_path: Path | None = None,
+) -> list[tuple[str, list[list[object]]]]:
+    rd = json.loads(report_data_path.read_text(encoding="utf-8"))
+    judgment = None
+    if judgment_path and judgment_path.exists():
+        judgment = json.loads(judgment_path.read_text(encoding="utf-8"))
 
     def _rv(val: Any) -> Any:
         return _report_value(val)
 
-    lead_analysis = hero.get("lead_analysis", hero.get("one_sentence", ""))
-    lead_analysis = _rv(lead_analysis)
-    cp = rd.get("category_panorama") or {}
-    categories = _as_list(cp.get("categories") or cp.get("category_landscape"))
-    cat = categories[0] if categories else (cp.get("selected_category") or {})
-    sub = cp.get("sub_market") or {}
-    health = cp.get("market_health") or {}
-    season = cp.get("seasonality") or {}
-    cat_name = _rv(cat.get("category_name", cat.get("name", ""))) if isinstance(cat, dict) else ""
-    cat_node_id = _rv(cat.get("node_id", "")) if isinstance(cat, dict) else ""
-    cat_monthly_sales = _rv(cat.get("top100_monthly_sales", cat.get("monthly_units", ""))) if isinstance(cat, dict) else ""
-    cat_monthly_revenue = _rv(cat.get("top100_monthly_revenue", cat.get("monthly_revenue", ""))) if isinstance(cat, dict) else ""
-    cat_avg_price = _rv(cat.get("avg_price", cat.get("average_price", ""))) if isinstance(cat, dict) else ""
-    cat_avg_rating = _rv(cat.get("avg_rating", "")) if isinstance(cat, dict) else ""
+    sheets: list[tuple[str, list[list[object]]]] = []
 
-    def _next_move() -> str:
-        steps = rd.get("next_steps") or {}
-        if isinstance(steps, dict):
-            inner = steps.get("steps") or steps.get("list") or []
-            if isinstance(inner, list):
-                steps = inner
-            else:
-                steps = list(steps.values())
-        if isinstance(steps, list) and steps:
-            return " → ".join(
-                (s.get("title", s.get("action", s.get("step", ""))) if isinstance(s, dict) else str(s))
-                for s in steps[:3]
-            )
-        return "联系供应商打样 → 样品实测 → 准备Listing"
+    # ── Sheet 1: 路线计分卡 ─────────────────────────────────────────────
+    sheets.append(("路线计分卡", _route_scorecard(rd, judgment, _rv)))
 
-    # 1. Summary
-    summary = [
-        ["field", "value"],
-        ["run_id", rd.get("run_id", "")],
-        ["verdict", verdict],
-        ["confidence", hero.get("confidence", "")],
-        ["one_sentence_conclusion", lead_analysis],
-        ["next_move", _next_move()],
+    # ── Sheet 2: 竞品拆解 ───────────────────────────────────────────────
+    sheets.append(("竞品拆解", _competitor_breakdown(rd, judgment, _rv)))
+
+    # ── Sheet 3: 关键词矩阵 ─────────────────────────────────────────────
+    sheets.append(("关键词矩阵", _keyword_matrix(rd, _rv)))
+
+    # ── Sheet 4: 样品检查表 ─────────────────────────────────────────────
+    sheets.append(("样品检查表", _sample_checklist(rd, _rv)))
+
+    # ── Sheet 5: 冷启动预算 ─────────────────────────────────────────────
+    sheets.append(("冷启动预算", _cold_start_budget(judgment, _rv)))
+
+    return sheets
+
+
+def _route_scorecard(rd: dict, judgment: dict | None, _rv) -> list[list[object]]:
+    """路线计分卡：每条路线 × 6 维度评分 + 一句话判断。运营可改权重重新排序。"""
+    header = [
+        "路线名", "市场需求", "竞争结构", "价格利润", "VOC机会",
+        "风险", "数据质量", "综合判断", "tradeoff_得到什么",
+        "tradeoff_放弃什么", "tradeoff_适合谁", "tradeoff_不适合谁",
+    ]
+    rows = [header]
+
+    # Try to get route breakdowns from judgment first, then fall back to evaluation summary
+    route_recs = []
+    if judgment:
+        route_recs = judgment.get("route_recommendation") or []
+        if isinstance(route_recs, dict):
+            route_recs = list(route_recs.values())
+
+    tradeoffs = {}
+    if judgment:
+        to_list = judgment.get("route_tradeoff") or []
+        if isinstance(to_list, dict):
+            to_list = list(to_list.values())
+        for t in as_list(to_list):
+            if isinstance(t, dict):
+                tradeoffs[t.get("route_name", "")] = t
+
+    if not route_recs:
+        # Fallback: extract routes from competitors
+        routes_seen = set()
+        for c in as_list(rd.get("competitors")):
+            if isinstance(c, dict):
+                rn = _rv(c.get("route", c.get("route_ref", "")))
+                if rn and rn not in routes_seen:
+                    routes_seen.add(rn)
+                    rows.append([rn, "", "", "", "", "", "", "", "", "", "", ""])
+        return rows
+
+    for rec in as_list(route_recs):
+        if not isinstance(rec, dict):
+            continue
+        rn = rec.get("route_name", rec.get("name", ""))
+        to = tradeoffs.get(rn, {})
+        rows.append([
+            rn,
+            _rv(rec.get("market_demand", rec.get("demand_score", ""))),
+            _rv(rec.get("competition", rec.get("competition_score", ""))),
+            _rv(rec.get("price_profit", rec.get("profit_score", ""))),
+            _rv(rec.get("voc_opportunity", rec.get("voc_score", ""))),
+            _rv(rec.get("risk", rec.get("risk_score", ""))),
+            _rv(rec.get("data_quality", rec.get("data_score", ""))),
+            _rv(rec.get("judgment", rec.get("one_line_judgment", rec.get("verdict", "")))),
+            _rv(to.get("gain", "")),
+            _rv(to.get("lose", "")),
+            _rv(to.get("best_for", "")),
+            _rv(to.get("worst_for", "")),
+        ])
+    return rows
+
+
+def _competitor_breakdown(rd: dict, judgment: dict | None, _rv) -> list[list[object]]:
+    """竞品拆解：每个核心竞品的完整画像，含致命弱点和反击方案。"""
+    header = [
+        "ASIN", "品牌", "月销", "价格", "评分", "评论数", "上架时间",
+        "路线", "致命弱点_VOC原文", "可抄的优点", "我的反击方案", "反击难度",
+    ]
+    rows = [header]
+
+    weakness_map = {}
+    if judgment:
+        wm_list = judgment.get("competitor_weakness_map") or []
+        if isinstance(wm_list, dict):
+            wm_list = list(wm_list.values())
+        for w in as_list(wm_list):
+            if isinstance(w, dict):
+                asin = w.get("asin", "")
+                if asin:
+                    weakness_map[asin] = w
+
+    benchmark = {}
+    if judgment:
+        bm_list = judgment.get("competitor_benchmark") or []
+        if isinstance(bm_list, dict):
+            bm_list = list(bm_list.values())
+        for b in as_list(bm_list):
+            if isinstance(b, dict):
+                asin = b.get("asin", "")
+                if asin:
+                    benchmark[asin] = b
+
+    for c in as_list(rd.get("competitors")):
+        if not isinstance(c, dict):
+            continue
+        asin = _rv(c.get("asin", ""))
+        w = weakness_map.get(asin, {})
+        b = benchmark.get(asin, {})
+        rows.append([
+            asin,
+            _rv(c.get("brand", "")),
+            _rv(c.get("monthly_sales", c.get("monthly_units", ""))),
+            _rv(c.get("price", "")),
+            _rv(c.get("rating", "")),
+            _rv(c.get("rating_count", c.get("reviews", ""))),
+            _rv(c.get("available_date", c.get("date_listed", ""))),
+            _rv(c.get("route", c.get("route_ref", ""))),
+            _rv(w.get("voc_evidence", w.get("fatal_weakness", ""))),
+            _rv(b.get("strength", b.get("advantage", ""))),
+            _rv(w.get("my_counter", "")),
+            _rv(w.get("counter_difficulty", "")),
+        ])
+    return rows
+
+
+def _keyword_matrix(rd: dict, _rv) -> list[list[object]]:
+    """关键词矩阵：运营可以直接拿去建广告组。"""
+    header = [
+        "关键词", "意图分类", "月搜量", "CPC", "竞品数", "策略说明",
+    ]
+    rows = [header]
+
+    keywords = rd.get("keywords") or {}
+    if isinstance(keywords, dict):
+        # Try dict-of-lists pattern (intent → keywords)
+        if any(isinstance(v, list) for v in keywords.values()):
+            for intent, kw_list in keywords.items():
+                for kw in as_list(kw_list):
+                    if isinstance(kw, dict):
+                        rows.append([
+                            _rv(kw.get("keyword", kw.get("term", ""))),
+                            intent,
+                            _rv(kw.get("monthly_search_volume", kw.get("search_volume", ""))),
+                            _rv(kw.get("cpc", "")),
+                            _rv(kw.get("competitor_count", "")),
+                            _rv(kw.get("strategy", kw.get("recommended_action", ""))),
+                        ])
+        else:
+            for kw in as_list(keywords):
+                if isinstance(kw, dict):
+                    rows.append([
+                        _rv(kw.get("keyword", kw.get("term", ""))),
+                        _rv(kw.get("role", kw.get("intent", ""))),
+                        _rv(kw.get("monthly_search_volume", kw.get("search_volume", ""))),
+                        _rv(kw.get("cpc", "")),
+                        _rv(kw.get("competitor_count", "")),
+                        _rv(kw.get("strategy", kw.get("recommended_action", ""))),
+                    ])
+    return rows
+
+
+def _sample_checklist(rd: dict, _rv) -> list[list[object]]:
+    """样品检查表：VOC 痛点 → 测试项 → 通过标准。运营填实际结果。"""
+    header = [
+        "痛点维度", "优先级", "竞品问题描述", "测试项", "通过标准",
+        "实际结果_运营填", "是否通过_运营填",
+    ]
+    rows = [header]
+
+    for pp in as_list(rd.get("pain_points")):
+        if not isinstance(pp, dict):
+            continue
+        rows.append([
+            _rv(pp.get("dimension", "")),
+            _rv(pp.get("priority", pp.get("severity", ""))),
+            _rv(pp.get("issue_description", pp.get("issue", ""))),
+            _rv(pp.get("test_item", pp.get("spec_requirement", ""))),
+            _rv(pp.get("pass_criteria", pp.get("spec_target", ""))),
+            "",  # 运营填写
+            "",  # 运营填写
+        ])
+    return rows
+
+
+def _cold_start_budget(judgment: dict | None, _rv) -> list[list[object]]:
+    """冷启动预算：数量级估算 + 运营填实际数字。"""
+    header = [
+        "费用项", "预估金额_数量级", "实际金额_运营填", "备注",
+    ]
+    rows = [header]
+
+    if not judgment:
+        rows.append(["无冷启动估算数据", "", "", "请先运行 Stage 10 Lead Operator Agent"])
+        return rows
+
+    cs = judgment.get("cold_start_estimate") or {}
+    confidence_note = _rv(cs.get("confidence_note", "以上为数量级估算，实际取决于产品力、Listing质量和广告效率"))
+
+    # Standard line items
+    items = [
+        ("广告费（前3个月）", cs.get("ad_budget", cs.get("budget_range", ""))),
+        ("Vine评论计划", "$200（亚马逊官方费用）"),
+        ("样品打样费", cs.get("sample_cost", "")),
+        ("FBA物流（前3个月）", cs.get("fba_cost", "")),
+        ("采购库存（首批）", cs.get("inventory_cost", "")),
+        ("Listing拍摄/A+制作", cs.get("listing_cost", "$300-800（拍摄+A+设计）")),
+        ("商标/品牌注册", cs.get("brand_registry_cost", "$225-600（视国家）")),
     ]
 
-    # 2. Source Packets
-    source_packets = [
-        ["name", "exists", "packet_id", "confidence", "path"],
-        ["Search Demand / Sorftime", "True", "search_demand_evidence", "medium", "search_demand/search_demand_evidence_packet.json"],
-        ["Market Structure / 卖家精灵", "True", "market_structure_evidence", "medium", "market_structure/market_structure_evidence_packet.json"],
-        ["VOC Evidence", "True", "voc_evidence", "high", "review_voc/voc_evidence_packet.json"],
-        ["Route Matrix", "True", "route_matrix_confirm", "", "route_matrix_confirm.json"],
-    ]
+    total_est = ""
+    for label, value in items:
+        display_value = _rv(value) if value else "待估算"
+        if label == "广告费（前3个月）" and cs.get("budget_range"):
+            display_value = _rv(cs["budget_range"])
+        rows.append([label, display_value, "", ""])
 
-    # 3. Category Derivation
-    cat_derivation = [
-        ["section", "step", "evidence", "implication", "decision", "lineage"],
-        ["summary", cat_name, "", f"node_id={cat_node_id}", "", ""],
-        ["step", "类目选择", str(cat_name) + " (" + str(cat_node_id) + ")", str(cat_monthly_sales) + " units, $" + str(cat_avg_price), "主战场", "category_panorama.categories[0]"],
-        ["step", "子市场", str(sub.get("product_form", "")), str(sub.get("estimated_monthly_units", "")), "聚焦细分", "category_panorama.sub_market"],
-        ["step", "健康度", "Top3:" + str(health.get("top3_brand_share", "")) + " 中国:" + str(health.get("china_seller_share", "")) + " 新品:" + str(health.get("new_3m_share", "")), str(health.get("concentration_note", "")), "", "category_panorama.market_health"],
-        ["step", "季节性", "旺季:" + ", ".join(season.get("peak_months", [])) + " 淡季:" + ", ".join(season.get("trough_months", [])), str(season.get("peak_trough_ratio", "")), "", "category_panorama.seasonality"],
-    ]
+    # Total row
+    if cs.get("budget_range"):
+        total_est = _rv(cs["budget_range"])
+    rows.append(["合计（数量级）", total_est, "", confidence_note])
 
-    # 4. Category Candidates
-    cat_candidates = [
-        ["category_name", "node_id", "category_path", "category_role", "matched_asin_count", "evidence_strength", "recommended_use", "risk_tags"],
+    # Key metrics for reference
+    metrics = [
+        ("评论门槛", cs.get("review_threshold", "")),
+        ("CPC预估", cs.get("cpc_estimate", "")),
+        ("冷启动周期", cs.get("timeline", "")),
     ]
-    for ci, c_cat in enumerate(categories):
-        if isinstance(c_cat, dict):
-            cat_candidates.append([
-                _rv(c_cat.get("category_name", "")),
-                _rv(c_cat.get("node_id", "")),
-                _rv(c_cat.get("category_path", "")),
-                _rv(c_cat.get("category_role", "")),
-                _rv(c_cat.get("product_count_in_category", "")),
-                "high" if ci == 0 else "medium",
-                _rv(c_cat.get("category_role", "主战场" if ci == 0 else "")) or ("主战场" if ci == 0 else ""),
-                "",
-            ])
+    for label, value in metrics:
+        if value:
+            rows.append([f"参考：{label}", _rv(value), "", ""])
 
-    # 5. Reference ASINs
-    ref_asins = [
-        ["asin", "route_ref", "role", "similarity_reason", "category_path", "price", "monthly_sales", "rating_count"],
-    ]
-    for c in _as_list(rd.get("competitors")):
-        if isinstance(c, dict):
-            ref_asins.append([
-                _rv(c.get("asin", "")),
-                _rv(c.get("route", c.get("route_ref", ""))),
-                _rv(c.get("asin_role", c.get("role", "primary_reference"))),
-                c.get("judgment", c.get("positioning", c.get("similarity_reason", ""))),
-                "",
-                _rv(c.get("price", "")),
-                _rv(c.get("monthly_sales", "")),
-                _rv(c.get("rating_count", "")),
-            ])
+    return rows
 
-    # 6. Market Opportunity
-    market_opp = [
-        ["type", "field_1", "field_2", "field_3", "field_4", "field_5"],
-        ["primary_market", "category_name", cat_name, "", "", ""],
-        ["primary_market", "node_id", cat_node_id, "", "", ""],
-        ["primary_market", "monthly_units", cat_monthly_sales, "", "", ""],
-        ["primary_market", "monthly_revenue_usd", cat_monthly_revenue, "", "", ""],
-        ["primary_market", "avg_price_usd", cat_avg_price, "", "", ""],
-        ["primary_market", "avg_rating", cat_avg_rating, "", "", ""],
-    ]
-    for pb in _as_list(rd.get("price_bands")):
-        if isinstance(pb, dict):
-            market_opp.append([
-                "price_band",
-                _rv(pb.get("label", pb.get("range", pb.get("band", "")))),
-                _rv(pb.get("unit_share", pb.get("sales_share", ""))),
-                str(_rv(pb.get("product_count", ""))),
-                _rv(pb.get("opportunity_level", "")),
-                pb.get("judgment", pb.get("reason", pb.get("recommendation", ""))),
-            ])
 
-    # 7. Keyword Pool
-    kw_pool = [
-        ["role", "keyword", "monthly_search_volume", "cpc", "competitor_count", "mix_pool_score", "mix_pool_risk_level", "reason", "recommended_action"],
-    ]
-    for kw in _as_list(rd.get("keywords")):
-        if isinstance(kw, dict):
-            kw_pool.append([
-                kw.get("role", ""),
-                _rv(kw.get("keyword", "")),
-                _rv(kw.get("monthly_search_volume", "")),
-                _rv(kw.get("cpc", "")),
-                _rv(kw.get("competitor_count", "")),
-                "",
-                "",
-                kw.get("strategy", ""),
-                "",
-            ])
-
-    # 8. VOC
-    voc = [
-        ["dimension", "issue", "review_count", "spec_requirement", "evidence", "next_check"],
-    ]
-    for pp in _as_list(rd.get("pain_points")):
-        if isinstance(pp, dict):
-            voc.append([
-                _rv(pp.get("dimension", "")),
-                pp.get("issue_description", pp.get("issue", "")),
-                _rv(pp.get("review_count", "")),
-                pp.get("spec_requirement", ""),
-                pp.get("source_path", ""),
-                "",
-            ])
-
-    # 9. Route Judgment
-    route_judgment = [
-        ["route_name", "role", "market_signal", "keyword_signal", "voc_signal", "risk_note", "next_check"],
-    ]
-    routes_seen = set()
-    for c in _as_list(rd.get("competitors")):
-        if isinstance(c, dict):
-            route = _rv(c.get("route", c.get("route_ref", "")))
-            if route and route not in routes_seen:
-                routes_seen.add(route)
-                route_judgment.append([route, "primary", "", "", "", "", ""])
-    if not routes_seen:
-        route_judgment.append(["主路线", "primary", "", "", "", "", ""])
-
-    # 10. Risks And Next
-    risks_next = [
-        ["type", "source", "item", "detail", "next"],
-    ]
-    for r in _as_list(rd.get("risks")):
-        if isinstance(r, dict):
-            risks_next.append([
-                "gap",
-                "风险",
-                "[" + str(r.get("severity", "")) + "] " + str(r.get("description", r.get("title", ""))),
-                r.get("evidence_basis", r.get("detail", "")),
-                r.get("mitigation", ""),
-            ])
-    for adv in _as_list(rd.get("advantages")):
-        if isinstance(adv, dict):
-            risks_next.append([
-                "boundary",
-                "优势",
-                adv.get("description", adv.get("title", "")),
-                adv.get("evidence_basis", adv.get("detail", "")),
-                "",
-            ])
-    for cond in _as_list(rd.get("gonogo_conditions")):
-        if isinstance(cond, dict):
-            risks_next.append([
-                "next_condition",
-                cond.get("current_status", cond.get("status", "")),
-                cond.get("condition", ""),
-                cond.get("go_threshold", cond.get("detail", "")),
-                cond.get("source_path", ""),
-            ])
-    for ns in _as_list(rd.get("next_steps")):
-        if isinstance(ns, dict):
-            risks_next.append([
-                "next_step",
-                "行动计划",
-                ns.get("title", ns.get("action", ns.get("step", ""))),
-                ns.get("description", ns.get("detail", "")),
-                "",
-            ])
-
-    return [
-        ("Summary", summary),
-        ("Source Packets", source_packets),
-        ("Category Derivation", cat_derivation),
-        ("Category Candidates", cat_candidates),
-        ("Reference ASINs", ref_asins),
-        ("Market Opportunity", market_opp),
-        ("Keyword Pool", kw_pool),
-        ("VOC", voc),
-        ("Route Judgment", route_judgment),
-        ("Risks And Next", risks_next),
-    ]
+# ── Legacy API compatibility ──────────────────────────────────────────────
 
 def build_workbook_sheets(analysis: dict[str, Any]) -> list[tuple[str, list[list[object]]]]:
+    """Legacy wrapper — used by build_analysis_packet flow (not decision workbook)."""
     return [
         ("Summary", summary_rows(analysis)),
         ("Source Packets", source_packet_rows(analysis)),
@@ -296,7 +313,7 @@ def category_derivation_rows(analysis: dict[str, Any]) -> list[list[object]]:
     derivation = analysis.get("category_selection_derivation") or {}
     rows.append(["summary", derivation.get("selected_category", ""), "", f"confidence={derivation.get('confidence', '')}", "", ""])
     for item in as_list(derivation.get("steps")):
-        rows.append(["step", item.get("name", ""), join_text(item.get("evidence")), item.get("implication", ""), item.get("decision", ""), join_text(item.get("lineage"))])
+        rows.append(["step", item.get("name", ""), item.get("evidence", ""), item.get("implication", ""), item.get("decision", ""), item.get("lineage", "")])
     for item in as_list(derivation.get("rejected_alternatives")):
         rows.append(["rejected", item.get("name", ""), item.get("reason", ""), "", item.get("decision", ""), ""])
     for item in as_list(derivation.get("disconfirming_evidence")):

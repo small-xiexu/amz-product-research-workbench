@@ -31,6 +31,40 @@ _CONFLICT_LEAK_PATTERNS: list[tuple[str, str]] = [
     (r"融合策略", "融合策略内部术语泄漏"),
 ]
 
+_ALLOWED_REPORT_CLASS_TOKENS = {
+    "page",
+    "hero",
+    "eyebrow",
+    "verdict",
+    "lead",
+    "hero-grid",
+    "hero-metric",
+    "label",
+    "value",
+    "section",
+    "subtitle",
+    "insight-row",
+    "insight-card",
+    "good",
+    "warn",
+    "tag",
+    "tag-green",
+    "tag-amber",
+    "tag-red",
+    "tag-gray",
+    "price-band",
+    "price-bar",
+    "bar",
+    "next-steps",
+    "next-step",
+    "num",
+    "risk-list",
+    "severity",
+    "go-nogo",
+    "tc",
+    "pill",
+}
+
 def run_delivery_qa(report_data_path: Path, html_path: Path, xlsx_path: Path, analysis: dict[str, Any] | None = None) -> dict[str, Any]:
     run_dir = html_path.parent.parent
     packets = _load_packets_for_qa(run_dir, analysis)
@@ -40,6 +74,9 @@ def run_delivery_qa(report_data_path: Path, html_path: Path, xlsx_path: Path, an
     has_data = _report_data_has_required_sections(report_data_path)
     forbidden_result = _has_no_forbidden_html_patterns(html_path)
     conflict_leak_result = _scan_conflict_leak(html_path, run_dir)
+    template_css_result = _uses_report_template_css(html_path)
+    class_result = _has_only_allowed_report_classes(html_path)
+    data_source_section_result = _has_no_fixed_data_source_section(html_path)
     checks = {
         "report_data_exists": report_data_path.exists(),
         "html_exists": html_path.exists(),
@@ -47,6 +84,9 @@ def run_delivery_qa(report_data_path: Path, html_path: Path, xlsx_path: Path, an
         "report_data_has_required_sections": has_data,
         "has_no_removed_legacy_sections": _has_no_removed_legacy_sections(html_path),
         "has_inline_style": _has_inline_style(html_path),
+        "uses_report_template_css": template_css_result["pass"],
+        "has_only_allowed_report_classes": class_result["pass"],
+        "has_no_fixed_data_source_section": data_source_section_result["pass"],
         "has_required_operator_sections": _has_required_operator_sections(html_path),
         "has_gonogo_class": _has_gonogo_class(html_path),
         "report_data_sources_valid": source_result["pass"],
@@ -59,6 +99,12 @@ def run_delivery_qa(report_data_path: Path, html_path: Path, xlsx_path: Path, an
         checks["forbidden_html_hits"] = forbidden_result["hits"]
     if conflict_leak_result.get("hits"):
         checks["conflict_leak_hits"] = conflict_leak_result["hits"]
+    if template_css_result.get("hits"):
+        checks["report_template_css_hits"] = template_css_result["hits"]
+    if class_result.get("hits"):
+        checks["report_class_hits"] = class_result["hits"]
+    if data_source_section_result.get("hits"):
+        checks["fixed_data_source_section_hits"] = data_source_section_result["hits"]
     if source_result.get("reason"):
         checks["report_data_sources_note"] = source_result["reason"]
     if value_result.get("reason"):
@@ -169,6 +215,74 @@ def _has_inline_style(html_path: Path) -> bool:
     import re
     has_link = bool(re.search(r'<link[^>]*report_template\.css', html))
     return has_inline_style and not has_link
+
+
+def _report_template_css_path() -> Path:
+    return (
+        Path(__file__).resolve().parents[3]
+        / "skills"
+        / "amazon-product-research"
+        / "references"
+        / "report_template.css"
+    )
+
+
+def _extract_inline_style(html: str) -> str | None:
+    match = re.search(r"<style>\s*(.*?)\s*</style>", html, flags=re.DOTALL)
+    return match.group(1).strip() if match else None
+
+
+def _uses_report_template_css(html_path: Path) -> dict[str, Any]:
+    """HTML 的唯一 <style> 内容必须与 report_template.css 完全一致。"""
+    if not html_path.exists():
+        return {"pass": False, "hits": ["HTML 文件不存在"]}
+    html = html_path.read_text(encoding="utf-8")
+    inline_css = _extract_inline_style(html)
+    if inline_css is None:
+        return {"pass": False, "hits": ["缺少内嵌 <style>"]}
+
+    template_css = _report_template_css_path().read_text(encoding="utf-8").strip()
+    if inline_css != template_css:
+        return {
+            "pass": False,
+            "hits": ["<style> 内容未完整复制 report_template.css"],
+        }
+    return {"pass": True, "hits": []}
+
+
+def _has_only_allowed_report_classes(html_path: Path) -> dict[str, Any]:
+    """HTML class token 必须来自报告模板白名单，避免手写漂移。"""
+    if not html_path.exists():
+        return {"pass": False, "hits": ["HTML 文件不存在"]}
+    html = html_path.read_text(encoding="utf-8")
+    class_values = re.findall(r"""\bclass\s*=\s*["']([^"']+)["']""", html)
+    unknown = sorted(
+        {
+            token
+            for value in class_values
+            for token in value.split()
+            if token not in _ALLOWED_REPORT_CLASS_TOKENS
+        }
+    )
+    if unknown:
+        return {
+            "pass": False,
+            "hits": [f"发现模板外 class: {', '.join(unknown[:10])}"],
+        }
+    return {"pass": True, "hits": []}
+
+
+def _has_no_fixed_data_source_section(html_path: Path) -> dict[str, Any]:
+    """正式 HTML 不固定展示“数据来源与口径”板块。"""
+    if not html_path.exists():
+        return {"pass": False, "hits": ["HTML 文件不存在"]}
+    html = html_path.read_text(encoding="utf-8")
+    if "数据来源与口径" in html:
+        return {
+            "pass": False,
+            "hits": ["HTML 不得固定展示“数据来源与口径”板块"],
+        }
+    return {"pass": True, "hits": []}
 
 
 def _has_required_operator_sections(html_path: Path) -> bool:
@@ -300,7 +414,7 @@ def _validate_report_data_sources(report_data_path: Path, packets: dict[str, Any
     - 未解析率 > 2% → warning（pass=True，但记录）
     - 未解析率 ≤ 2% 且无空路径 → pass
 
-    __ai_pending__ 是 seed 占位标记，表示该字段需 AI 增强后填充，记 warning 不阻断。
+    __ai_judgment__ 是 seed 占位标记，表示该字段需 AI 增强后填充，记 warning 不阻断。
     """
     if not report_data_path.exists():
         return {"pass": False, "total": 0, "resolved": 0, "vague": 0, "unresolved": 0, "empty": 0, "ai_pending": 0, "unresolved_pct": 0.0, "reason": "report_data.json 不存在"}
@@ -318,7 +432,7 @@ def _validate_report_data_sources(report_data_path: Path, packets: dict[str, Any
 
     for item in source_paths:
         sp = item["source_path"].strip()
-        if sp == "__ai_pending__":
+        if sp == "__ai_judgment__":
             ai_pending += 1
             continue
         if not sp or sp == "N/A" or sp == "—":
@@ -335,14 +449,14 @@ def _validate_report_data_sources(report_data_path: Path, packets: dict[str, Any
             resolved += 1
 
     total = len(source_paths)
-    effective = max(total - ai_pending, 1)  # __ai_pending__ 不参与未解析率计算
+    effective = max(total - ai_pending, 1)  # __ai_judgment__ 不参与未解析率计算
     unresolved_pct = len(unresolved) / max(effective, 1)
 
     # 空 source_path 直接阻断
     if empty > 0:
         reason = f"存在 {empty} 条空 source_path（AI 未填充），共 {len(unresolved)}/{effective} 条路径无法解析 ({unresolved_pct:.0%})"
         if ai_pending:
-            reason += f"，{ai_pending} 条标记为 __ai_pending__（待 AI 增强）"
+            reason += f"，{ai_pending} 条标记为 __ai_judgment__（待 AI 增强）"
         return {
             "pass": False,
             "total": total,
@@ -363,7 +477,7 @@ def _validate_report_data_sources(report_data_path: Path, packets: dict[str, Any
     elif unresolved_pct > 0.02:
         reason_parts.append(f"未解析率 {unresolved_pct:.0%} 在 2%-5% 之间，共 {len(unresolved)}/{effective} 条路径无法溯源（不阻断）")
     if ai_pending:
-        reason_parts.append(f"{ai_pending} 条标记为 __ai_pending__（待 AI 增强）")
+        reason_parts.append(f"{ai_pending} 条标记为 __ai_judgment__（待 AI 增强）")
 
     return {
         "pass": passed,
@@ -638,7 +752,7 @@ def _validate_values_against_sources(
         reported = item.get("reported_value")
 
         # 跳过占位符和空值
-        if not sp or sp in ("N/A", "—", "__ai_pending__"):
+        if not sp or sp in ("N/A", "—", "__ai_judgment__"):
             skipped += 1
             continue
         if reported is None or str(reported).strip() in ("", "待补", "—"):

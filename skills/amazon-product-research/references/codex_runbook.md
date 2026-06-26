@@ -40,7 +40,7 @@ runs/<yyyymmdd>_<中文品类方向>/
 │   └── voc_evidence.xlsx
 └── analysis/                # Stage 7 最终交付
     ├── <中文品名>_分析报告.html
-    ├── <中文品名>_数据回表.xlsx
+    ├── <中文品名>_决策工具包.xlsx
     ├── report_data.json
     └── delivery_qa_result.json
 ```
@@ -94,7 +94,7 @@ Codex 给运营导出清单：
 
 - 路线名可以用中文写给运营看，但实际复制到卖家精灵的输入对象必须使用目标站点语言；美国站、加拿大站和英国站默认使用英文关键词或英文类目名。
 - 中文内部路线名只作为说明，不要混进卖家精灵的 `查竞品`、`选产品`、`选市场`、`关键词选品` 或 `ABA数据选品`。
-- 排除关键词也按站点语言填写；美国站用 `electric, vacuum, spray, liquid, floor, car detailing, window film` 这类英文词。
+- 排除关键词也按站点语言填写；如美国站用 `electric, vacuum, spray, liquid` 等与产品不相关的英文词。
 
 运营把文件放到：
 
@@ -160,7 +160,7 @@ runs/<run_id>/mcp/route_sorftime_calibration.json
 - 近期新品
 - 差评高发或痛点参考
 - 高客单或价格带代表
-- 混池/旁支对照，如有必要
+- 混池/小众形态对照，如有必要
 
 运营用自有评论插件导出到：
 

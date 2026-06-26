@@ -103,15 +103,15 @@ class LegacyDocMarkerTests(unittest.TestCase):
         self.assertIn("Legacy 回退", text)
         self.assertIn("MCP 不可用时", text)
 
-    def test_skill_md_marks_legacy_commands(self):
-        """SKILL.md 含'LEGACY FALLBACK'或'仅在 MCP 不可用时'。"""
+    def test_skill_md_has_legacy_appendix(self):
+        """SKILL.md 含 Legacy 回退附录。"""
         text = SKILL_MD.read_text(encoding="utf-8")
-        self.assertIn("LEGACY FALLBACK", text)
+        self.assertIn("Legacy 回退", text)
 
-    def test_skill_md_stage2_describes_mcp(self):
-        """SKILL.md Stage 2 标题改为 MCP 快验描述。"""
+    def test_skill_md_stage2_describes_quick_check(self):
+        """SKILL.md Stage 2 描述双 Agent 并行快验。"""
         text = SKILL_MD.read_text(encoding="utf-8")
-        self.assertIn("双 MCP 市场快验", text)
+        self.assertIn("双 Agent 市场快验", text)
 
     def test_legacy_doc_has_fallback_marker(self):
         """卖家精灵导出指令完整性规范.md 含'LEGACY FALLBACK'标记。"""
@@ -145,3 +145,390 @@ class RegressionSmokeTests(unittest.TestCase):
         )
         self.assertTrue(callable(validate_import_manifest))
         self.assertTrue(callable(validate_candidate_pool))
+
+
+class NewScriptImportTests(unittest.TestCase):
+    """验证 P0 修复脚本和 P2 编排脚本可正常导入。"""
+
+    def test_fill_quick_packet_contract_importable(self):
+        """fill_quick_packet_contract 模块可正常导入。"""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "fill_quick_packet_contract",
+            Path(__file__).resolve().parents[1] / "scripts" / "fill_quick_packet_contract.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        self.assertTrue(callable(mod.fill_contract))
+
+    def test_fill_contract_all_17_fields(self):
+        """fill_contract 补齐全部 17 个必填字段。"""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "fill_quick_packet_contract",
+            Path(__file__).resolve().parents[1] / "scripts" / "fill_quick_packet_contract.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        result = mod.fill_contract({"support_level": "strong"}, "sellersprite")
+        required = [
+            "schema_version", "packet_id", "stage", "depth", "source_type",
+            "support_level", "blocking_gaps", "mixed_pool_level",
+            "demand_signal_level", "price_band_health", "category_boundary_clarity",
+            "facts", "metric_basis", "evidence_refs", "confidence",
+            "data_gaps", "execution_provenance",
+        ]
+        for field in required:
+            with self.subTest(field=field):
+                self.assertIn(field, result, f"Missing: {field}")
+
+    def test_fill_contract_preserves_agent_content(self):
+        """fill_contract 保留 Agent 原始内容。"""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "fill_quick_packet_contract",
+            Path(__file__).resolve().parents[1] / "scripts" / "fill_quick_packet_contract.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        agent_output = {
+            "support_level": "moderate",
+            "market_overview": "类目月销约12万件",
+            "custom_field": "should be preserved",
+        }
+        result = mod.fill_contract(agent_output, "sellersprite")
+        self.assertEqual(result["market_overview"], "类目月销约12万件")
+        self.assertEqual(result["custom_field"], "should be preserved")
+
+    def test_init_workflow_state_importable(self):
+        """init_workflow_state 模块可正常导入。"""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "init_workflow_state",
+            Path(__file__).resolve().parents[1] / "scripts" / "init_workflow_state.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        self.assertTrue(callable(mod.init_workflow_state))
+
+    def test_run_pipeline_importable(self):
+        """run_pipeline 模块可正常导入。"""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "run_pipeline",
+            Path(__file__).resolve().parents[1] / "scripts" / "run_pipeline.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        self.assertTrue(callable(mod.main))
+
+
+class QuickGateCrossValidationTests(unittest.TestCase):
+    """验证 Quick Gate 新增的交叉校验功能。"""
+
+    def test_cross_validation_field_in_gate(self):
+        """build_quick_market_gate 输出含 cross_validation 字段。"""
+        from packages.research_core.pipeline.quick_market_check import build_quick_market_gate
+        sellersprite = {
+            "schema_version": "evidence-packet-v1",
+            "packet_id": "sellersprite_quick_evidence_packet",
+            "stage": "market_quick_check",
+            "depth": "quick",
+            "source_type": "sellersprite_mcp",
+            "support_level": "strong",
+            "blocking_gaps": [],
+            "mixed_pool_level": "none",
+            "demand_signal_level": "strong",
+            "price_band_health": "healthy",
+            "category_boundary_clarity": "clear",
+            "facts": [],
+            "metric_basis": {},
+            "evidence_refs": [],
+            "confidence": "medium",
+            "data_gaps": [],
+            "execution_provenance": {"execution_mode": "real_subagent_spawn"},
+        }
+        sorftime = dict(sellersprite)
+        sorftime["packet_id"] = "sorftime_quick_evidence_packet"
+        sorftime["source_type"] = "sorftime_mcp"
+        gate = build_quick_market_gate(sellersprite, sorftime)
+        self.assertIn("cross_validation", gate)
+        self.assertIn("discrepancies", gate["cross_validation"])
+        self.assertIn("has_discrepancies", gate["cross_validation"])
+
+    def test_support_divergence_detected(self):
+        """support_level 分歧被检出。"""
+        from packages.research_core.pipeline.quick_market_check import build_quick_market_gate
+        base = {
+            "schema_version": "evidence-packet-v1",
+            "packet_id": "sellersprite_quick_evidence_packet",
+            "stage": "market_quick_check",
+            "depth": "quick",
+            "source_type": "sellersprite_mcp",
+            "support_level": "strong",
+            "blocking_gaps": [],
+            "mixed_pool_level": "none",
+            "demand_signal_level": "strong",
+            "price_band_health": "healthy",
+            "category_boundary_clarity": "clear",
+            "facts": [],
+            "metric_basis": {},
+            "evidence_refs": [],
+            "confidence": "medium",
+            "data_gaps": [],
+            "execution_provenance": {"execution_mode": "real_subagent_spawn"},
+        }
+        sf = dict(base)
+        sf["packet_id"] = "sorftime_quick_evidence_packet"
+        sf["source_type"] = "sorftime_mcp"
+        sf["support_level"] = "weak"
+        gate = build_quick_market_gate(base, sf)
+        self.assertTrue(gate["cross_validation"]["has_discrepancies"])
+
+
+class DeepSnapshotTests(unittest.TestCase):
+    """验证 build_deep_snapshot 脚本。"""
+
+    def test_build_deep_snapshot_importable(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "build_deep_snapshot",
+            Path(__file__).resolve().parents[1] / "scripts" / "build_deep_snapshot.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        self.assertTrue(callable(mod.build_deep_snapshot))
+
+    def test_all_15_fields_filled(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "build_deep_snapshot",
+            Path(__file__).resolve().parents[1] / "scripts" / "build_deep_snapshot.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        result = mod.build_deep_snapshot(
+            {"tool_calls": [{"tool_name": "market_research", "params": {"keyword": "dog leash"}}]},
+            "sellersprite",
+            run_id="test-run",
+        )
+        required = [
+            "schema_version", "snapshot_id", "run_id", "source_name",
+            "source_doc_refs", "route_refs", "selected_routes", "tool_calls",
+            "tool_results", "errors", "data_gaps", "created_at",
+            "retry_policy", "force_refresh", "input_lineage",
+        ]
+        for field in required:
+            with self.subTest(field=field):
+                self.assertIn(field, result, f"Missing: {field}")
+        self.assertEqual(result["schema_version"], "p4-deep-contract-v1")
+        self.assertEqual(result["source_name"], "sellersprite")
+        self.assertEqual(len(result["tool_calls"]), 1)
+
+
+class DeepEvidencePacketTests(unittest.TestCase):
+    """验证 build_deep_evidence_packet 脚本。"""
+
+    def test_build_deep_evidence_packet_importable(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "build_deep_evidence_packet",
+            Path(__file__).resolve().parents[1] / "scripts" / "build_deep_evidence_packet.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        self.assertTrue(callable(mod.build_evidence_packet))
+
+    def test_market_structure_packet_fields(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "build_deep_evidence_packet",
+            Path(__file__).resolve().parents[1] / "scripts" / "build_deep_evidence_packet.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        agent_output = {
+            "facts": {
+                "reference_asin_pool": [
+                    {"asin": "B0EXAMPLE1", "route_ref": "dog_leash", "price": 15.99},
+                    {"asin": "B0EXAMPLE2", "route_ref": "dog_leash", "price": 22.50},
+                ],
+            },
+        }
+        result = mod.build_evidence_packet(agent_output, "sellersprite", run_id="test")
+        self.assertEqual(result["packet_id"], "market_structure_evidence_packet")
+        self.assertEqual(result["primary_source"], "sellersprite")
+        self.assertEqual(len(result["evidence_items"]), 2)
+        self.assertIn("metric_basis", result)
+
+    def test_search_demand_packet_fields(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "build_deep_evidence_packet",
+            Path(__file__).resolve().parents[1] / "scripts" / "build_deep_evidence_packet.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        result = mod.build_evidence_packet({}, "sorftime", run_id="test")
+        self.assertEqual(result["packet_id"], "search_demand_evidence_packet")
+        self.assertEqual(result["primary_source"], "sorftime")
+        self.assertIn("metric_basis", result)
+        self.assertIn("sorftime_deep", result["metric_basis"])
+
+    def test_fallback_wraps_entire_facts(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "build_deep_evidence_packet",
+            Path(__file__).resolve().parents[1] / "scripts" / "build_deep_evidence_packet.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        result = mod.build_evidence_packet(
+            {"facts": {"custom_field": "no standard structure"}}, "sellersprite"
+        )
+        self.assertEqual(len(result["evidence_items"]), 1)
+        self.assertEqual(result["evidence_items"][0]["item_type"], "competitor_structure")
+
+
+class FillContractNestedFixTests(unittest.TestCase):
+    """验证 fill_contract 的嵌套字段修复。"""
+
+    def test_metric_basis_sub_fields_overwritten(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "fill_quick_packet_contract",
+            Path(__file__).resolve().parents[1] / "scripts" / "fill_quick_packet_contract.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        # Agent provides empty or invalid metric_basis sub-fields
+        agent_output = {
+            "support_level": "strong",
+            "metric_basis": {"marketplace": "", "currency": "", "data_window": ""},
+        }
+        result = mod.fill_contract(agent_output, "sellersprite")
+        mb = result["metric_basis"]
+        self.assertEqual(mb["marketplace"], "US")
+        self.assertEqual(mb["currency"], "USD")
+        self.assertEqual(mb["data_window"], "30d")
+        self.assertEqual(mb["sample_scope"], "Top100")
+        self.assertIn("collected_at", mb)
+
+    def test_price_band_health_healthy_mapped_to_strong(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "fill_quick_packet_contract",
+            Path(__file__).resolve().parents[1] / "scripts" / "fill_quick_packet_contract.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        # Agent writes "healthy" → mapped to "strong" (canonical per quick_market_check.py)
+        result = mod.fill_contract(
+            {"support_level": "strong", "price_band_health": "healthy"}, "sellersprite"
+        )
+        self.assertEqual(result["price_band_health"], "strong")
+
+    def test_price_band_health_watch_mapped_to_moderate(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "fill_quick_packet_contract",
+            Path(__file__).resolve().parents[1] / "scripts" / "fill_quick_packet_contract.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        result = mod.fill_contract(
+            {"support_level": "strong", "price_band_health": "watch"}, "sellersprite"
+        )
+        self.assertEqual(result["price_band_health"], "moderate")
+
+    def test_boundary_enum_partial_mapped(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "fill_quick_packet_contract",
+            Path(__file__).resolve().parents[1] / "scripts" / "fill_quick_packet_contract.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        # "partial" is mapped to "moderate" by the boundary map
+        result = mod.fill_contract(
+            {"support_level": "strong", "category_boundary_clarity": "partial"}, "sellersprite"
+        )
+        self.assertEqual(result["category_boundary_clarity"], "moderate")
+
+
+class RouteMatrixForceConfirmTests(unittest.TestCase):
+    """验证 --force-confirm 绕过 needs_user_review 检查。"""
+
+    def test_force_confirm_selects_with_support(self):
+        from packages.research_core.pipeline.build_route_matrix_confirmation import _selection_status
+        candidate = {
+            "readiness_status": "needs_user_review",
+            "support_level": "strong",
+        }
+        # Without force_confirm → rejected
+        self.assertEqual(_selection_status(candidate, "warning"), "rejected")
+        # With force_confirm → selected
+        self.assertEqual(_selection_status(candidate, "warning", force_confirm=True), "selected")
+
+    def test_force_confirm_still_rejects_blocker(self):
+        from packages.research_core.pipeline.build_route_matrix_confirmation import _selection_status
+        candidate = {
+            "readiness_status": "needs_user_review",
+            "support_level": "strong",
+        }
+        self.assertEqual(_selection_status(candidate, "blocker", force_confirm=True), "rejected")
+
+    def test_force_confirm_still_rejects_excluded(self):
+        from packages.research_core.pipeline.build_route_matrix_confirmation import _selection_status
+        candidate = {
+            "readiness_status": "needs_user_review",
+            "support_level": "strong",
+            "status": "先放弃",
+        }
+        self.assertEqual(_selection_status(candidate, "warning", force_confirm=True), "rejected")
+
+
+class ExtractEvidenceAsinsFallbackTests(unittest.TestCase):
+    """验证 _extract_evidence_asins 的 free-form facts 回退。"""
+
+    def test_extracts_asins_from_freeform_facts(self):
+        from packages.research_core.pipeline.build_review_asin_batch import _extract_evidence_asins
+
+        # Agent free-form packet: no evidence_items, only facts.reference_asin_pool
+        packet = {
+            "facts": {
+                "reference_asin_pool": [
+                    {"asin": "B0AAA11111", "price": 15.99, "monthly_sales": 500},
+                    {"asin": "B0BBB22222", "price": 22.50, "monthly_sales": 1200},
+                ],
+            },
+        }
+        result = _extract_evidence_asins(packet)
+        self.assertIn("B0AAA11111", result)
+        self.assertIn("B0BBB22222", result)
+        self.assertEqual(result["B0AAA11111"]["price"], 15.99)
+
+    def test_still_extracts_from_evidence_items_first(self):
+        from packages.research_core.pipeline.build_review_asin_batch import _extract_evidence_asins
+
+        packet = {
+            "evidence_items": [
+                {
+                    "item_type": "competitor_structure",
+                    "facts": {"raw_value": [{"asin": "B0CCC33333", "price": 9.99}]},
+                },
+            ],
+            "facts": {"reference_asin_pool": [{"asin": "B0DDD44444"}]},
+        }
+        result = _extract_evidence_asins(packet)
+        self.assertIn("B0CCC33333", result)

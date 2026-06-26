@@ -272,7 +272,7 @@ class P0ContractTests(unittest.TestCase):
             self.assertTrue((run_dir / "analysis" / "analysis_packet.json").exists())
             self.assertFalse((run_dir / "analysis" / "report_data.json").exists())
             self.assertFalse(any((run_dir / "analysis").glob("*_分析报告.html")))
-            self.assertFalse(any((run_dir / "analysis").glob("*_数据回表.xlsx")))
+            self.assertFalse(any((run_dir / "analysis").glob("*_决策工具包.xlsx")))
             self.assertFalse((run_dir / "analysis" / "delivery_qa_result.json").exists())
 
 

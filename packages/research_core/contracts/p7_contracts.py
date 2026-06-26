@@ -9,7 +9,7 @@ from typing import Any
 from .validators import ContractValidationError
 
 
-P7_SCHEMA_VERSION = "p7-judgment-v1"
+P7_SCHEMA_VERSION = "p7-judgment-v2"
 P7_STAGE_ID = "stage_9_report"
 P7_ALLOWED_VERDICTS = {"go", "watch", "no_go", "blocked"}
 P7_ALLOWED_CONFIDENCE = {"high", "medium", "low"}
@@ -75,6 +75,17 @@ def validate_integrated_judgment(packet: dict[str, Any]) -> None:
             "confidence",
             "execution_provenance",
             "generated_at",
+            # v2 深度运营分析字段
+            "route_recommendation",
+            "route_tradeoff",
+            "competitor_benchmark",
+            "competitor_weakness_map",
+            "cold_start_estimate",
+            "price_band_analysis",
+            "voc_to_spec",
+            "keyword_strategy",
+            "risk_mitigation",
+            "validation_roadmap",
         ],
         "integrated_operator_judgment",
     )
@@ -159,4 +170,73 @@ def validate_integrated_judgment(packet: dict[str, Any]) -> None:
     _require_non_empty_text(
         provenance.get("execution_mode"),
         "integrated_operator_judgment.execution_provenance.execution_mode",
+    )
+
+    # v2 深度运营分析字段校验（脚本生成骨架，Agent 填充内容，允许空数组）
+    route_rec = _require_dict(
+        packet.get("route_recommendation"),
+        "integrated_operator_judgment.route_recommendation",
+    )
+    _require_list(
+        route_rec.get("routes"),
+        "integrated_operator_judgment.route_recommendation.routes",
+        min_items=1,
+    )
+
+    _require_list(
+        packet.get("competitor_benchmark"),
+        "integrated_operator_judgment.competitor_benchmark",
+        min_items=0,
+    )
+
+    _require_list(
+        packet.get("price_band_analysis"),
+        "integrated_operator_judgment.price_band_analysis",
+        min_items=0,
+    )
+
+    _require_list(
+        packet.get("voc_to_spec"),
+        "integrated_operator_judgment.voc_to_spec",
+        min_items=0,
+    )
+
+    kw_strategy = _require_dict(
+        packet.get("keyword_strategy"),
+        "integrated_operator_judgment.keyword_strategy",
+    )
+
+    _require_list(
+        packet.get("risk_mitigation"),
+        "integrated_operator_judgment.risk_mitigation",
+        min_items=0,
+    )
+
+    # v2.1 新增深度分析字段（脚本生成骨架，Agent 填充后再做完整性检查）
+    _require_list(
+        packet.get("route_tradeoff"),
+        "integrated_operator_judgment.route_tradeoff",
+        min_items=0,
+    )
+
+    _require_list(
+        packet.get("competitor_weakness_map"),
+        "integrated_operator_judgment.competitor_weakness_map",
+        min_items=0,
+    )
+
+    cold_start = _require_dict(
+        packet.get("cold_start_estimate"),
+        "integrated_operator_judgment.cold_start_estimate",
+    )
+    if cold_start.get("budget_range"):
+        _require_non_empty_text(
+            cold_start.get("budget_range"),
+            "integrated_operator_judgment.cold_start_estimate.budget_range",
+        )
+
+    _require_list(
+        packet.get("validation_roadmap"),
+        "integrated_operator_judgment.validation_roadmap",
+        min_items=0,
     )
