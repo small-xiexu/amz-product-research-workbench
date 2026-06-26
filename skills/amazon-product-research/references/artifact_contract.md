@@ -141,3 +141,106 @@ Stage 7 最低要求：
 - 关键词月搜、CPC、竞争量和混池标签
 - 类目淡旺季和关键词热度的边界说明
 - 热销特征、冲突证据和 `data_gaps`
+
+## Stage 4 candidate_pool.json 契约
+
+`candidate_pool.json` 由主 Agent 产出，脚本 `build_mcp_candidate_pool.py` 校验。
+
+```json
+{
+  "schema_version": "p2-mcp-candidate-pool-v1",
+  "source_stage": "market_quick_check",
+  "pool_status": "ready_for_route_matrix | needs_user_review | excluded",
+  "confidence": "high | medium | low",
+  "evidence_refs": ["<路径#片段>..."],
+  "generation_provenance": {
+    "build_strategy": "agent_generated_script_validated",
+    "...": "..."
+  },
+  "candidates": [
+    {
+      "candidate_id": "p2-01-<type>-<slug>",
+      "name": "<中文候选名称>",
+      "candidate_type": "category | keyword | asin | route_seed",
+      "status": "继续看 | 观察 | 先放弃",
+      "readiness_status": "ready_for_route_matrix | needs_user_review | excluded",
+      "reason": "<运营判断理由>",
+      "source_agents": ["<Agent 角色名>"],
+      "source_refs": ["<路径#片段>"],
+      "evidence_refs": ["<路径#片段>"],
+      "confidence": "high | medium | low",
+      "support_level": "strong | moderate | weak | negative",
+      "demand_signal_level": "strong | moderate | weak | unknown",
+      "risk_flags": ["<风险标签>"],
+      "data_gaps": ["<待补缺口>"],
+      "required_deep_dive": ["<深挖项目>"],
+      "summary_note": "<一句话总结>"
+    }
+  ],
+  "summary": {
+    "total_candidates": "<N>",
+    "continue_count": "<N>",
+    "trial_count": "<N>",
+    "watch_count": "<N>",
+    "drop_count": "<N>",
+    "key_gaps": ["<关键缺口>"],
+    "gate_result": "continue | watch | stop"
+  }
+}
+```
+
+**校验规则**（脚本执行）：
+- 结构完整性：`schema_version`、`source_stage`、`pool_status`、`evidence_refs`、`generation_provenance`、`candidates` 均不可缺
+- `pool_status` 必须是 `ready_for_route_matrix | needs_user_review | excluded`
+- 通用占位符扫描：`candidates[].name`、`candidates[].reason`、`candidates[].summary_note`、`summary.key_gaps` 等语义字段不得包含 `sellersprite|sorftime|mcp|quick_gate|workflow_state`
+- 若 `build_strategy == "agent_generated_script_validated"` 且占位符命中 → 阻断，打回 Agent 重写
+
+## Stage 5 route_matrix_confirm.json 契约
+
+`route_matrix_confirm.json` 由主 Agent 产出，脚本 `build_route_matrix_confirm.py` 校验并生成 `data_completeness_check.json`。
+
+```json
+{
+  "schema_version": "p3-route-matrix-confirm-v1",
+  "packet_id": "route_matrix_confirm",
+  "run_id": "<run_id>",
+  "source_candidate_pool": {
+    "path": "candidate_pool.json",
+    "pool_status": "<...>",
+    "candidate_count": "<N>"
+  },
+  "route_options": [
+    {
+      "route_id": "<candidate_id>",
+      "route_name": "<中文路线名称>",
+      "route_type": "类目路线 | 关键词路线 | 方向路线 | ASIN 路线",
+      "role": "排除 | 标准款候选 | 待确认 | 观察",
+      "selection_status": "selected | rejected",
+      "selection_reason": "<选择/排除理由>",
+      "gap_level": "acceptable | warning | blocker",
+      "gap_reasons": ["<缺口原因>"],
+      "top_products": ["<ASIN>"],
+      "route_summary": "<路线总结>"
+    }
+  ],
+  "selected_routes": ["<同 route_options 中 selection_status=selected 的条目>"],
+  "rejected_routes": ["<同 route_options 中 selection_status=rejected 的条目>"],
+  "decision": "confirm | revise_candidate_pool | stop",
+  "decision_reason": "<决策理由>",
+  "required_next_actions": ["<下一步动作>"],
+  "evidence_refs": ["<路径#片段>..."],
+  "voc_readiness": {
+    "status": "light_prepared | not_ready",
+    "needs_voc_validation": true,
+    "routes": ["<路线>"],
+    "sample_requirements": ["<采样要求>"]
+  }
+}
+```
+
+**校验规则**（脚本执行）：
+- 结构完整性：`route_options`、`selected_routes`、`rejected_routes`、`decision`、`decision_reason`、`required_next_actions`、`evidence_refs`、`voc_readiness` 均不可缺
+- `decision` 必须是 `confirm | revise_candidate_pool | stop`
+- `route_options` 不可为空
+- 通用占位符扫描：`route_name`、`selection_reason`、`decision_reason`、`route_summary`、`gap_reasons` 等语义字段不得包含 `sellersprite|sorftime|mcp|quick_gate|workflow_state`
+- 若 `generation_provenance.build_strategy == "agent_generated_script_validated"` 且占位符命中 → 阻断，打回 Agent 重写

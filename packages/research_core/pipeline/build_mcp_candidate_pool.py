@@ -28,6 +28,30 @@ P2_SCHEMA_VERSION = "p2-mcp-candidate-pool-v1"
 STAGE_ID_CANDIDATE_POOL = "stage_4_candidate_pool"
 QUICK_CHECK_DIR = "quick_check"
 
+_ALLOW_GENERATION_FALLBACK = False
+
+_TECHNICAL_KEY_PATTERNS = (
+    "source_name", "source_agent", "source_ref", "source_refs",
+    "evidence_ref", "evidence_refs", "source_packet_path",
+    "schema_version", "packet_id", "packet_version",
+    "pool_id", "data_sources", "generation_provenance", "metadata",
+    "execution_provenance", "metric_basis", "demand_evidence",
+    "competition_structure", "source_seed", "source_candidate_pool",
+    "source_brief", "source_packets",
+    "candidate_type", "candidate_id", "pool_status", "readiness_status",
+    "support_level", "demand_signal_level", "mixed_pool_level",
+    "price_band_health", "category_boundary_clarity",
+    "confidence", "status", "selection_status", "gap_level",
+    "route_id", "route_type", "recommended_role", "role",
+    "voc_readiness", "data_completeness_ref", "route_matrix_ref",
+    "confirmed_boundary", "category_selection_derivation",
+)
+
+_PLACEHOLDER_PATTERN = re.compile(
+    r"sellersprite|sorftime|mcp|quick_gate|workflow_state|candidate\d*",
+    re.IGNORECASE,
+)
+
 
 class P2ContractError(ContractValidationError):
     """Raised when P2 candidate-pool artifacts violate the frozen contract."""
@@ -49,30 +73,52 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def run_candidate_pool(run_dir: Path | str) -> dict[str, Path]:
-    """Generate candidate_pool.json and update progress.json for P2."""
+def run_candidate_pool(run_dir: Path | str, allow_generation: bool | None = None) -> dict[str, Path]:
+    """Validate candidate_pool.json (Agent-generated) and update progress.json for P2.
+
+    When allow_generation is True (or module flag _ALLOW_GENERATION_FALLBACK is True),
+    falls back to the legacy generation path from quick packets and gate.
+    """
     run_path = Path(run_dir).expanduser().resolve()
     if not run_path.exists():
         raise P2ContractError(f"run_dir not found: {run_path}")
 
+    gen = allow_generation if allow_generation is not None else _ALLOW_GENERATION_FALLBACK
     progress_path = run_path / "progress.json"
+    candidate_pool_path = run_path / "candidate_pool.json"
+
     try:
         workflow_state = load_json(run_path / "workflow_state.json")
         validate_workflow_state(workflow_state)
         _write_running_progress(run_path, workflow_state, progress_path)
+
+        if gen:
+            packets = {
+                source_name: _load_quick_packet(run_path, source_name)
+                for source_name in SOURCE_CONFIG
+            }
+            gate = _load_quick_gate(run_path)
+            candidate_pool = build_candidate_pool(workflow_state, packets, gate, run_path)
+            _write_json(candidate_pool_path, candidate_pool)
+        else:
+            if not candidate_pool_path.exists() or candidate_pool_path.stat().st_size == 0:
+                raise P2ContractError(
+                    "candidate_pool.json 应由主 Agent 生成，脚本仅负责校验。"
+                    "请先运行 Stage 4 Agent 产出候选池。"
+                )
+            candidate_pool = load_json(candidate_pool_path)
+            candidate_pool.setdefault("generation_provenance", {})
+            if isinstance(candidate_pool.get("generation_provenance"), dict):
+                candidate_pool["generation_provenance"]["build_strategy"] = "agent_generated_script_validated"
+
+        validate_candidate_pool(candidate_pool)
+        validate_candidate_pool_contract(candidate_pool)
 
         packets = {
             source_name: _load_quick_packet(run_path, source_name)
             for source_name in SOURCE_CONFIG
         }
         gate = _load_quick_gate(run_path)
-
-        candidate_pool = build_candidate_pool(workflow_state, packets, gate, run_path)
-        validate_candidate_pool(candidate_pool)
-        validate_candidate_pool_contract(candidate_pool)
-
-        candidate_pool_path = run_path / "candidate_pool.json"
-        _write_json(candidate_pool_path, candidate_pool)
 
         progress = build_success_progress(
             workflow_state,
@@ -180,6 +226,46 @@ def validate_candidate_pool_contract(candidate_pool: dict[str, Any]) -> None:
         raise P2ContractError("candidate_pool.generation_provenance must be an object")
     if candidate_pool.get("pool_status") not in {"ready_for_route_matrix", "needs_user_review", "excluded"}:
         raise P2ContractError("candidate_pool.pool_status is invalid")
+
+    build_strategy = str(
+        candidate_pool.get("generation_provenance", {}).get("build_strategy", "")
+    )
+    if build_strategy == "agent_generated_script_validated":
+        _check_placeholders(candidate_pool, "candidate_pool")
+
+
+def _check_placeholders(data: dict[str, Any], label: str, path: str = "") -> None:
+    """Scan semantic text fields for generic placeholders (internal tool names, etc.).
+
+    Skips known metadata/tracking keys where internal names are legitimate
+    (source_name, evidence_refs, schema_version, etc.).
+    """
+
+    def _skip_key(key: str) -> bool:
+        return key in _TECHNICAL_KEY_PATTERNS or key.startswith("_")
+
+    def _scan(value: Any, current_path: str, parent_key: str) -> list[str]:
+        hits: list[str] = []
+        if isinstance(value, str):
+            if _PLACEHOLDER_PATTERN.search(value):
+                hits.append(f"{current_path}: {value!r}")
+        elif isinstance(value, dict):
+            for key, val in value.items():
+                if _skip_key(key):
+                    continue
+                hits.extend(_scan(val, f"{current_path}.{key}", key))
+        elif isinstance(value, list):
+            for i, item in enumerate(value):
+                hits.extend(_scan(item, f"{current_path}[{i}]", ""))
+        return hits
+
+    hits = _scan(data, path or label, "")
+    if hits:
+        raise P2ContractError(
+            f"{label} 包含内部术语占位符，疑似 Agent 未正确产出："
+            + "; ".join(hits[:10])
+            + ("..." if len(hits) > 10 else "")
+        )
 
 
 def build_success_progress(

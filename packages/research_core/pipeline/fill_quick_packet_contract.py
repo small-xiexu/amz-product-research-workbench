@@ -136,5 +136,11 @@ def fill_contract(agent_output: dict, source: str, snapshot_dir: str | None = No
     if not isinstance(seeds, list):
         seeds = []
     packet.setdefault("candidate_seeds", seeds)
+    if len(seeds) == 0:
+        facts = packet.get("facts", [])
+        if not isinstance(facts, list):
+            facts = []
+        packet["facts"] = facts
+        packet["_candidate_seeds_empty"] = True
 
     return packet

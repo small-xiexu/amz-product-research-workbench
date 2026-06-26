@@ -9,8 +9,13 @@ from packages.research_core.pipeline.build_route_matrix_confirmation import (
     P3ContractError,
     run_route_matrix_confirmation,
 )
+from packages.research_core.pipeline import build_mcp_candidate_pool
+from packages.research_core.pipeline import build_route_matrix_confirmation
 from packages.research_core.pipeline.build_mcp_candidate_pool import run_candidate_pool
 from packages.research_core.pipeline.quick_market_check import run_quick_market_check
+
+build_mcp_candidate_pool._ALLOW_GENERATION_FALLBACK = True
+build_route_matrix_confirmation._ALLOW_GENERATION_FALLBACK = True
 
 
 ROOT = Path(__file__).resolve().parents[1]

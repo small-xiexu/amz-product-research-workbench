@@ -23,8 +23,8 @@ Stage 1 (意图收集) → Stage 2-3 (快验+门控) → Stage 4 (候选池) →
 |---|---|---|---|---|
 | Stage 1 意图收集 | 不 spawn | 主 Agent 主动推进 | 主 Agent | `workflow_state.json`、`progress.json` |
 | Stage 2-3 快验+门控 | **强制并行 spawn** | Stage 1 done | 卖家精灵 Quick Agent、Sorftime Quick Agent | `sellersprite_quick_evidence_packet.json`、`sorftime_quick_evidence_packet.json`、`quick_market_gate.json` |
-| Stage 4 候选池 | 不 spawn | Stage 3 gate=continue | 脚本 `build_mcp_candidate_pool.py` | `candidate_pool.json` |
-| Stage 5 路线确认 | 不 spawn | Stage 4 done + 运营确认 | 主 Agent + 脚本 `build_route_matrix_confirm.py` | `route_matrix_confirm.json` |
+| Stage 4 候选池 | 不 spawn | Stage 3 gate=continue | 主 Agent 产出 candidate_pool.json → 脚本 `build_mcp_candidate_pool.py` 合约校验 | `candidate_pool.json` |
+| Stage 5 路线确认 | 不 spawn | Stage 4 done + 运营确认 | 主 Agent 产出 route_matrix_confirm.json → 脚本 `build_route_matrix_confirm.py` 合约校验 + `data_completeness_check.json` | `route_matrix_confirm.json`、`data_completeness_check.json` |
 | Stage 6 双 MCP 深挖 | **强制并行 spawn** | Stage 5 done | Market Structure Agent、Search Demand Agent | `market_structure_evidence_packet.json`、`search_demand_evidence_packet.json` |
 | Stage 7 冲突复核 | 不 spawn（脚本执行） | Stage 6 done | 脚本 `build_conflict_review.py` | `conflict_resolution_packet.json` |
 | Stage 8 VOC | 推荐 spawn | Stage 7 done + 运营导出评论 | VOC Evidence Agent + 脚本 `build_review_voc_package.py` | `voc_gate.json`、`review_voc_package.json`、`voc_evidence_packet.json` |

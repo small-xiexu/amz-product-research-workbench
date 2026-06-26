@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,12 @@ from packages.research_core.contracts.validators import (
     _require_fields as _shared_require_fields,
 )
 from packages.research_core.pipeline._utils import as_list, compact_list, first_text, load_json, public_text, _now_iso, _unique_texts, _write_json
-from packages.research_core.pipeline.build_mcp_candidate_pool import QUICK_CHECK_DIR, SOURCE_CONFIG
+from packages.research_core.pipeline.build_mcp_candidate_pool import (
+    QUICK_CHECK_DIR,
+    SOURCE_CONFIG,
+    _PLACEHOLDER_PATTERN,
+    _TECHNICAL_KEY_PATTERNS,
+)
 from packages.research_core.pipeline.quick_market_check import validate_progress, validate_quick_gate, validate_quick_packet
 
 
@@ -27,6 +33,8 @@ ROUTE_MATRIX_OUTPUT_NAME = "route_matrix_confirm.json"
 DATA_COMPLETENESS_OUTPUT_NAME = "data_completeness_check.json"
 ALLOWED_DECISIONS = {"confirm", "revise_candidate_pool", "stop"}
 COMPLETENESS_LEVELS = ("acceptable", "warning", "blocker")
+
+_ALLOW_GENERATION_FALLBACK = False
 
 
 class P3ContractError(ContractValidationError):
@@ -51,13 +59,16 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def run_route_matrix_confirmation(run_dir: Path | str, force_confirm: bool = False) -> dict[str, Path]:
+def run_route_matrix_confirmation(run_dir: Path | str, force_confirm: bool = False, allow_generation: bool | None = None) -> dict[str, Path]:
     run_path = Path(run_dir).expanduser().resolve()
     if not run_path.exists():
         raise P3ContractError(f"run_dir not found: {run_path}")
 
+    gen = allow_generation if allow_generation is not None else _ALLOW_GENERATION_FALLBACK
     progress_path = run_path / "progress.json"
     candidate_pool_path = run_path / "candidate_pool.json"
+    route_matrix_path = run_path / ROUTE_MATRIX_OUTPUT_NAME
+    data_completeness_path = run_path / DATA_COMPLETENESS_OUTPUT_NAME
 
     try:
         if not candidate_pool_path.exists():
@@ -70,24 +81,44 @@ def run_route_matrix_confirmation(run_dir: Path | str, force_confirm: bool = Fal
         quick_packets = _load_quick_packets(run_path)
         quick_gate, quick_gate_present = _load_quick_gate(run_path)
 
-        route_packet, completeness, progress = build_route_matrix_confirmation_bundle(
-            run_path,
-            workflow_state,
-            candidate_pool,
-            quick_packets,
-            quick_gate,
-            quick_gate_present,
-            progress,
-            force_confirm=force_confirm,
-        )
+        if gen:
+            route_packet, completeness, progress = build_route_matrix_confirmation_bundle(
+                run_path,
+                workflow_state,
+                candidate_pool,
+                quick_packets,
+                quick_gate,
+                quick_gate_present,
+                progress,
+                force_confirm=force_confirm,
+            )
+            _write_json(route_matrix_path, route_packet)
+            _write_json(data_completeness_path, completeness)
+        else:
+            if not route_matrix_path.exists() or route_matrix_path.stat().st_size == 0:
+                raise P3ContractError(
+                    "route_matrix_confirm.json 应由主 Agent 生成，脚本仅负责校验。"
+                    "请先运行 Stage 5 Agent 产出路线矩阵确认。"
+                )
+            route_packet = load_json(route_matrix_path)
+            completeness = _build_data_completeness_check(
+                run_path,
+                workflow_state,
+                candidate_pool,
+                quick_packets,
+                quick_gate,
+                quick_gate_present,
+                route_packet.get("route_checks", route_packet.get("route_options", [])),
+            )
+            _write_json(data_completeness_path, completeness)
+            route_packet.setdefault("generation_provenance", {})
+            if isinstance(route_packet.get("generation_provenance"), dict):
+                route_packet["generation_provenance"]["build_strategy"] = "agent_generated_script_validated"
+
         validate_route_matrix_confirm(route_packet)
         validate_data_completeness_check(completeness)
         validate_progress(progress)
 
-        route_matrix_path = run_path / ROUTE_MATRIX_OUTPUT_NAME
-        data_completeness_path = run_path / DATA_COMPLETENESS_OUTPUT_NAME
-        _write_json(route_matrix_path, route_packet)
-        _write_json(data_completeness_path, completeness)
         _write_json(progress_path, progress)
 
         return {
@@ -262,6 +293,12 @@ def validate_route_matrix_confirm(route_packet: dict[str, Any]) -> None:
     if not isinstance(route_packet.get("voc_readiness"), dict):
         raise P3ContractError("route_matrix_confirm.voc_readiness must be an object")
 
+    build_strategy = str(
+        route_packet.get("generation_provenance", {}).get("build_strategy", "")
+    )
+    if build_strategy == "agent_generated_script_validated":
+        _check_route_placeholders(route_packet)
+
 
 def validate_data_completeness_check(check: dict[str, Any]) -> None:
     required = [
@@ -285,6 +322,36 @@ def validate_data_completeness_check(check: dict[str, Any]) -> None:
         raise P3ContractError("data_completeness_check.route_checks must not be empty")
     if not isinstance(check.get("evidence_refs"), list) or not check["evidence_refs"]:
         raise P3ContractError("data_completeness_check.evidence_refs must not be empty")
+
+
+def _check_route_placeholders(data: dict[str, Any]) -> None:
+    """Scan semantic fields in route_matrix_confirm for internal tool name placeholders."""
+
+    def _skip_key(key: str) -> bool:
+        return key in _TECHNICAL_KEY_PATTERNS or key.startswith("_")
+
+    def _scan(value: Any, current_path: str, parent_key: str) -> list[str]:
+        hits: list[str] = []
+        if isinstance(value, str):
+            if _PLACEHOLDER_PATTERN.search(value):
+                hits.append(f"{current_path}: {value!r}")
+        elif isinstance(value, dict):
+            for key, val in value.items():
+                if _skip_key(key):
+                    continue
+                hits.extend(_scan(val, f"{current_path}.{key}", key))
+        elif isinstance(value, list):
+            for i, item in enumerate(value):
+                hits.extend(_scan(item, f"{current_path}[{i}]", ""))
+        return hits
+
+    hits = _scan(data, "route_matrix_confirm", "")
+    if hits:
+        raise P3ContractError(
+            "route_matrix_confirm 包含内部术语占位符，疑似 Agent 未正确产出："
+            + "; ".join(hits[:10])
+            + ("..." if len(hits) > 10 else "")
+        )
 
 
 def _assess_route_completeness(

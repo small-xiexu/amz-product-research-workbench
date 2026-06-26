@@ -23,6 +23,7 @@
 ┌─ Stage 1  意图收集 ─────────────────────────── 【运营参与】
 ├─ Stage 2  双 Agent 市场快验（SellerSprite + Sorftime 并行）
 ├─ Stage 3  快验门控（Quick Gate: continue/watch/stop）
+├─ 快验后方向分析 ────────────────────────────── 【运营参与】
 ├─ Stage 4  候选池生成 ────────────────────────── 【运营参与】
 ├─ Stage 5  路线矩阵确认 ──────────────────────── 【运营参与】
 ├─ Stage 6  双 MCP 深挖（Market Structure + Search Demand 并行）
@@ -36,7 +37,7 @@
 └─ Stage 13 QA 双层门禁 ───────────────────────── 交付 HTML + XLSX
 ```
 
-运营全程只需参与 3 次：回答意图 → 确认路线 → 导出评论。其余全自动。
+运营全程参与：回答意图 → 确认方向 → 确认候选池 → 确认路线 → 导出评论。其余全自动。
 
 ---
 
@@ -103,9 +104,9 @@
 
 **不问**：工厂、店铺、成本、物流费用等后置落地变量。
 
-收集后输出候选假设卡：推荐方向 + 备选方向 + 已排除方向 + 混池风险预警。
+收集后输出意图汇总：逐条回填运营回答，不做方向分析、不列产品形态。
 
-**暂停点 A**：运营确认方向。
+**暂停点 A**：运营确认意图汇总，确认后立即进入 Stage 2 快验。
 
 ---
 
@@ -141,28 +142,49 @@ python3 scripts/build_quick_market_gate.py <run_dir>
 2. `fill_quick_packet_contract.py` ×2 — 契约补齐
 3. `build_quick_market_gate.py` — Quick Gate 门控
 
+`stop` → 终止流程。`continue` / `watch` → 进入方向分析。
+
+---
+
+### 快验后方向分析
+
+**必须在 Stage 4 之前执行。** Gate 结果为 `continue` 或 `watch` 时，主 Agent 读取双 Quick Packet 中的实际市场数据，分析并输出方向建议：
+
+- 推荐方向（基于数据的品类机会判断）
+- 备选方向（数据有信号但需更深入验证）
+- 已排除方向（数据不支持，含排除理由）
+- 混池风险预警（从实际类目/关键词数据中识别）
+
+不在此阶段锁定路线——路线拆分在 Stage 5，由候选池 ASIN 实际特征驱动。此处只做大方向判断，让运营知道快验后看到了什么机会。
+
+**暂停点 A2**：运营确认方向，选择进入候选池构建的范围。
+
 ---
 
 ### Stage 4 · 候选池生成
 
-从快验结果提取候选 ASIN、类目、关键词，生成 `candidate_pool.json`。
+主 Agent 从快验结果提取候选 ASIN、类目、关键词，产出 `candidate_pool.json`。脚本仅负责合约校验。
 
 ```bash
 # 初始化 workflow_state（如果尚未存在）
 python3 scripts/init_workflow_state.py <run_dir> --intent "品类方向描述"
 
-# 生成候选池
+# 校验候选池（Agent 必须先产出 candidate_pool.json）
 python3 scripts/build_mcp_candidate_pool.py <run_dir>
 ```
+
+脚本行为：
+- 检查 `candidate_pool.json` 是否已存在且非空。不存在 → 报错 `candidate_pool.json 应由主 Agent 生成，脚本仅负责校验。请先运行 Stage 4 Agent 产出候选池。`
+- 通过合约校验（结构完整性 + 通用占位符扫描 `sellersprite|sorftime|mcp|quick_gate|workflow_state`）后更新进度。
+- 不生成、不新增内容。`generation_provenance.build_strategy` 标记为 `agent_generated_script_validated`。
 
 > 也可用编排脚本一键跑通 Stage 1-4：`python3 scripts/run_pipeline.py <run_dir> --intent "品类方向"`
 
 **暂停点 B**：运营确认候选池，选择进入深挖的方向。
 
 **本阶段执行顺序**：
-1. `init_workflow_state.py` — 初始化 workflow_state（如果尚未存在）
-2. `build_mcp_candidate_pool.py` — 生成候选池
-3. （可选）`run_pipeline.py` 可一键跑通 Stage 1-4
+1. Agent 产出 `candidate_pool.json`
+2. `build_mcp_candidate_pool.py` — 合约校验 + 进度更新
 
 ---
 
@@ -183,10 +205,16 @@ python3 scripts/build_mcp_candidate_pool.py <run_dir>
 python3 scripts/build_route_matrix_confirm.py <run_dir>
 ```
 
+脚本行为：
+- 检查 `route_matrix_confirm.json` 是否已存在且非空。不存在 → 报错 `route_matrix_confirm.json 应由主 Agent 生成，脚本仅负责校验。请先运行 Stage 5 Agent 产出路线矩阵确认。`
+- 通过合约校验（结构完整性 + 通用占位符扫描）后生成 `data_completeness_check.json` 并更新进度。
+- 不生成路线分析内容。`generation_provenance.build_strategy` 标记为 `agent_generated_script_validated`。
+
 **暂停点 C**：运营确认路线矩阵，锁定后不再改。
 
 **本阶段执行顺序**：
-1. `build_route_matrix_confirm.py` — 生成路线矩阵（可选 `--force-confirm` 跳过人工确认）
+1. Agent 产出 `route_matrix_confirm.json`
+2. `build_route_matrix_confirm.py` — 合约校验 + 数据完整性检查 + 进度更新
 
 ---
 
@@ -449,8 +477,9 @@ pass → 交付。fail → 按失败类型智能打回：
 
 | 暂停点 | 阶段 | 等什么 |
 |---|---|---|
-| A | Stage 1 | 运营确认方向 |
-| B | Stage 4 | 运营确认候选池 |
+| A | Stage 1 | 运营确认意图汇总 |
+| B1 | 快验后方向分析 | 运营确认方向 |
+| B2 | Stage 4 | 运营确认候选池 |
 | C | Stage 5 | 运营确认路线矩阵 |
 | D | Stage 8 | 运营导出评论文件 |
 
@@ -498,7 +527,8 @@ pass → 交付。fail → 按失败类型智能打回：
 
 ## 完成标准（DoD）
 
-- [ ] Stage 1：候选假设卡已输出，运营已确认。
+- [ ] Stage 1：意图汇总已输出，运营已确认。
+- [ ] 快验后方向分析：方向建议已输出（基于实际数据），运营已确认。
 - [ ] Stage 2-3：双 Quick packet 已生成，Quick Gate 通过。
 - [ ] Stage 4：候选池已生成，运营已确认。
 - [ ] Stage 5：路线矩阵已确认，参考 ASIN Top5 已锁定。
