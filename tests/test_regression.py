@@ -402,7 +402,7 @@ class RegressionTests(unittest.TestCase):
                         "missing_inputs": ["评论插件导出数据"],
                         "next_actions": [
                             {
-                                "stage": "stage_6_voc_waiting_review_export",
+                                "stage": "stage_7_voc_waiting_review_export",
                                 "question": "等待评论导出",
                                 "recommended_action": {
                                     "type": "review_crawl",

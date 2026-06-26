@@ -14,6 +14,8 @@ class ContractValidationError(ValueError):
     """Raised when a workflow handoff package misses required structure."""
 
 
+# ── Public validators ────────────────────────────────────────────────────
+
 def validate_import_manifest(manifest: dict[str, Any]) -> None:
     """LEGACY: validate import_manifest.json structure. 仅用于 MCP 不可用时的 fallback 路径。"""
     _require_dict(manifest, "import_manifest")
@@ -86,18 +88,65 @@ def validate_workflow_state(workflow_state: dict[str, Any]) -> None:
         _require_non_empty(decision.get("decision"), f"{path}.decision")
 
 
-def _require_dict(value: Any, path: str) -> dict[str, Any]:
+# ── Shared validators (parameterized on error class) ─────────────────────
+# Each per-stage contract module imports these and calls with error_cls=ItsError.
+# The error_cls default (ContractValidationError) keeps existing callers working.
+
+def _require_field(value: dict[str, Any], field: str, path: str, *, error_cls: type[Exception] = ContractValidationError) -> Any:
+    if field not in value:
+        raise error_cls(f"{path} missing required field: {field}")
+    return value[field]
+
+
+def _require_fields(value: dict[str, Any], fields: list[str] | tuple[str, ...], path: str, *, error_cls: type[Exception] = ContractValidationError) -> None:
+    missing = [field for field in fields if field not in value]
+    if missing:
+        raise error_cls(f"{path} missing required fields: {', '.join(missing)}")
+
+
+def _require_dict(value: Any, path: str, *, error_cls: type[Exception] = ContractValidationError) -> dict[str, Any]:
     if not isinstance(value, dict):
-        raise ContractValidationError(f"{path} must be an object")
+        raise error_cls(f"{path} must be an object")
     return value
 
 
-def _require_list(value: Any, path: str) -> list[Any]:
+def _require_list(value: Any, path: str, *, min_items: int = 0, error_cls: type[Exception] = ContractValidationError) -> list[Any]:
     if not isinstance(value, list):
-        raise ContractValidationError(f"{path} must be a list")
+        raise error_cls(f"{path} must be a list")
+    if len(value) < min_items:
+        raise error_cls(f"{path} must contain at least {min_items} item(s)")
     return value
 
 
-def _require_non_empty(value: Any, path: str) -> None:
+def _require_non_empty(value: Any, path: str, *, error_cls: type[Exception] = ContractValidationError) -> None:
     if value is None or (isinstance(value, str) and not value.strip()):
-        raise ContractValidationError(f"{path} must not be empty")
+        raise error_cls(f"{path} must not be empty")
+
+
+def _require_non_empty_text(value: Any, path: str, *, error_cls: type[Exception] = ContractValidationError) -> str:
+    if value is None:
+        raise error_cls(f"{path} must not be empty")
+    text = str(value).strip()
+    if not text:
+        raise error_cls(f"{path} must not be empty")
+    return text
+
+
+def _require_bool(value: Any, path: str, *, error_cls: type[Exception] = ContractValidationError) -> None:
+    if not isinstance(value, bool):
+        raise error_cls(f"{path} must be a boolean")
+
+
+def _require_confidence(value: Any, path: str, *, error_cls: type[Exception] = ContractValidationError) -> None:
+    confidence = _require_non_empty_text(value, path, error_cls=error_cls)
+    if confidence not in {"high", "medium", "low"}:
+        raise error_cls(f"{path} must be high, medium, or low")
+
+
+def _require_string_list(value: Any, path: str, *, min_items: int = 0, error_cls: type[Exception] = ContractValidationError) -> list[str]:
+    items = _require_list(value, path, min_items=min_items, error_cls=error_cls)
+    result: list[str] = []
+    for index, item in enumerate(items):
+        text = _require_non_empty_text(item, f"{path}[{index}]", error_cls=error_cls)
+        result.append(text)
+    return result

@@ -9,10 +9,14 @@ from typing import Any
 
 STAGE_ORDER = (
     "stage_1_inputs",
+    "stage_2_market_quick_check",
+    "stage_3_quick_gate",
     "stage_4_candidate_pool",
-    "stage_5_route_calibration",
-    "stage_6_voc",
-    "stage_7_analysis",
+    "stage_5_route_matrix",
+    "stage_6_deep_dive",
+    "stage_7_voc_gate",
+    "stage_8_evaluation",
+    "stage_9_report",
 )
 
 
@@ -25,7 +29,7 @@ def audit_run_status(run_dir: Path | str) -> dict[str, Any]:
 
     artifacts = build_artifact_status(run_path)
     source_quality = build_source_quality(run_path)
-    stage_checks = build_stage_checks(artifacts, report_data, qa_result)
+    stage_checks = build_stage_checks(run_path, artifacts, report_data, qa_result)
     current_stage = infer_current_stage(stage_checks)
     blockers = build_blockers(source_quality, stage_checks, qa_result, artifacts)
     next_actions = build_next_actions(blockers, stage_checks)
@@ -66,9 +70,13 @@ def build_artifact_status(run_dir: Path) -> dict[str, dict[str, Any]]:
     paths = {
         "candidate_pool": run_dir / "candidate_pool.json",
         "route_matrix_confirm": run_dir / "route_matrix_confirm.json",
+        "ss_quick_packet": run_dir / "sellersprite_quick_evidence_packet.json",
+        "sf_quick_packet": run_dir / "sorftime_quick_evidence_packet.json",
         "market_structure_packet": run_dir / "market_structure" / "market_structure_evidence_packet.json",
         "search_demand_packet": run_dir / "search_demand" / "search_demand_evidence_packet.json",
         "review_voc_packet": run_dir / "review_voc" / "voc_evidence_packet.json",
+        "evaluation_summary": run_dir / "evaluation_summary.json",
+        "integrated_judgment": run_dir / "integrated_operator_judgment.json",
         "sorftime_verification": run_dir / "mcp" / "sorftime_verification.json",
         "analysis_report_data": run_dir / "analysis" / "report_data.json",
         "analysis_html": _find_analysis_file(run_dir, "_分析报告.html"),
@@ -122,31 +130,36 @@ def build_source_quality(run_dir: Path) -> dict[str, Any]:
 
 
 def build_stage_checks(
+    run_path: Path,
     artifacts: dict[str, dict[str, Any]],
     report_data: dict[str, Any],
     qa_result: dict[str, Any],
 ) -> list[dict[str, Any]]:
     has_inputs = artifacts["candidate_pool"]["exists"] or artifacts["market_structure_packet"]["exists"]
+    has_quick_check = artifacts["ss_quick_packet"]["exists"] or artifacts["sf_quick_packet"]["exists"]
+    has_quick_gate = _quick_gate_passed(run_path)
     has_candidate = artifacts["candidate_pool"]["exists"] and bool(
         (load_json(Path(artifacts["candidate_pool"]["path"]))).get("candidates")
     )
     has_route = artifacts["route_matrix_confirm"]["exists"]
+    has_deep_dive = artifacts["market_structure_packet"]["exists"] and artifacts["search_demand_packet"]["exists"]
     has_voc = artifacts["review_voc_packet"]["exists"]
+    has_evaluation = artifacts["evaluation_summary"]["exists"]
+    has_judgment = artifacts["integrated_judgment"]["exists"]
     has_report = artifacts["analysis_report_data"]["exists"] and bool(report_data.get("hero"))
     has_html = artifacts["analysis_html"]["exists"]
     has_xlsx = artifacts["analysis_xlsx"]["exists"]
     qa_passed = qa_result.get("status") == "pass"
-    stage_7_artifacts_exist = has_report and has_html and has_xlsx
-    stage_7_done = stage_7_artifacts_exist and qa_passed
+    stage_9_artifacts_exist = has_report and has_html and has_xlsx
+    stage_9_done = stage_9_artifacts_exist and qa_passed
 
     if qa_passed:
-        stage_7_evidence = "市场分析报告已生成并通过 QA"
-    elif stage_7_artifacts_exist:
-        # QA 文件缺失或未通过：artifact 存在但不满足交付标准
+        stage_9_evidence = "市场分析报告已生成并通过 QA"
+    elif stage_9_artifacts_exist:
         qa_exists = bool(qa_result)
-        stage_7_evidence = "市场分析报告已生成（QA 未通过）" if qa_exists else "市场分析报告已生成（QA 未执行，请运行 build_analysis_report.py）"
+        stage_9_evidence = "市场分析报告已生成（QA 未通过）" if qa_exists else "市场分析报告已生成（QA 未执行，请运行 build_analysis_report.py）"
     else:
-        stage_7_evidence = ""
+        stage_9_evidence = ""
 
     return [
         stage_check(
@@ -156,27 +169,51 @@ def build_stage_checks(
             "请运营导出数据到 inputs/seller_sprite 或 inputs/reviews。",
         ),
         stage_check(
+            "stage_2_market_quick_check",
+            has_quick_check,
+            "双源市场快验已完成（SellerSprite + Sorftime）",
+            "运行快验 Agent 生成 quick evidence packet。",
+        ),
+        stage_check(
+            "stage_3_quick_gate",
+            has_quick_gate,
+            "快验门控已通过",
+            "快验门控未通过或未执行。",
+        ),
+        stage_check(
             "stage_4_candidate_pool",
             artifacts["candidate_pool"]["exists"],
             "候选品池已生成",
             "运行候选池构建或 AI 交互生成候选。",
         ),
         stage_check(
-            "stage_5_route_calibration",
+            "stage_5_route_matrix",
             has_route,
             "路线矩阵已确认",
             "生成 route_matrix_confirm.json。",
         ),
         stage_check(
-            "stage_6_voc",
+            "stage_6_deep_dive",
+            has_deep_dive,
+            "双 MCP 深挖已完成（Market Structure + Search Demand）",
+            "运行双源 deep dive 脚本。",
+        ),
+        stage_check(
+            "stage_7_voc_gate",
             has_voc,
             "评论 VOC 证据已生成",
             "等待评论分析完成，生成 voc_evidence_packet.json。",
         ),
         stage_check(
-            "stage_7_analysis",
-            stage_7_done,
-            stage_7_evidence,
+            "stage_8_evaluation",
+            has_evaluation,
+            "六维评价已完成",
+            "运行 evaluation summary 生成。",
+        ),
+        stage_check(
+            "stage_9_report",
+            stage_9_done,
+            stage_9_evidence,
             "运行 build_analysis_report.py 或 AI 手写报告。",
         ),
     ]
@@ -211,12 +248,23 @@ def infer_current_stage(stage_checks: list[dict[str, Any]]) -> dict[str, Any]:
 def stage_label(stage: str) -> str:
     return {
         "stage_1_inputs": "Stage 1 数据输入",
+        "stage_2_market_quick_check": "Stage 2 市场快验",
+        "stage_3_quick_gate": "Stage 3 快验门控",
         "stage_4_candidate_pool": "Stage 4 候选品池",
-        "stage_5_route_calibration": "Stage 5 路线确认",
-        "stage_6_voc": "Stage 6 评论 VOC",
-        "stage_7_analysis": "Stage 7 分析报告",
+        "stage_5_route_matrix": "Stage 5 路线确认",
+        "stage_6_deep_dive": "Stage 6 双源深挖",
+        "stage_7_voc_gate": "Stage 7 VOC 门控",
+        "stage_8_evaluation": "Stage 8 六维评价",
+        "stage_9_report": "Stage 9 报告交付",
         "completed": "全部完成",
     }.get(stage, stage or "未知阶段")
+
+
+def _quick_gate_passed(run_path: Path) -> bool:
+    progress = load_json(run_path / "progress.json")
+    stages = progress.get("stages", {})
+    gate = stages.get("stage_3_quick_gate", {})
+    return gate.get("status") == "completed"
 
 
 def build_blockers(
@@ -239,7 +287,7 @@ def build_blockers(
         if check["status"] != "completed":
             blockers.append({
                 "type": "stage_pending",
-                "severity": "blocking" if check["stage"] in {"stage_1_inputs", "stage_7_analysis"} else "warning",
+                "severity": "blocking" if check["stage"] in {"stage_1_inputs", "stage_9_report"} else "warning",
                 "item": stage_label(check["stage"]),
                 "impact": "该阶段未完成，后续阶段无法推进。",
                 "next_step": check["next_step"],

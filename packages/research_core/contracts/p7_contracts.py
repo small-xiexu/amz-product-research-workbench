@@ -6,7 +6,14 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .validators import ContractValidationError
+from .validators import (
+    ContractValidationError,
+    _require_field as _shared_require_field,
+    _require_fields as _shared_require_fields,
+    _require_dict as _shared_require_dict,
+    _require_list as _shared_require_list,
+    _require_non_empty_text as _shared_require_non_empty_text,
+)
 
 
 P7_SCHEMA_VERSION = "p7-judgment-v2"
@@ -20,38 +27,23 @@ class P7ContractError(ContractValidationError):
 
 
 def _require_field(obj: dict[str, Any], field: str, path: str) -> Any:
-    if field not in obj:
-        raise P7ContractError(f"{path} missing required field: {field}")
-    return obj[field]
+    return _shared_require_field(obj, field, path, error_cls=P7ContractError)
 
 
 def _require_fields(obj: dict[str, Any], fields: list[str], path: str) -> None:
-    missing = [f for f in fields if f not in obj]
-    if missing:
-        raise P7ContractError(f"{path} missing required fields: {', '.join(missing)}")
+    _shared_require_fields(obj, fields, path, error_cls=P7ContractError)
 
 
 def _require_dict(value: Any, path: str) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise P7ContractError(f"{path} must be an object")
-    return value
+    return _shared_require_dict(value, path, error_cls=P7ContractError)
 
 
 def _require_list(value: Any, path: str, *, min_items: int = 0) -> list[Any]:
-    if not isinstance(value, list):
-        raise P7ContractError(f"{path} must be a list")
-    if len(value) < min_items:
-        raise P7ContractError(f"{path} must contain at least {min_items} item(s)")
-    return value
+    return _shared_require_list(value, path, min_items=min_items, error_cls=P7ContractError)
 
 
 def _require_non_empty_text(value: Any, path: str) -> str:
-    if value is None:
-        raise P7ContractError(f"{path} must not be empty")
-    text = str(value).strip()
-    if not text:
-        raise P7ContractError(f"{path} must not be empty")
-    return text
+    return _shared_require_non_empty_text(value, path, error_cls=P7ContractError)
 
 
 def validate_integrated_judgment(packet: dict[str, Any]) -> None:

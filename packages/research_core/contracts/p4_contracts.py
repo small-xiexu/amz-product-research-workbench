@@ -6,7 +6,19 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .validators import ContractValidationError, validate_candidate_pool, validate_workflow_state
+from .validators import (
+    ContractValidationError,
+    validate_candidate_pool,
+    validate_workflow_state,
+    _require_field as _shared_require_field,
+    _require_fields as _shared_require_fields,
+    _require_dict as _shared_require_dict,
+    _require_list as _shared_require_list,
+    _require_string_list as _shared_require_string_list,
+    _require_non_empty_text as _shared_require_non_empty_text,
+    _require_bool as _shared_require_bool,
+    _require_confidence as _shared_require_confidence,
+)
 
 
 P4_SCHEMA_VERSION = "p4-deep-contract-v1"
@@ -648,52 +660,31 @@ def _assert_exists(path: Path, label: str) -> None:
 
 
 def _require_fields(value: dict[str, Any], fields: list[str], path: str) -> None:
-    missing = [field for field in fields if field not in value]
-    if missing:
-        raise P4ContractError(f"{path} missing required fields: {', '.join(missing)}")
+    _shared_require_fields(value, fields, path, error_cls=P4ContractError)
 
 
 def _require_dict(value: Any, path: str) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise P4ContractError(f"{path} must be an object")
-    return value
+    return _shared_require_dict(value, path, error_cls=P4ContractError)
 
 
 def _require_list(value: Any, path: str, *, min_items: int = 0) -> list[Any]:
-    if not isinstance(value, list):
-        raise P4ContractError(f"{path} must be a list")
-    if len(value) < min_items:
-        raise P4ContractError(f"{path} must contain at least {min_items} item(s)")
-    return value
+    return _shared_require_list(value, path, min_items=min_items, error_cls=P4ContractError)
 
 
 def _require_string_list(value: Any, path: str, *, min_items: int = 0) -> list[str]:
-    items = _require_list(value, path, min_items=min_items)
-    result: list[str] = []
-    for index, item in enumerate(items):
-        text = _require_non_empty_text(item, f"{path}[{index}]")
-        result.append(text)
-    return result
+    return _shared_require_string_list(value, path, min_items=min_items, error_cls=P4ContractError)
 
 
 def _require_non_empty_text(value: Any, path: str) -> str:
-    if value is None:
-        raise P4ContractError(f"{path} must not be empty")
-    text = str(value).strip()
-    if not text:
-        raise P4ContractError(f"{path} must not be empty")
-    return text
+    return _shared_require_non_empty_text(value, path, error_cls=P4ContractError)
 
 
 def _require_bool(value: Any, path: str) -> None:
-    if not isinstance(value, bool):
-        raise P4ContractError(f"{path} must be a boolean")
+    _shared_require_bool(value, path, error_cls=P4ContractError)
 
 
 def _require_confidence(value: Any, path: str) -> None:
-    confidence = _require_non_empty_text(value, path)
-    if confidence not in {"high", "medium", "low"}:
-        raise P4ContractError(f"{path} must be high, medium, or low")
+    _shared_require_confidence(value, path, error_cls=P4ContractError)
 
 
 def _basis_value(value: Any) -> Any:

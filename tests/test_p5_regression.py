@@ -176,7 +176,7 @@ class P5EndToEndChainTests(unittest.TestCase):
         self.assertEqual(stage_7.get("status"), "done")
 
     def test_progress_next_action_flows_correctly(self) -> None:
-        """next_action flows P5-2 → P5-3 → stage_7_report (or stop/need_more_reviews)."""
+        """next_action flows P5-2 → P5-3 → stage_7_voc_gate (or stop/need_more_reviews)."""
         run_dir = self._seed_p4_done()
         run_review_asin_batch(run_dir)
         run_review_voc_package(run_dir, self._write_review_xlsx(35))

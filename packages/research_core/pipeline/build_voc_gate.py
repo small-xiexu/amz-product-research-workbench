@@ -561,7 +561,7 @@ def _decide_gate(
     if min_review_met and low_rating_met and route_coverage_complete and asin_role_coverage_complete and conflict_level == "none":
         reasons.append(f"VOC 证据充分：{total_reviews} 条评论，{low_rating_count} 条低分评论，路线覆盖完整。")
         reasons.append("P4 无 blocker 或 warning，可进入 Stage 7 报告。")
-        actions.append("进入 stage_7_report 正式报告生成。")
+        actions.append("进入 stage_7_voc_gate 正式报告生成。")
         return "continue", "；".join(reasons), actions
 
     # Mixed signals — if we got here with warnings/incomplete, default to watch
@@ -610,13 +610,13 @@ def _update_progress(
         next_action = {
             "type": "proceed_with_warnings",
             "description": "VOC Gate 判定为 watch — 可进入 Stage 7 报告但需标注所有警告。",
-            "stage_id": "stage_7_report",
+            "stage_id": P5_STAGE_ID,
         }
     else:
         next_action = {
             "type": "generate_report",
             "description": "VOC Gate 判定为 continue — 进入 Stage 7 正式报告生成。",
-            "stage_id": "stage_7_report",
+            "stage_id": P5_STAGE_ID,
         }
 
     return {

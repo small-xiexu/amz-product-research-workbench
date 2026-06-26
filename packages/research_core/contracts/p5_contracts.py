@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from .validators import ContractValidationError
+from .validators import (
+    ContractValidationError,
+    _require_field as _shared_require_field,
+    _require_fields as _shared_require_fields,
+    _require_dict as _shared_require_dict,
+    _require_list as _shared_require_list,
+    _require_non_empty_text as _shared_require_non_empty_text,
+)
 
 
 P5_SCHEMA_VERSION = "p5-voc-gate-v1"
@@ -210,34 +217,20 @@ def _validate_asin_batch_item(item: Any, path: str) -> None:
 
 
 def _require_field(value: dict[str, Any], field: str, path: str) -> None:
-    if field not in value:
-        raise P5ContractError(f"{path} missing required field: {field}")
+    _shared_require_field(value, field, path, error_cls=P5ContractError)
 
 
 def _require_fields(value: dict[str, Any], fields: list[str], path: str) -> None:
-    missing = [field for field in fields if field not in value]
-    if missing:
-        raise P5ContractError(f"{path} missing required fields: {', '.join(missing)}")
+    _shared_require_fields(value, fields, path, error_cls=P5ContractError)
 
 
 def _require_dict(value: Any, path: str) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise P5ContractError(f"{path} must be an object")
-    return value
+    return _shared_require_dict(value, path, error_cls=P5ContractError)
 
 
 def _require_list(value: Any, path: str, *, min_items: int = 0) -> list[Any]:
-    if not isinstance(value, list):
-        raise P5ContractError(f"{path} must be a list")
-    if len(value) < min_items:
-        raise P5ContractError(f"{path} must contain at least {min_items} item(s)")
-    return value
+    return _shared_require_list(value, path, min_items=min_items, error_cls=P5ContractError)
 
 
 def _require_non_empty_text(value: Any, path: str) -> str:
-    if value is None:
-        raise P5ContractError(f"{path} must not be empty")
-    text = str(value).strip()
-    if not text:
-        raise P5ContractError(f"{path} must not be empty")
-    return text
+    return _shared_require_non_empty_text(value, path, error_cls=P5ContractError)

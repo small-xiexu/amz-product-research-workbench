@@ -3,7 +3,7 @@
   "mode": "targeted_deep_dive",
   "stage": "intent_intake",
   "site": "US",
-  "initial_intent": "美国站宠物牵引绳方向",
+  "initial_intent": "美国站示例品类方向（仅限 eval 使用）",
   "decision_required": true,
   "current_question": "请确认指定方向的产品边界：包含哪些形态，排除哪些混池场景？",
   "known_inputs": [],

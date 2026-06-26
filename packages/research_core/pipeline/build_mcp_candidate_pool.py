@@ -740,7 +740,7 @@ def _progress_next_action(pool_status: str) -> dict[str, str]:
     if pool_status == "ready_for_route_matrix":
         return {
             "type": "ready_for_p3",
-            "stage_id": "stage_5_route_calibration",
+            "stage_id": "stage_5_route_matrix",
             "description": "candidate_pool.json 已就绪，等待明确 P3 路线矩阵确认指令。",
         }
     if pool_status == "needs_user_review":

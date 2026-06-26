@@ -131,7 +131,7 @@ class VocGateHappyPathTests(unittest.TestCase):
 
         decision = gate["decision"]
         if decision == "continue":
-            self.assertEqual(next_action.get("stage_id"), "stage_7_report")
+            self.assertEqual(next_action.get("stage_id"), "stage_7_voc_gate")
         elif decision == "stop":
             self.assertEqual(next_action.get("type"), "stop")
         elif decision == "need_more_reviews":
@@ -647,7 +647,7 @@ def _minimal_gate(decision: str = "continue") -> dict[str, Any]:
             "current_total_reviews": 35,
             "current_low_rating_reviews": 15,
         },
-        "required_next_actions": ["进入 stage_7_report。"],
+        "required_next_actions": ["进入 stage_7_voc_gate。"],
         "evidence_refs": ["review_voc/voc_evidence_packet.json"],
     }
 
