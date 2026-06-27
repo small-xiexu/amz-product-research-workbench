@@ -144,3 +144,72 @@ def fill_contract(agent_output: dict, source: str, snapshot_dir: str | None = No
         packet["_candidate_seeds_empty"] = True
 
     return packet
+
+
+# 17 required fields per agent prompt contract
+_REQUIRED_FIELDS = [
+    "schema_version", "packet_id", "stage", "depth", "source_type",
+    "support_level", "blocking_gaps", "mixed_pool_level", "demand_signal_level",
+    "price_band_health", "category_boundary_clarity", "facts", "metric_basis",
+    "evidence_refs", "confidence", "data_gaps", "execution_provenance",
+]
+
+
+def validate_quick_packet(packet: dict, source: str) -> tuple[bool, list[str]]:
+    """Validate a quick packet (after fill_contract) has all required fields and valid values.
+
+    Returns (pass, errors). Does not modify the packet.
+    """
+    errors: list[str] = []
+
+    for field in _REQUIRED_FIELDS:
+        if field not in packet:
+            errors.append(f"缺少必填字段: {field}")
+        elif field == "facts" and not isinstance(packet[field], list):
+            errors.append("facts 必须是 list")
+        elif field == "facts" and len(packet[field]) == 0:
+            errors.append("facts 为空——Agent 未填充证据")
+        elif field == "evidence_refs" and not isinstance(packet[field], list):
+            errors.append("evidence_refs 必须是 list")
+        elif field == "blocking_gaps" and not isinstance(packet[field], list):
+            errors.append("blocking_gaps 必须是 list")
+        elif field == "data_gaps" and not isinstance(packet[field], list):
+            errors.append("data_gaps 必须是 list")
+
+    # Validate enums
+    source_type = packet.get("source_type", "")
+    expected_source = f"{source}_mcp"
+    if source_type != expected_source:
+        errors.append(f"source_type 应为 '{expected_source}'，实际为 '{source_type}'")
+
+    for field, allowed in [
+        ("support_level", SUPPORT_LEVELS),
+        ("mixed_pool_level", MIXED_POOL_LEVELS),
+        ("demand_signal_level", DEMAND_SIGNAL_LEVELS),
+        ("price_band_health", PRICE_BAND_HEALTH),
+        ("category_boundary_clarity", CATEGORY_BOUNDARY_CLARITY),
+        ("confidence", CONFIDENCE_LEVELS),
+    ]:
+        val = packet.get(field, "")
+        if val not in allowed:
+            errors.append(f"{field} 值 '{val}' 不在允许范围 {sorted(allowed)}")
+
+    # Validate evidence_refs format
+    for i, ref in enumerate(packet.get("evidence_refs", []) or []):
+        if not isinstance(ref, str) or not ref.strip():
+            errors.append(f"evidence_refs[{i}] 为空或非字符串")
+
+    # Validate metric_basis
+    mb = packet.get("metric_basis", {}) or {}
+    for mf in ("marketplace", "currency", "data_window", "aggregation_unit", "sample_scope", "collected_at"):
+        if mf not in mb or not mb[mf]:
+            errors.append(f"metric_basis.{mf} 为空或缺失")
+
+    # Validate execution_provenance
+    ep = packet.get("execution_provenance", {}) or {}
+    if not ep.get("execution_mode"):
+        errors.append("execution_provenance.execution_mode 为空")
+    if not ep.get("agent_role"):
+        errors.append("execution_provenance.agent_role 为空")
+
+    return len(errors) == 0, errors

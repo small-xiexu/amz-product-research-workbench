@@ -62,6 +62,8 @@
 
 本 Skill 采用多源专家 Agent + 资深运营主 Agent + QA Agent 的受控协作方式。调度规则见 `references/multi_agent_dispatch.md`。
 
+**契约对齐（铁律）**：每个 Agent 产出 JSON 前，必须对照 `references/CONTRACT_MAP.md` 中自己 Stage 的契约表，确认字段路径、命名约定、枚举值与下游脚本一致。主 Agent 在 spawn 任何 Agent 时，必须提醒该 Agent 先读 `references/CONTRACT_MAP.md` 中对应章节。
+
 | Agent | 阶段 | 角色 | 数据源 | 产出 |
 |---|---|---|---|---|
 | SellerSprite Quick Agent | 2 | 市场快验 | 卖家精灵 MCP | `sellersprite_quick_evidence_packet.json` |
@@ -87,6 +89,47 @@
 - Lead Operator Agent 是唯一有权给 Go/No-Go 的 Agent。
 - Report Generation Agent 不新增证据包外数字。
 - Delivery QA Agent 不改判断、不改数据，只检查。
+
+---
+
+## 校验硬阻断（铁律）
+
+**Agent 产出 JSON 后，必须立即运行对应校验脚本。校验失败 = 阻断，不得进入下一阶段。**
+
+### 阻断规则
+
+| 规则 | 说明 |
+|---|---|
+| 即时校验 | Agent 产出 JSON 后，主 Agent 立即运行校验脚本，不等所有 Agent 完成 |
+| 硬阻断 | 校验 FAIL → 打回对应 Agent 修复，最多 2 轮重试 |
+| 升权 | 2 轮重试仍 FAIL → `progress.json` 标记 `blocked`，人工介入 |
+| 不跳步 | 校验未 PASS 前，禁止进入下一阶段，禁止 spawn 下游 Agent |
+
+### 各阶段校验命令
+
+| Stage | 校验脚本 | 校验内容 |
+|---|---|---|
+| 2 (快验) | `fill_quick_packet_contract.py --dry-run` | Quick packet 17 必填字段 + facts 结构 + evidence_refs 格式 |
+| 4 (候选池) | `build_mcp_candidate_pool.py` | 候选池结构 + 占位符扫描 + route_id 规范 + ASIN 覆盖 |
+| 5 (路线矩阵) | `build_route_matrix_confirm.py` | 路线结构 + route_id kebab-case + 参考 ASIN ≥ 4 + 占位符扫描 |
+| 6 (深挖) | `validate_evidence_packet.py` | facts 结构 + route_refs 路线覆盖 + 必填字段 + 快照完整性 |
+| 7 (冲突复核) | `build_conflict_review.py` | 双源冲突分级 + 路线 lineage 追溯 |
+| 8 (VOC) | `validate_voc_packet.py` | 痛点结构 + evidence_refs 带 review_id/quote + execution_provenance + 路线覆盖 ≥ 2 ASIN |
+| 9 (六维评价) | `validate_evaluation.py` | 评分 0-100 + route_breakdown + tier 合规 + 跨维度冲突 |
+| 10a (深度分析) | `validate_judgment.py --check-placeholders` | 10 字段无 __ai_judgment__ 占位 |
+| 10b (决策) | `validate_judgment.py --check-verdict` | final_verdict 有效 + 治理规则 + Stage 9 交叉一致性 |
+| 12 (报告) | `run_delivery_qa.py` + Delivery QA Agent | 脚本 QA + Agent QA 双层门禁 |
+
+### 校验流程模板
+
+每阶段 Agent 产出后，主 Agent 执行：
+
+```
+1. 运行校验脚本
+2. PASS → 更新 progress.json → 进入下一阶段
+3. FAIL → 收集错误列表 → 打回 Agent（附完整错误信息）→ Agent 修复 → 重新校验
+4. 第 2 次 FAIL → progress.json 标记 blocked，向运营报告具体阻断原因
+```
 
 ---
 
@@ -116,8 +159,10 @@
 
 | Quick Agent | 职责 | 禁止 |
 |---|---|---|
-| 卖家精灵 | 大盘容量、候选类目、Top 产品结构、价格带、集中度、Review 门槛、混池判断 | 不写最终 Go/No-Go、不替 Sorftime 判断搜索需求 |
-| Sorftime | 关键词搜索量、搜索意图匹配、混池判断、候选类目、相似品、类目趋势 | 不写最终 Go/No-Go、不用关键词搜索量替代市场销量 |
+| 卖家精灵 | 大盘容量、候选类目、Top 产品结构、价格带、集中度、Review 门槛、混池判断。**强制：发现 ALL 子方向 + 每方向挖 6-8 参考 ASIN（≥3 品牌、≥2 价格段、覆盖不同特征）** | 不写最终 Go/No-Go、不替 Sorftime 判断搜索需求、不以"快验"为借口只查大盘不做子方向深挖 |
+| Sorftime | 关键词搜索量、搜索意图匹配、混池判断、候选类目、相似品、类目趋势。**强制：每方向独立采词 + 每方向挖 6-8 参考 ASIN（≥3 品牌、≥2 价格段、覆盖不同特征）** | 不写最终 Go/No-Go、不用关键词搜索量替代市场销量、不以"快验"为借口只查大词不做子方向深挖 |
+
+Quick Agent 在 `candidate_seeds` 中写入所有发现的子方向和参考 ASIN（每方向 6-8 个，≥3 品牌，≥2 价格段）。主 Agent 在快验后方向分析中检查 ASIN 覆盖是否充分，不充分则要求 Quick Agent 补采后再进 Stage 4。
 
 Quick Agent 产出后，运行契约补齐和门控生成：
 
@@ -218,7 +263,7 @@ python3 scripts/build_mcp_candidate_pool.py <run_dir>
 
 **排除理由必须可追溯到快验数据，不能是主观臆断。** 标注"什么条件变化后会重新考虑"。
 
-运营确认保留的 🔒 路线，每条配参考 ASIN ≥ 2 个、候选类目、补数计划。所有 🔒 路线同等深度——同等的 ASIN 数量、评论采集量、关键词覆盖。路线标签只描述产品形态差异，不预设推荐排序。
+运营确认保留的 🔒 路线，每条配参考 ASIN ≥ 4 个、候选类目、补数计划。所有 🔒 路线同等深度——同等的 ASIN 数量、评论采集量、关键词覆盖。路线标签只描述产品形态差异，不预设推荐排序。
 
 **`route_id` 命名铁律**：`route_id` 必须使用英文描述词（kebab-case），从 `route_name` 提取核心产品形态。禁止使用抽象序号（C01/C02/C03、R01/R02、路线A/路线B）。示例：
 
@@ -364,6 +409,11 @@ ASIN 导出清单必须确保 Stage 5 确认的**每条保留路线**至少覆�
 3. `build_review_voc_package.py` — 规范化评论数据
 4. `build_voc_gate.py` — VOC 门控（总评论 ≥30 条 → continue；不足 → need_more_reviews）+ 路线覆盖度检查，并生成 `voc_evidence_packet.json` 骨架
 5. **Spawn VOC Evidence Agent**（强制） — 读取 `review_voc_package.json` 的 `normalized_reviews`，完成：痛点提取（≥3 条评论提及 + 原文引用）、按产品维度归类、P0/P1/P2 优先级分级、规格推导（`spec_requirement` / `sample_tests` / `listing_risk_note`）、未满足需求（`unmet_needs`）、差异化机会（`differentiation_opportunities`）→ 写入 `voc_evidence_packet.json` 并更新 `execution_provenance` 为 `executed_by_agent: true, execution_mode: "agent"`
+6. **🔒 契约校验（阻断）**：`validate_voc_packet.py` — 检查痛点结构、evidence_refs 溯源、路线覆盖、必填字段。校验失败 → 打回 VOC Agent 修复
+
+```bash
+python3 scripts/validate_voc_packet.py <run_dir>
+```
 
 ---
 
@@ -405,6 +455,11 @@ python3 scripts/build_evaluation_summary.py <run_dir>
 2. `full` 路线：spawn 6 个 Evaluation Agent（推荐并行）
 3. `light` 路线：仅 spawn Market Demand + Data Quality 两个 Evaluation Agent
 4. `build_evaluation_summary.py` — 汇总评价 + tier 占位 + 治理约束 + 跨维度冲突
+5. **🔒 契约校验（阻断）**：`validate_evaluation.py` — 检查评分范围、route_breakdown 结构、tier 合规、跨维度冲突。校验失败 → 打回对应 Evaluation Agent 修复
+
+```bash
+python3 scripts/validate_evaluation.py <run_dir>
+```
 
 ---
 
@@ -433,6 +488,14 @@ python3 scripts/build_integrated_judgment.py <run_dir>
 ```
 
 两个 Agent 均完成后方可进入 Stage 10b。
+
+**🔒 10a 校验（阻断）**：两个 Agent 完成后立即运行：
+
+```bash
+python3 scripts/validate_judgment.py <run_dir> --check-placeholders
+```
+
+检查 10 个深度分析字段是否仍有 `__ai_judgment__` 占位。有占位 → 打回对应 Agent 修复。
 
 ---
 
@@ -468,6 +531,14 @@ Lead Operator Agent 读取 Stage 10a 产出的 10 个深度分析字段，做交
 2. spawn Lead Operator Agent（推荐独立 spawn）— 验证 → 拍板 → 合并写入
 
 这是唯一有权给最终 Go/No-Go 的 Agent。
+
+**🔒 10b 校验（阻断）**：Lead Operator Agent 完成后立即运行：
+
+```bash
+python3 scripts/validate_judgment.py <run_dir> --check-verdict
+```
+
+检查 final_verdict 有效性、治理规则合规、Stage 9 评分与 Stage 10 裁决交叉一致性。校验失败 → 打回 Lead Operator Agent 修复。
 
 ---
 

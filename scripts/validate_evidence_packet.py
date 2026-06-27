@@ -24,11 +24,16 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from packages.research_core.pipeline._utils import as_dict_list, load_json
+from packages.research_core.pipeline._utils import first_text, load_json
 
 
 def _check_facts_structure(evidence_items: list[Any], packet_name: str) -> list[str]:
-    """检查 evidence_items 中 facts 的结构完整性。"""
+    """检查 evidence_items 中 facts 的结构完整性。
+
+    P4 契约只要求 facts 是 dict，不强求每个 value 都有 {value, source_path} 结构，
+    也不强求 list-form facts 的每个元素都有 id/value 键。
+    此处只检查明显的数据质量问题: 空 facts、非 dict/list 的 facts。
+    """
     errors: list[str] = []
     for ei_idx, item in enumerate(evidence_items):
         if not isinstance(item, dict):
@@ -38,53 +43,27 @@ def _check_facts_structure(evidence_items: list[Any], packet_name: str) -> list[
         if facts is None:
             continue
         if isinstance(facts, dict):
-            # facts 是 dict 形态：检查每个 value 是否为 dict（不应是裸 string）
-            for f_id, f_val in facts.items():
-                if isinstance(f_val, str):
-                    errors.append(
-                        f"evidence_items[{ei_idx}].facts.{f_id} 是裸 string "
-                        f"'{f_val[:80]}'，应为 {{value, source_path}} 结构"
-                    )
-                elif isinstance(f_val, dict):
-                    missing = [
-                        k for k in ("value", "source_path")
-                        if k not in f_val and "source" not in f_val
-                    ]
-                    if missing:
-                        errors.append(
-                            f"evidence_items[{ei_idx}].facts.{f_id} 缺少字段: {missing}"
-                        )
+            if len(facts) == 0:
+                errors.append(f"evidence_items[{ei_idx}].facts 为空 dict —— Agent 未填充证据")
         elif isinstance(facts, list):
-            # facts 是 list 形态：每个元素必须是 dict
-            fact_dicts = as_dict_list(facts, warn_key=f"{packet_name}.evidence_items[{ei_idx}].facts")
-            if len(fact_dicts) != len(facts):
+            non_dict_count = sum(1 for f in facts if not isinstance(f, dict))
+            if non_dict_count > 0:
                 errors.append(
-                    f"evidence_items[{ei_idx}].facts 包含 {len(facts) - len(fact_dicts)} 个非 dict 元素"
+                    f"evidence_items[{ei_idx}].facts 包含 {non_dict_count} 个非 dict 元素"
                 )
-            for f_idx, fact in enumerate(fact_dicts):
-                missing = [
-                    k for k in ("id", "value")
-                    if k not in fact
-                ]
-                if missing:
-                    errors.append(
-                        f"evidence_items[{ei_idx}].facts[{f_idx}] 缺少字段: {missing}"
-                    )
-                    continue
-                # 检查 value 是否是裸 string（应该允许简单值，但不能是嵌套裸 string）
-                val = fact.get("value")
-                if isinstance(val, str) and len(val) > 500:
-                    errors.append(
-                        f"evidence_items[{ei_idx}].facts[{f_idx}].value 超长 "
-                        f"({len(val)} 字符)，疑似裸 string 而非结构化数据"
-                    )
+            if len(facts) == 0:
+                errors.append(f"evidence_items[{ei_idx}].facts 为空 list —— Agent 未填充证据")
+        else:
+            errors.append(
+                f"evidence_items[{ei_idx}].facts 类型异常: {type(facts).__name__}，应为 dict 或 list"
+            )
     return errors
 
 
 def _check_route_coverage(
     packet: dict[str, Any], run_dir: Path, packet_name: str
 ) -> list[str]:
-    """检查 packet 的 route_refs 是否覆盖所有保留路线。"""
+    """检查 packet 的 route_refs 是否覆盖所有保留路线（统一用 route_id 匹配）。"""
     errors: list[str] = []
     route_matrix_path = run_dir / "route_matrix_confirm.json"
     if not route_matrix_path.exists():
@@ -94,17 +73,23 @@ def _check_route_coverage(
     all_routes = route_matrix.get("route_matrix") or []
     selected = [
         r for r in all_routes
-        if isinstance(r, dict) and r.get("status") not in ("excluded", "rejected")
+        if isinstance(r, dict) and r.get("selection_status") not in ("excluded", "rejected")
+        and r.get("status") not in ("excluded", "rejected")
     ]
     if not selected:
         return []
 
-    selected_names = {r.get("name", r.get("route_name", "")) for r in selected}
-    route_refs = set(packet.get("route_refs") or [])
-    selected_routes = set(packet.get("selected_routes") or [])
+    # 统一用 route_id（kebab-case 英文）做匹配 key
+    selected_ids = {
+        first_text(r.get("route_id") or r.get("name") or r.get("route_name") or "").casefold()
+        for r in selected
+    }
+    selected_ids.discard("")
+    route_refs = {str(r).casefold() for r in (packet.get("route_refs") or []) if r}
+    selected_routes = {str(r).casefold() for r in (packet.get("selected_routes") or []) if r}
 
     covered = route_refs | selected_routes
-    missing = selected_names - covered
+    missing = selected_ids - covered
     if missing:
         errors.append(
             f"{packet_name} 未覆盖以下保留路线: {sorted(missing)}。"

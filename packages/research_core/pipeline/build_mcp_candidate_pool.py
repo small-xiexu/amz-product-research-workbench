@@ -54,7 +54,9 @@ _TECHNICAL_KEY_PATTERNS = (
 )
 
 _PLACEHOLDER_PATTERN = re.compile(
-    r"sellersprite|sorftime|mcp|quick_gate|workflow_state|candidate\d*",
+    r"sellersprite|sorftime|mcp|quick_gate|workflow_state|candidate\d*"
+    r"|__ai_judgment__|__todo__|__placeholder__|__fixme__"
+    r"|\bTODO\b|\bTBD\b|\bFIXME\b",
     re.IGNORECASE,
 )
 
@@ -318,8 +320,8 @@ def build_success_progress(
         },
         {
             "name": "p3_entry_ready",
-            "pass": pool_status == "ready_for_route_matrix",
-            "detail": "Candidate pool can enter P3 only when quick gate continues.",
+            "pass": pool_status in ("ready_for_route_matrix", "needs_user_review"),
+            "detail": "Candidate pool can enter P3 when quick gate continues or watches (watch = continue with caution).",
         },
     ]
 

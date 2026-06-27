@@ -495,3 +495,19 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 | 5 | 价格带分布 | 柱状图 + 价格带表 | market_structure price_band | 硬编码柱高或颜色（必须用 bar_height + opportunity_level）；修改占比数字；发明代表竞品 |
 | 6 | 关键词与流量策略 | 主攻/可测/否定三分 + 策略说明 | search_demand keyword_demand + facts | 修改月搜量或CPC；遗漏否定词 |
 | 7 | 风险与下一步 | 风险/优势双栏 + Go/No-Go表 + 3步骤；可自然嵌入样本边界和判断口径 | voc data_gaps + market_structure + 运营判断 | 风险无证据支撑；步骤写空话；把内部采集分歧写进 HTML |
+
+## 契约约束（输出前自查）
+
+以下校验会在 `run_delivery_qa.py`（脚本 QA）和 Delivery QA Agent（Agent QA）中执行，**违反任一条 = 阻断**：
+
+| 你写什么 | 校验方式 | 常见错误 |
+|----------|---------|---------|
+| HTML 中每个数字 | 脚本 QA 抽查：HTML 数字是否在 `report_data.json` 有对应条目 | 凭空写"月销 12,000 单"，但 report_data 无此值 |
+| `source_path` | 脚本 QA 检查有效性：路径是否指向真实文件/字段 | source_path 为空字符串或不存在的路径 |
+| HTML 板块完整性 | 脚本 QA 检查 7 大板块是否齐全 | 漏写 Hero/类目全景/竞品/痛点/价格带/关键词/风险 |
+| 禁止术语 | 脚本 QA 扫描 HTML 无 MCP/Agent/tool/spawn/packet/source_path | HTML 中出现"卖家精灵 MCP"等内部术语 |
+| `route_id` 泄漏 | QA Agent 检查路线名只用中文产品名 | HTML 中出现 `retractable-tape-leash` 等 kebab-case |
+| 判断一致性 | QA Agent 检查 HTML Hero 与 judgment final_verdict 一致 | HTML 写 Go，judgment 写 No-Go |
+| 竞品判词合理性 | QA Agent 检查竞品弱点/反击是否有 VOC 原文支撑 | 发明不存在的竞品弱点 |
+
+详细契约见 `references/CONTRACT_MAP.md` Stage 12 章节。

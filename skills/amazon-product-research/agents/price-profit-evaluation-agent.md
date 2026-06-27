@@ -96,3 +96,18 @@
 - 不给毛利率数字（没有成本数据）。
 - 不输出最终 Go/No-Go。
 - 不修改证据包内容。
+
+## 契约约束（输出前自查）
+
+以下字段路径会被 `validate_evaluation.py` 校验，**路径和格式不得偏离**：
+
+| 你写什么 | 脚本怎么读 | 常见错误 |
+|----------|-----------|---------|
+| `score` | 校验 0-100 数字 | 写成字符串或超出范围 |
+| `rating` | 校验值 ∈ {strong, moderate, weak, blocked, watch} | 写成 good/poor 等非标准枚举 |
+| `key_reasons` | 校验非空 list | 写空数组 |
+| `evidence_refs` | 校验非空 list | 不写证据引用 |
+| `route_breakdown` | 校验覆盖每条保留路线 | 只写大盘评分不写路线级 breakdown |
+| `target_price_range` | 下游 Stage 10 读取 | 写成裸数字而非结构化区间 |
+
+详细契约见 `references/CONTRACT_MAP.md` Stage 9 章节。

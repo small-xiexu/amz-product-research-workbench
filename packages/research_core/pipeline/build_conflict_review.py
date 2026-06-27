@@ -981,8 +981,10 @@ def _normalized_from_item(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def _find_normalized_value(normalized: dict[str, Any], fields: tuple[str, ...] | str) -> Any:
-    field_values = normalized.get("field_values") if isinstance(normalized, dict) else {}
-    numeric_values = normalized.get("numeric_values") if isinstance(normalized, dict) else {}
+    if not isinstance(normalized, dict):
+        return None
+    field_values = normalized.get("field_values") if isinstance(normalized.get("field_values"), dict) else {}
+    numeric_values = normalized.get("numeric_values") if isinstance(normalized.get("numeric_values"), dict) else {}
 
     search_fields = (fields,) if isinstance(fields, str) else fields
     for field in search_fields:
@@ -998,6 +1000,10 @@ def _find_normalized_value(normalized: dict[str, Any], fields: tuple[str, ...] |
         for key, val in numeric_values.items():
             if str(key).casefold() == folded:
                 return val
+    # Fallback: try top-level keys on normalized dict directly (Agent may flatten)
+    for field in search_fields:
+        if field in normalized and normalized[field] not in (None, "", []):
+            return normalized[field]
     return None
 
 

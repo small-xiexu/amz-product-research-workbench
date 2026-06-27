@@ -3,6 +3,7 @@
 
 Usage:
   python3 scripts/fill_quick_packet_contract.py <agent_output.json> --source sellersprite|sorftime [--snapshot-dir mcp_snapshots]
+  python3 scripts/fill_quick_packet_contract.py <agent_output.json> --source sellersprite|sorftime --dry-run
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from packages.research_core.pipeline.fill_quick_packet_contract import fill_contract
+from packages.research_core.pipeline.fill_quick_packet_contract import fill_contract, validate_quick_packet
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -25,6 +26,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source", required=True, choices=["sellersprite", "sorftime"], help="Data source")
     parser.add_argument("--snapshot-dir", type=Path, default=None, help="MCP snapshot directory (for evidence_refs)")
     parser.add_argument("--out", type=Path, default=None, help="Output path (default: overwrite input)")
+    parser.add_argument("--dry-run", action="store_true", help="Validate only, do not write output")
     args = parser.parse_args(argv)
 
     input_path: Path = args.input_file.expanduser().resolve()
@@ -35,6 +37,18 @@ def main(argv: list[str] | None = None) -> int:
     agent_output = json.loads(input_path.read_text(encoding="utf-8"))
     snapshot_dir = str(args.snapshot_dir) if args.snapshot_dir else None
     filled = fill_contract(agent_output, args.source, snapshot_dir)
+
+    if args.dry_run:
+        ok, errors = validate_quick_packet(filled, args.source)
+        if ok:
+            print(f"[PASS] {args.source}_quick_evidence_packet 契约校验通过 (dry-run)")
+            return 0
+        else:
+            print(f"[FAIL] {args.source}_quick_evidence_packet 契约校验失败 ({len(errors)} 个问题):")
+            for err in errors:
+                print(f"  - {err}")
+            print(f"\n请打回 {args.source} Quick Agent 修复以上问题后重新校验。")
+            return 1
 
     out_path = args.out or input_path
     out_path.write_text(json.dumps(filled, ensure_ascii=False, indent=2), encoding="utf-8")

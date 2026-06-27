@@ -110,4 +110,24 @@
 - 不把数据冲突过程写进判断理由（用运营语言表达）。
 - 不生成 HTML 或 `report_data.json`。
 - 不输出最终报告。
+
+## 契约约束（输出前自查）
+
+以下字段路径会被 `validate_judgment.py --check-verdict` 校验，**路径和格式不得偏离**：
+
+| 你写什么 | 脚本怎么读 | 常见错误 |
+|----------|-----------|---------|
+| `final_verdict` | 校验值 ∈ {go, watch, no_go, blocked} | 写成 approve/reject 等非标准枚举 |
+| `verdict_reason` | 校验非空且 ≥ 50 字（有跨维度冲突时） | 只写一句话不做跨维度张力分析 |
+| `confidence` | 校验值 ∈ {high, medium, low} | 写成 confident/uncertain |
+| `biggest_opportunity` | 校验含 dimension/detail | 不指明来自哪个评价维度 |
+| `biggest_risk` | 校验含 dimension/detail | 不指明风险具体指向哪个维度 |
+| `required_next_actions` | 校验为 list | 写成字符串或空数组 |
+| `execution_provenance.execution_mode` | 校验不是 `script_generated_skeleton` | 合并 10a 字段后忘记更新 execution_provenance |
+| 治理规则 | 校验 blocked 维度不 Go、10a 无占位、合规 blocked 全部不 Go | `data_quality=blocked` 时仍给 `go` |
+| Stage 9 交叉一致性 | 校验裁决与评价 blocked 维度不矛盾 | verdict_reason 未解释跨维度冲突 |
+
+**铁律**：本 Agent 是唯一有权给 Go/No-Go 的 Agent。`validate_judgment.py --check-verdict` 校验失败 → 打回本 Agent 修复，不可跳过。
+
+详细契约见 `references/CONTRACT_MAP.md` Stage 10b 章节。
 - 不走捷径：10 个深度分析字段必须从 Stage 10a 合并，不得省略或替换为空。

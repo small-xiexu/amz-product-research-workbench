@@ -22,6 +22,39 @@
 - 参考 ASIN 池（候选池中的参考 ASIN 字段）
 - 候选类目列表（Stage 2 发现的所有相关类目，必须包含所有类目，不能只分析一个）
 
+## Stage 2 快验要求（卖家精灵 Quick Agent）
+
+虽然是快验，但必须完成以下动作，不能只做大盘概览：
+
+### 子方向发现（强制）
+
+1. 用 `keyword_miner`（以品类核心词为输入）发现该类目下的所有子方向/产品形态
+2. 用 `product_research` 在目标大类下的各个叶子类目分别查询，观察不同产品形态的分布
+3. 用 `product_node` 确认完整的类目树，看叶子类目结构是否暗示未发现的子方向
+4. 识别出的每个子方向必须记录：产品形态描述、所属叶子类目、观察到的品牌数、价格区间、头部 ASIN 月销
+
+### 每方向参考 ASIN 深挖（强制）
+
+对每个发现的子方向，必须挖出 **6-8 个参考 ASIN**：
+
+1. 用 `product_research` 对每个子方向的叶子类目单独查询（`nodeIdPath` 精确匹配，`matchType=3`）
+2. 对每个子方向用不同的搜索词组合（形态词 + 材质词 + 场景词），`matchType=1` 词组匹配
+3. ASIN 必须满足多样性：
+   - **≥ 3 个不同品牌**
+   - **覆盖至少 2 个不同价格段**（如低价走量款 + 中高价品质款）
+   - **覆盖不同产品特征**（如不同长度、材质、功能配置）
+4. 每个 ASIN 必须调用 `asin_detail` 获取完整信息（价格、评论、上架时间、变体数、类目路径）
+5. 参考 ASIN 写入 `lineage` 数组，每个条目带 `tool`、`params`、`result_summary` 完整溯源
+
+### 数据写入
+
+所有参考 ASIN 和子方向发现写入 `candidate_seeds` 数组，每个 seed 包含：
+- `direction_name`：子方向中文名
+- `direction_english`：英文描述
+- `node_id_path`：叶子类目路径
+- `reference_asins`：该方向的参考 ASIN 列表（含 asin、brand、price、monthly_sales、rating_count）
+- `key_features`：该方向的产品特征关键词
+
 ## Stage 2 快验输出
 
 作为卖家精灵 Quick Agent，输出到 **`quick_check/sellersprite_quick_evidence_packet.json`**（目录必须为 `quick_check/`，不可写入 `evidence/` 或 `quick_packets/`）。
@@ -73,19 +106,52 @@
 | `top100_quality` | Top100 完整性、缺失字段、重复 ASIN、异常值 |
 | `data_gaps` | 卖家精灵侧仍缺的字段和影响 |
 
-**快照输出（必须）**：完成 evidence packet 写入后，同步生成简化快照到 `mcp_snapshots/sellersprite_deep_snapshot.json`。每个 MCP 工具调用输出一个 `tool_summaries` 条目，只保存关键数字，不保存完整 tool_result：
+**快照输出（必须）**：完成 evidence packet 写入后，同步生成完整快照到 `mcp_snapshots/sellersprite_deep_snapshot.json`。每个 MCP 工具调用必须输出完整 `tool_calls` + `tool_results` 结构（非简化 `tool_summaries`）：
 
 ```json
 {
-  "tool_summaries": [
-    {"tool": "market_research", "params": {"marketplace": "US", "nodeIdPath": "..."}, "key_findings": ["100条商品", "月销量合计12万", "均价$15.99"]},
-    {"tool": "product_research", "params": {"keyword": "dog leash"}, "key_findings": ["50条商品", "Top10平均月销3000"]}
+  "schema_version": "p4-deep-contract-v1",
+  "snapshot_id": "<run_id>-sellersprite-deep",
+  "run_id": "<run_id>",
+  "source_name": "sellersprite",
+  "source_doc_refs": ["..."],
+  "route_refs": ["route_matrix_confirm.json#selected_routes[0]"],
+  "selected_routes": ["<route_id>"],
+  "tool_calls": [
+    {
+      "call_id": "sellersprite-deep-call-1",
+      "tool_name": "market_research",
+      "params": {"marketplace": "US", "nodeIdPath": "..."},
+      "status": "success",
+      "started_at": "<ISO>",
+      "finished_at": "<ISO>"
+    }
   ],
-  "collected_at": "<ISO 时间戳>"
+  "tool_results": [
+    {
+      "result_id": "sellersprite-deep-result-1",
+      "call_id": "sellersprite-deep-call-1",
+      "tool_name": "market_research",
+      "status": "success",
+      "raw_result": { "<MCP返回的关键数据>" }
+    }
+  ],
+  "errors": [],
+  "data_gaps": [],
+  "created_at": "<ISO>",
+  "retry_policy": {"max_attempts": 1, "reuse_existing_snapshot": true, "allow_network_call": false},
+  "force_refresh": false,
+  "input_lineage": {
+    "workflow_ref": "<run_id>",
+    "route_refs": ["..."],
+    "selected_routes": ["..."],
+    "source_candidate_pool": "candidate_pool.json",
+    "site": "US"
+  }
 }
 ```
 
-**禁止**保存完整 MCP 返回体（会膨胀上下文）。只保存 QA 溯源需要的关键数字。
+`tool_calls[].status` 取 `success` / `empty` / `error`。`tool_results[].status` 同样取这三者之一。每个 result 必须包含 `raw_result`（MCP 返回数据）或 `normalized_preview`（摘要）。
 
 `reference_asin_pool` 中每个 ASIN 至少包含：
 
@@ -166,3 +232,17 @@ Market Structure Agent 要给综合报告提供可读结论，而不是只给市
 - 目标价格带是否存在低评有量或新品放量样本？
 - 头部品牌集中度是否构成进入壁垒？
 - 新品有没有真实放量样本？
+
+## 契约约束（输出前自查）
+
+以下字段路径会被 `build_sellersprite_deep_dive.py`、`build_conflict_review.py`、`build_review_asin_batch.py` 等脚本读取，**路径和格式不得偏离**：
+
+| 你写什么 | 脚本怎么读 | 常见错误 |
+|----------|-----------|---------|
+| 快照 `tool_calls[]` | `p4_contracts.validate_deep_snapshot` 校验 `call_id/status/started_at/finished_at` | 用简化 `tool_summaries` 代替完整 `tool_calls` |
+| 快照 `tool_results[]` | 同上，校验 `result_id/call_id/status/raw_result` | 缺少 `raw_result` 或 `normalized_preview` |
+| Evidence `facts.normalized_value` | `build_conflict_review._find_normalized_value` 读 `field_values` / `numeric_values` | 展平到 facts 顶层，未包在 `normalized_value` 内 |
+| `selected_routes[]` | `build_conflict_review._route_lineage` 读 `route_id` | 用中文名代替 kebab-case `route_id` |
+| `route_refs[]` | `validate_evidence_packet._check_route_coverage` 按 `route_id` 比对 | 遗漏某条保留路线 |
+
+详细契约见 `references/CONTRACT_MAP.md` Stage 6 章节。

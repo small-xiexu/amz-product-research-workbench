@@ -83,3 +83,18 @@
 - 不输出最终 Go/No-Go。
 - 不夸大不在证据包中的风险。
 - 不自行解读冲突——冲突裁决由 Data Quality Evaluation Agent 统一输出，直接引用其 `conflict_adjudication`。
+
+## 契约约束（输出前自查）
+
+以下字段路径会被 `validate_evaluation.py` 校验，**路径和格式不得偏离**：
+
+| 你写什么 | 脚本怎么读 | 常见错误 |
+|----------|-----------|---------|
+| `score` | 校验 0-100 数字 | 写成字符串或超出范围 |
+| `rating` | 校验值 ∈ {strong, moderate, weak, blocked, watch} | `blocked` 会触发治理规则阻断 |
+| `key_reasons` | 校验非空 list | 写空数组 |
+| `evidence_refs` | 校验非空 list | 不写证据引用 |
+| `route_breakdown` | 校验覆盖每条保留路线 | 只写大盘评分不写路线级 breakdown |
+| `blocking_risks` | 下游 Stage 10 读取，若含合规 blocked → 全部路线不能 Go | 漏标已知合规风险为 blocked |
+
+详细契约见 `references/CONTRACT_MAP.md` Stage 9 章节。

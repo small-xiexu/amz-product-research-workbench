@@ -99,3 +99,18 @@
 - 不使用 HTML AI 报告摘要替代评论明细证据。
 - 评论样本不足时不强行出痛点结论。
 - 不修改 VOC 证据包内容。
+
+## 契约约束（输出前自查）
+
+以下字段路径会被 `validate_evaluation.py` 校验，**路径和格式不得偏离**：
+
+| 你写什么 | 脚本怎么读 | 常见错误 |
+|----------|-----------|---------|
+| `score` | 校验 0-100 数字 | 写成字符串或超出范围 |
+| `rating` | 校验值 ∈ {strong, moderate, weak, blocked, watch} | 写成 high/low 等非标准枚举 |
+| `key_reasons` | 校验非空 list | 写空数组 |
+| `evidence_refs` | 校验非空 list，应指向 VOC 证据 | 不写证据引用或引用到错误的证据包 |
+| `route_breakdown` | 校验覆盖每条保留路线 | 只写大盘评分不写路线级 breakdown |
+| `top_opportunities` | 下游 Stage 10 a 读取 | 写成裸字符串而非结构化 list |
+
+详细契约见 `references/CONTRACT_MAP.md` Stage 9 章节。

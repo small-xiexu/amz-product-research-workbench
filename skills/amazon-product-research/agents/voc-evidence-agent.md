@@ -86,3 +86,18 @@ VOC Evidence Agent 要把“用户骂什么/夸什么”翻译成主 Agent 和�
 - VOC 是否支持当前产品路线，而不是另一个混入路线？
 - 评论样本是否覆盖了每条保留路线、关键价格带和 ASIN 角色？
 - 哪些 ASIN 或路线需要补抓评论？补抓时仍只给运营 ASIN 清单。
+
+## 契约约束（输出前自查）
+
+以下字段路径会被 `validate_voc_packet.py` 校验，**路径和格式不得偏离**：
+
+| 你写什么 | 脚本怎么读 | 常见错误 |
+|----------|-----------|---------|
+| `pain_points[].evidence_refs[]` | 校验每个 ref 含 `review_id` + `quote` | 只写 ASIN 不写 review_id，或缺原文 quote |
+| `pain_points[].priority` | 校验值为 P0/P1/P2 | 写成 High/Medium/Low |
+| `pain_points[].mention_count` | 校验 ≥3 | 只提 1-2 条评论就标为痛点 |
+| `spec_requirement` | 校验含 `spec_requirement`/`sample_tests`/`listing_risk_note` | 写成裸字符串而非 object |
+| `execution_provenance` | 校验 `executed_by_agent=true` + `execution_mode="agent"` | 标记为 serial_fallback 或漏写 subagent_id |
+| `route_coverage` | 校验每条保留路线 ≥1 ASIN（=1 时置信度 low） | 遗漏某条保留路线的覆盖信息 |
+
+详细契约见 `references/CONTRACT_MAP.md` Stage 8 章节。

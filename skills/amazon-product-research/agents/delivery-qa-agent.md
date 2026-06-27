@@ -212,3 +212,18 @@ Round 3: QA Agent 最终检查 → 仍有阻断项 → BLOCKED，需人工介入
 | 判决一致性 | — | ✓ |
 | 竞品判词合理性 | — | ✓ |
 | 痛点证据支撑 | — | ✓ |
+
+## 契约约束（输出前自查）
+
+本 Agent 是 Stage 13 第二层 QA，输出 `analysis/qa_notes.md`。以下规则必须遵守：
+
+| 你写什么 | 校验/用途 | 常见错误 |
+|----------|----------|---------|
+| QA 结论 PASS/BLOCKED | 主 Agent 据此决定交付/打回 | BLOCKED 但不标注具体修复目标 |
+| 数据真实性阻断项 | 每条必须指向 HTML 具体位置 + evidence 实际值 | 笼统写"有些数字不对"不标注位置 |
+| failure_classification | 主 Agent 据此打回正确 Stage | 不写 failure_classification → 主 Agent 不知道打回谁 |
+| 7 条阻断规则 | 每条逐一检查，不可跳过 | 跳过 snapshot 溯源（因为目录结构复杂） |
+| 运营判断质量 | 区分 blocker 和 error | 把运营判断质量问题标成 blocker 导致误阻断 |
+| 修复轮次 | 记录为 1/3、2/3、3/3 | 不记录轮次 → 主 Agent 不知道是否已达上限 |
+
+详细契约见 `references/CONTRACT_MAP.md` Stage 13 章节。

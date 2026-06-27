@@ -142,7 +142,7 @@ def build_asin_batch(
     rejected_routes = _extract_rejected_routes(route_matrix)
 
     # Extract all ASIN candidates from multiple sources
-    pool_asins = _extract_pool_asins(candidate_pool)
+    pool_asins = _extract_pool_asins(candidate_pool, route_matrix)
     market_asins = _extract_evidence_asins(market_packet)
     search_asins = _extract_evidence_asins(search_packet)
 
@@ -193,27 +193,94 @@ def _validate_inputs(run_path: Path) -> None:
 
 # ── ASIN extraction ────────────────────────────────────────────────────
 
-def _extract_pool_asins(candidate_pool: dict[str, Any]) -> dict[str, dict[str, Any]]:
+def _extract_pool_asins(candidate_pool: dict[str, Any], route_matrix: dict[str, Any] | None = None) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
     candidates = as_list(candidate_pool.get("candidates") or candidate_pool.get("items"))
+
+    # Build candidate_id → route_id mapping from route_matrix (best match wins)
+    candidate_to_route: dict[str, str] = {}
+    if route_matrix:
+        all_route_ids: list[str] = []
+        for ro in as_list(route_matrix.get("route_options") or route_matrix.get("route_matrix")):
+            if isinstance(ro, dict):
+                rid = first_text(ro.get("route_id") or ro.get("id"))
+                if rid:
+                    all_route_ids.append(rid)
+        for sr in as_list(route_matrix.get("selected_routes")):
+            if isinstance(sr, dict):
+                rid = first_text(sr.get("route_id") or sr.get("id"))
+                if rid and rid not in all_route_ids:
+                    all_route_ids.append(rid)
+
+        for c in candidates:
+            if not isinstance(c, dict):
+                continue
+            cid = first_text(c.get("candidate_id") or c.get("id"))
+            if not cid:
+                continue
+            best_score = 0
+            best_rid = ""
+            for rid in all_route_ids:
+                score = _routes_overlap(cid, rid)
+                if score > best_score:
+                    best_score = score
+                    best_rid = rid
+            if best_score >= 2:
+                candidate_to_route[cid] = best_rid
+
+    def _add_asin(row: dict[str, Any], route_ref: str = "") -> None:
+        asin = _normalize_asin(row.get("asin") or row.get("ASIN"))
+        if not asin or asin in result:
+            return
+        result[asin] = {
+            "asin": asin,
+            "price": numeric_value(row.get("price") or row.get("Price")),
+            "rating": numeric_value(row.get("rating") or row.get("Rating") or row.get("avgRating")),
+            "ratings": numeric_value(row.get("ratings") or row.get("reviews") or row.get("Ratings")),
+            "monthly_sales": numeric_value(row.get("monthly_sales") or row.get("totalUnits") or row.get("MonthlySales") or row.get("monthlySales")),
+            "brand": first_text(row.get("brand") or row.get("Brand")),
+            "seller": first_text(row.get("seller") or row.get("sellerName") or row.get("Seller")),
+            "category": first_text(row.get("category") or row.get("nodeIdPath")),
+            "route_ref": route_ref or first_text(row.get("route_ref") or row.get("route")),
+            "is_mixed_pool": bool(row.get("is_mixed_pool") or row.get("mixed_pool")),
+        }
+
     for entry in candidates:
         if not isinstance(entry, dict):
             continue
-        asin = _normalize_asin(entry.get("asin") or entry.get("ASIN"))
-        if not asin:
-            continue
-        result[asin] = {
-            "asin": asin,
-            "price": numeric_value(entry.get("price") or entry.get("Price")),
-            "rating": numeric_value(entry.get("rating") or entry.get("Rating") or entry.get("avgRating")),
-            "ratings": numeric_value(entry.get("ratings") or entry.get("reviews") or entry.get("Ratings")),
-            "monthly_sales": numeric_value(entry.get("monthly_sales") or entry.get("totalUnits") or entry.get("MonthlySales")),
-            "brand": first_text(entry.get("brand") or entry.get("Brand")),
-            "seller": first_text(entry.get("seller") or entry.get("sellerName") or entry.get("Seller")),
-            "category": first_text(entry.get("category") or entry.get("nodeIdPath")),
-            "route_ref": first_text(entry.get("route_ref") or entry.get("route")),
-            "is_mixed_pool": bool(entry.get("is_mixed_pool") or entry.get("mixed_pool")),
-        }
+        cid = first_text(entry.get("candidate_id") or entry.get("id"))
+        # Prefer direct route_id on candidate entry (Stage 4+ contract)
+        direct_route = first_text(entry.get("route_id"))
+        mapped_route = candidate_to_route.get(cid, "")
+        if not mapped_route and direct_route:
+            mapped_route = direct_route
+        # Fallback: extract meaningful part from candidate_id (strip p2-NN- prefix)
+        if not mapped_route and cid:
+            import re
+            clean = re.sub(r'^p\d+-\d+-', '', cid)
+            mapped_route = clean if clean else cid
+        # Try direct asin field first
+        direct_asin = _normalize_asin(entry.get("asin") or entry.get("ASIN"))
+        if direct_asin:
+            _add_asin(entry, mapped_route)
+        # Also scan top_products (primary source for Agent-generated pools)
+        for tp in as_list(entry.get("top_products")):
+            if isinstance(tp, dict):
+                _add_asin(tp, mapped_route)
+        # Scan reference_asins (Agent quick-check ASIN pool)
+        for ra in as_list(entry.get("reference_asins")):
+            if isinstance(ra, dict):
+                _add_asin(ra, mapped_route)
+        # Scan candidate_seeds[].reference_asins (Stage 2 direction discovery)
+        for seed in as_list(entry.get("candidate_seeds")):
+            if isinstance(seed, dict):
+                for sa in as_list(seed.get("reference_asins")):
+                    if isinstance(sa, dict):
+                        _add_asin(sa, mapped_route)
+                # Also try direct asin on seed itself
+                direct_seed_asin = _normalize_asin(seed.get("asin") or seed.get("ASIN"))
+                if direct_seed_asin:
+                    _add_asin(seed, mapped_route)
     return result
 
 
@@ -303,6 +370,21 @@ def _evidence_rows(raw: Any, normalized: dict[str, Any]) -> list[dict[str, Any]]
     if not rows and normalized:
         rows.append(normalized)
     return rows
+
+
+def _routes_overlap(candidate_id: str, route_id: str) -> int:
+    """Return overlap score between candidate_id and route_id (higher = better match)."""
+    import re
+    def _tokens(s: str) -> set[str]:
+        parts = set(re.split(r'[-_\s]+', s.lower()))
+        parts.discard('')
+        return parts
+    c_tokens = _tokens(candidate_id)
+    r_tokens = _tokens(route_id)
+    c_tokens = {t for t in c_tokens if not re.match(r'^p\d+$', t) and not re.match(r'^\d{2}$', t)}
+    if not c_tokens or not r_tokens:
+        return 0
+    return len(c_tokens & r_tokens)
 
 
 def _normalize_asin(value: Any) -> str:
@@ -583,10 +665,11 @@ def _operator_instruction(run_path: Path | None, site: str) -> dict[str, Any]:
 # ── Route extraction ───────────────────────────────────────────────────
 
 def _extract_selected_routes(route_matrix: dict[str, Any]) -> list[str]:
+    """Extract route identifiers preferring route_id (kebab-case) over Chinese names."""
     routes: list[str] = []
     for item in as_list(route_matrix.get("selected_routes")):
         if isinstance(item, dict):
-            name = first_text(item.get("route_name") or item.get("name") or item.get("id"))
+            name = first_text(item.get("route_id") or item.get("id") or item.get("route_name") or item.get("name"))
             if name:
                 routes.append(name)
         elif isinstance(item, str):
@@ -598,7 +681,7 @@ def _extract_rejected_routes(route_matrix: dict[str, Any]) -> list[str]:
     routes: list[str] = []
     for item in as_list(route_matrix.get("rejected_routes")):
         if isinstance(item, dict):
-            name = first_text(item.get("route_name") or item.get("name") or item.get("id"))
+            name = first_text(item.get("route_id") or item.get("id") or item.get("route_name") or item.get("name"))
             if name:
                 routes.append(name)
         elif isinstance(item, str):

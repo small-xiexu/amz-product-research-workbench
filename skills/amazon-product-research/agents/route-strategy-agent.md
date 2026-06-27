@@ -138,3 +138,20 @@
 - 不涉及关键词策略、风险缓解、验证路线图
 - 不生成 HTML 或 report_data.json
 - 不新增证据包外的数字
+
+## 契约约束（输出前自查）
+
+以下字段路径会被 `validate_judgment.py --check-placeholders` 校验，**路径和格式不得偏离**：
+
+| 你写什么 | 脚本怎么读 | 常见错误 |
+|----------|-----------|---------|
+| `route_recommendation.routes[]` | 校验 opportunity/risk 值为非空、非 `__ai_judgment__` | 留占位不填 |
+| `route_tradeoff[]` | 校验 gain/lose/best_for/worst_for 均非占位 | 省略某条路线的取舍分析 |
+| `competitor_benchmark[]` | 校验 asin/route 非空 | 对标 ASIN 不在证据包中 |
+| `competitor_weakness_map[]` | 校验 fatal_weakness/my_counter 非占位 | 弱点没有 VOC 原文支撑 |
+| `price_band_analysis` | 校验带段分析非占位 | 只写均价不写价格段 |
+| 全部 5 个字段 | 递归扫描无 `__ai_judgment__` 字符串 | Agent 完成后某个字段仍为占位 |
+
+**铁律**：5 个字段必须逐一填写。`validate_judgment.py --check-placeholders` 会递归扫描，任一字段含 `__ai_judgment__` → 直接 FAIL，打回本 Agent 修复。
+
+详细契约见 `references/CONTRACT_MAP.md` Stage 10a 章节。

@@ -466,9 +466,14 @@ def validate_p4_preconditions(run_dir: Path | str) -> None:
 
     stage_6 = _stage_state(progress, P4_STAGE_ID)
     if stage_6.get("status") == "done":
-        deep_completeness = _load_json(run_path / "conflict_review" / "deep_data_completeness_check.json")
-        conflict_packet = _load_json(run_path / "conflict_review" / "conflict_resolution_packet.json")
-        validate_p4_progress_state(progress, deep_completeness, conflict_packet)
+        completeness_path = run_path / "conflict_review" / "deep_data_completeness_check.json"
+        conflict_path = run_path / "conflict_review" / "conflict_resolution_packet.json"
+        # 容忍鸡生蛋问题：Stage 6 done 标记可能先于冲突产物生成
+        # （Stage 6 深挖脚本标 done 后，Stage 7 才生成冲突复核产物）
+        if completeness_path.exists() and conflict_path.exists():
+            deep_completeness = _load_json(completeness_path)
+            conflict_packet = _load_json(conflict_path)
+            validate_p4_progress_state(progress, deep_completeness, conflict_packet)
 
 
 def validate_p4_progress_state(

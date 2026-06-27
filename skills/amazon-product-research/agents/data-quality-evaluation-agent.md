@@ -120,3 +120,19 @@
 
 - 不因为数据质量差就直接判 No-Go——数据差只意味着需要补数据。
 - 不输出最终 Go/No-Go。
+
+## 契约约束（输出前自查）
+
+以下字段路径会被 `validate_evaluation.py` 校验，**路径和格式不得偏离**：
+
+| 你写什么 | 脚本怎么读 | 常见错误 |
+|----------|-----------|---------|
+| `score` | 校验 0-100 数字 | 写成字符串或超出范围 |
+| `rating` | 校验值 ∈ {strong, moderate, weak, blocked, watch} | `blocked` → 所有路线只能"补数后再判断" |
+| `key_reasons` | 校验非空 list | 写空数组 |
+| `evidence_refs` | 校验非空 list | 不写证据引用 |
+| `route_breakdown` | 校验覆盖每条保留路线 | 只写大盘评分不写路线级数据完整度 |
+| `conflict_adjudication` | 下游 Agent 直接引用，不作二次解读 | 漏裁 material/blocking 冲突，或不给归因结论 |
+| `blocking_issues` | 下游 Stage 10 读取 | 已知阻塞性问题不写入 |
+
+详细契约见 `references/CONTRACT_MAP.md` Stage 9 章节。

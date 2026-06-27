@@ -41,8 +41,8 @@ Stage 1 (意图收集) → Stage 2-3 (快验+门控) → Stage 4 (候选池) →
 
 | Quick Agent | 数据源 | 职责 | 禁止 |
 |---|---|---|---|
-| 卖家精灵 Quick Agent | 卖家精灵 MCP | 大盘容量、候选类目、价格带、集中度、Review 门槛 | 不写最终 Go/No-Go、不替 Sorftime 判断搜索需求 |
-| Sorftime Quick Agent | Sorftime MCP | 关键词搜索量、搜索意图、混池、候选类目、类目趋势 | 不写最终 Go/No-Go、不用关键词搜索量替代市场销量 |
+| 卖家精灵 Quick Agent | 卖家精灵 MCP | 大盘容量、候选类目、价格带、集中度、Review 门槛。**强制：发现 ALL 子方向 + 每方向挖 6-8 参考 ASIN（≥3 品牌、≥2 价格段）** | 不写最终 Go/No-Go、不替 Sorftime 判断搜索需求 |
+| Sorftime Quick Agent | Sorftime MCP | 关键词搜索量、搜索意图、混池、候选类目、类目趋势。**强制：每方向独立采词 + 每方向挖 6-8 参考 ASIN（≥3 品牌、≥2 价格段）** | 不写最终 Go/No-Go、不用关键词搜索量替代市场销量 |
 
 ## Stage 6 深挖并行规则
 

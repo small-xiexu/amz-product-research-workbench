@@ -24,6 +24,34 @@
 - 候选类目列表（Stage 2 发现的所有相关类目）
 - `review_voc/voc_evidence_packet.json` 中 P0/P1 ASIN 覆盖范围
 
+## Stage 2 快验要求（Sorftime Quick Agent）
+
+虽然是快验，但必须完成以下动作，不能只做大词搜索量概览：
+
+### 子方向发现（强制）
+
+1. 用 `category_search_from_product_name` 搜索品类名称，发现所有相关叶子类目
+2. 用 `category_report` 对每个叶子类目拉 Top100，观察产品形态分布
+3. 用 `keyword_detail` 对品类核心词的扩展词（`keyword_extends`）进行分析，识别不同子方向的搜索词簇
+4. 用 `product_search` 按不同特征词（材质、形态、场景）分别搜索，验证子方向是否存在独立产品群
+
+### 每方向参考 ASIN 深挖（强制）
+
+对每个发现的子方向，必须挖出 **6-8 个参考 ASIN**：
+
+1. 用 `product_search` 对每个子方向的特征词单独搜索，获取该方向的产品列表
+2. 用 `category_report` 获取每个子方向叶子类目的 Top100，从头部和腰部各选代表性 ASIN
+3. ASIN 必须满足多样性：
+   - **≥ 3 个不同品牌**
+   - **覆盖至少 2 个不同价格段**
+   - **覆盖不同产品特征**（如不同长度、材质、功能配置）
+4. 对代表性 ASIN 调用 `product_detail` + `product_traffic_terms` 获取详情和流量词
+5. 参考 ASIN 写入 `lineage` 数组，完整溯源
+
+### 数据写入
+
+所有参考 ASIN 和子方向发现写入 `candidate_seeds` 数组（格式同卖家精灵 Quick Agent 的 `candidate_seeds`）。
+
 ## Stage 2 快验输出
 
 作为 Sorftime Quick Agent，输出到 **`quick_check/sorftime_quick_evidence_packet.json`**（目录必须为 `quick_check/`，不可写入 `evidence/` 或 `quick_packets/`）。
@@ -84,19 +112,52 @@
 
 每个关键词对象至少包含 `keyword`、`keyword_role`、`source_type`、`source_refs`、`route_refs`、`matched_asin_count`、`monthly_search_volume`、`cpc`、`competition_count`、`mix_pool_tags`、`recommended_action`、`reason`、`confidence` 和 `lineage`。
 
-**快照输出（必须）**：完成 evidence packet 写入后，同步生成简化快照到 `mcp_snapshots/sorftime_deep_snapshot.json`。每个 MCP 工具调用输出一个 `tool_summaries` 条目，只保存关键数字，不保存完整 tool_result：
+**快照输出（必须）**：完成 evidence packet 写入后，同步生成完整快照到 `mcp_snapshots/sorftime_deep_snapshot.json`。每个 MCP 工具调用必须输出完整 `tool_calls` + `tool_results` 结构（非简化 `tool_summaries`）：
 
 ```json
 {
-  "tool_summaries": [
-    {"tool": "keyword_detail", "params": {"keyword": "dog leash"}, "key_findings": ["月搜270,612", "CPC $1.31", "竞争量中等"]},
-    {"tool": "product_traffic_terms", "params": {"asin": "B099WM7ZT7"}, "key_findings": ["15个流量词", "Top3词月搜合计50万"]}
+  "schema_version": "p4-deep-contract-v1",
+  "snapshot_id": "<run_id>-sorftime-deep",
+  "run_id": "<run_id>",
+  "source_name": "sorftime",
+  "source_doc_refs": ["..."],
+  "route_refs": ["route_matrix_confirm.json#selected_routes[0]"],
+  "selected_routes": ["<route_id>"],
+  "tool_calls": [
+    {
+      "call_id": "sorftime-deep-call-1",
+      "tool_name": "keyword_detail",
+      "params": {"keyword": "<目标品类核心词>"},
+      "status": "success",
+      "started_at": "<ISO>",
+      "finished_at": "<ISO>"
+    }
   ],
-  "collected_at": "<ISO 时间戳>"
+  "tool_results": [
+    {
+      "result_id": "sorftime-deep-result-1",
+      "call_id": "sorftime-deep-call-1",
+      "tool_name": "keyword_detail",
+      "status": "success",
+      "raw_result": { "<MCP返回的关键数据>" }
+    }
+  ],
+  "errors": [],
+  "data_gaps": [],
+  "created_at": "<ISO>",
+  "retry_policy": {"max_attempts": 1, "reuse_existing_snapshot": true, "allow_network_call": false},
+  "force_refresh": false,
+  "input_lineage": {
+    "workflow_ref": "<run_id>",
+    "route_refs": ["..."],
+    "selected_routes": ["..."],
+    "source_candidate_pool": "candidate_pool.json",
+    "site": "US"
+  }
 }
 ```
 
-**禁止**保存完整 MCP 返回体（会膨胀上下文）。只保存 QA 溯源需要的关键数字。
+`tool_calls[].status` 取 `success` / `empty` / `error`。`tool_results[].status` 同样取这三者之一。每个 result 必须包含 `raw_result`（MCP 返回数据）或 `normalized_preview`（摘要）。
 
 ## Stage 6 深扫最低要求
 
@@ -146,3 +207,18 @@
 - 搜索需求和卖家精灵 Top100 是否互相支持？
 - 哪些关键词应该成为后续 Listing / 竞品验证主线？
 - 哪些路线只是流量上相关，但产品形态不该纳入？
+
+## 契约约束（输出前自查）
+
+以下字段路径会被 `build_sorftime_deep_dive.py`、`build_conflict_review.py`、`build_review_asin_batch.py` 等脚本读取，**路径和格式不得偏离**：
+
+| 你写什么 | 脚本怎么读 | 常见错误 |
+|----------|-----------|---------|
+| 快照 `tool_calls[]` | `p4_contracts.validate_deep_snapshot` 校验 `call_id/status/started_at/finished_at` | 用简化 `tool_summaries` 代替完整 `tool_calls` |
+| 快照 `tool_results[]` | 同上，校验 `result_id/call_id/status/raw_result` | 缺少 `raw_result` 或 `normalized_preview` |
+| Evidence `facts.normalized_value` | `build_conflict_review._find_normalized_value` 读 `field_values` / `numeric_values` | 展平到 facts 顶层，未包在 `normalized_value` 内 |
+| `selected_routes[]` | `build_conflict_review._route_lineage` 读 `route_id` | 用中文名代替 kebab-case `route_id` |
+| `route_refs[]` | `validate_evidence_packet._check_route_coverage` 按 `route_id` 比对 | 遗漏某条保留路线 |
+| `keyword_pool_by_role` 关键词 | Stage 9/10 报告生成读 `keyword/route_refs/matched_asin_count` | 关键词不关联 `route_refs`、不写 `matched_asin_count` |
+
+详细契约见 `references/CONTRACT_MAP.md` Stage 6 章节。

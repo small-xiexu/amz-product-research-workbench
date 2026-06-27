@@ -142,3 +142,20 @@ P0/P1 痛点 → 具体产品规格要求 → 竞品对标差距 → 差异化�
 - 不涉及路线推荐、竞品对标、价格带解读
 - 不生成 HTML 或 report_data.json
 - 不新增证据包外的数字（估算必须标注假设前提）
+
+## 契约约束（输出前自查）
+
+以下字段路径会被 `validate_judgment.py --check-placeholders` 校验，**路径和格式不得偏离**：
+
+| 你写什么 | 脚本怎么读 | 常见错误 |
+|----------|-----------|---------|
+| `voc_to_spec[]` | 校验 dimension/priority/spec_requirement 非占位 | 只写痛点维度不写具体规格要求 |
+| `keyword_strategy.primary_attack[]` | 校验 keyword/strategy_rationale 非占位 | 照抄 search_demand 词表不做运营分层 |
+| `keyword_strategy.negative[]` | 校验否定词非空 | 不标记否定词，给下游造成误导 |
+| `risk_mitigation[]` | 校验 risk/operational_meaning 非占位 | 照抄 risk_evaluation 不翻译为运营缓解 |
+| `validation_roadmap.phases[]` | 校验 actions/exit_criteria/if_fail 非占位 | 只写"测CTR"不写通过标准和不通过怎么办 |
+| 全部 4 个字段 | 递归扫描无 `__ai_judgment__` 字符串 | Agent 完成后某个字段仍为占位 |
+
+**铁律**：4 个字段必须逐一填写。`validate_judgment.py --check-placeholders` 会递归扫描，任一字段含 `__ai_judgment__` → 直接 FAIL，打回本 Agent 修复。
+
+详细契约见 `references/CONTRACT_MAP.md` Stage 10a 章节。
