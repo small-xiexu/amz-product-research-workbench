@@ -63,7 +63,6 @@ Web 页面暂不作为主线。等 Codex 版闭环稳定后，再把 Web 作为�
 | 初始化 workflow_state | `python3 scripts/init_workflow_state.py <run_dir> --intent "品类方向"` |
 | 补齐 Quick Packet 契约 | `python3 scripts/fill_quick_packet_contract.py <packet.json> --source sellersprite\|sorftime` |
 | 生成 Quick Gate | `python3 scripts/build_quick_market_gate.py <run_dir>` |
-| 流程编排 (Stage 1-4) | `python3 scripts/run_pipeline.py <run_dir> --intent "品类方向"` |
 | MCP 候选池 | `python3 scripts/build_mcp_candidate_pool.py <run_dir>` |
 | 路线矩阵确认 | `python3 scripts/build_route_matrix_confirm.py <run_dir> [--force-confirm]` |
 | 补齐 Deep Snapshot 契约 | `python3 scripts/build_deep_snapshot.py <mcp_dump.json> --source sellersprite\|sorftime` |
@@ -108,6 +107,5 @@ runs/<yyyymmdd>_<中文品类方向>/
 - Agent 分工：`agents/`
 - Evidence Packet 契约：`references/evidence_packet_contract.md`
 - 多 Agent 调度：`references/multi_agent_dispatch.md`
-- Codex 跑通手册：`references/codex_runbook.md`
 - 产物契约：`references/artifact_contract.md`
 - 全局链路文档：`skills/amazon-product-research/SKILL.md`

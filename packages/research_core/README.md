@@ -17,7 +17,7 @@
 
 当前主产品体验由 `workflows.create_initial_state()`、`workflows.plan_next_action()`、`workflows.advance_stage()` 维护交互状态；`scripts/plan_interactive_workflow.py` 提供最小 CLI。
 
-`scripts/run_pipeline.py` 和 `tests/` (pytest) 为批量报告重跑和回归验证入口。
+`tests/` (pytest) 为回归验证入口。
 
 ## 当前数据契约
 

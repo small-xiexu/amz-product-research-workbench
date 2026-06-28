@@ -893,7 +893,6 @@ Delivery QA Agent（独立 spawn）核查
 | `skills/amazon-product-research/agents/delivery-qa-agent.md` | 重写：强制独立 spawn、数据真实性三级交叉核对（HTML→report_data→evidence→MCP snapshot）、运营判断质量、修复循环（最多 3 轮）、可执行修复清单输出 |
 | `skills/amazon-product-research/references/multi_agent_dispatch.md` | Delivery QA Agent 从“可 spawn”改为“强制 spawn”；新增 QA→报告 Agent 修复循环编排 |
 | `skills/amazon-product-research/references/evidence_packet_contract.md` | 新增 quick packet、conflict packet、evaluation packet、integrated judgment 契约 |
-| `docs/卖家精灵导出指令完整性规范.md` | 手工导出操作参考文档 |
 | `docs/字段来源表.md` | 更新卖家精灵字段来源为 MCP 主路径 |
 | `docs/正式报告契约.md` | 去掉正式 HTML 对数据来源过程的展示要求 |
 | `packages/research_core/adapters/seller_sprite_adapter.py` | 从导出记录适配扩展为 MCP snapshot 适配；旧导入适配保留 legacy |

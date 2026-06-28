@@ -228,8 +228,6 @@ python3 scripts/build_mcp_candidate_pool.py <run_dir>
 - 通过合约校验（结构完整性 + 通用占位符扫描 `sellersprite|sorftime|mcp|quick_gate|workflow_state`）后更新进度。
 - 不生成、不新增内容。`generation_provenance.build_strategy` 标记为 `agent_generated_script_validated`。
 
-> 也可用编排脚本一键跑通 Stage 1-4：`python3 scripts/run_pipeline.py <run_dir> --intent "品类方向"`
-
 **暂停点 B**：运营确认候选池，选择进入深挖的方向。
 
 **本阶段执行顺序**：
