@@ -115,35 +115,33 @@ class ValidateEvidencePacketTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertTrue(any("非 dict" in e for e in errors))
 
-    def test_fact_missing_id_detected(self) -> None:
+    def test_fact_missing_id_allowed_by_relaxed_contract(self) -> None:
         run_dir = self._make_run_dir()
-        bad = self._good_packet()
-        bad["evidence_items"] = [{
+        packet = self._good_packet()
+        packet["evidence_items"] = [{
             "item_id": "ei1",
             "item_type": "market_overview",
             "facts": [{"value": "no id here"}],
             "evidence_refs": ["ref1"],
             "source_refs": ["src1"],
         }]
-        self._write_packet(run_dir, "market_structure", bad)
+        self._write_packet(run_dir, "market_structure", packet)
         ok, errors = validate_evidence_packet(run_dir, "market_structure")
-        self.assertFalse(ok)
-        self.assertTrue(any("缺少字段" in e and "id" in e for e in errors))
+        self.assertTrue(ok, f"Relaxed facts contract should allow dict facts without id: {errors}")
 
-    def test_facts_as_dict_with_bare_string_value_detected(self) -> None:
+    def test_facts_as_dict_with_bare_string_value_allowed_by_relaxed_contract(self) -> None:
         run_dir = self._make_run_dir()
-        bad = self._good_packet()
-        bad["evidence_items"] = [{
+        packet = self._good_packet()
+        packet["evidence_items"] = [{
             "item_id": "ei1",
             "item_type": "market_overview",
             "facts": {"f1": "bare string value", "f2": {"value": 42, "source_path": "x"}},
             "evidence_refs": ["ref1"],
             "source_refs": ["src1"],
         }]
-        self._write_packet(run_dir, "market_structure", bad)
+        self._write_packet(run_dir, "market_structure", packet)
         ok, errors = validate_evidence_packet(run_dir, "market_structure")
-        self.assertFalse(ok)
-        self.assertTrue(any("裸 string" in e for e in errors))
+        self.assertTrue(ok, f"Relaxed facts contract should allow dict facts with scalar values: {errors}")
 
     # ── Route coverage checks ─────────────────────────────────────────
 

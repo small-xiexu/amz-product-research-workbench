@@ -564,7 +564,7 @@ VOC Agent 职责：
 |---|---|---|
 | 市场需求评价 Agent | `evaluations/market_demand_evaluation.json` | 需求是否真实、稳定、足够大 |
 | 竞争结构评价 Agent | `evaluations/competition_evaluation.json` | 是否头部垄断、评论门槛是否过高 |
-| 价格利润评价 Agent | `evaluations/price_profit_evaluation.json` | 价格带是否健康，有无利润想象空间 |
+| 价格带机会评价 Agent | `evaluations/price_profit_evaluation.json` | 价格带是否健康，有无切入窗口 |
 | VOC 机会评价 Agent | `evaluations/voc_opportunity_evaluation.json` | 痛点能否转成产品差异化 |
 | 风险评价 Agent | `evaluations/risk_evaluation.json` | 合规、季节性、退货、体积、售后、同质化风险 |
 | 数据质量评价 Agent | `evaluations/data_quality_evaluation.json` | 样本是否足够，是否混池，是否有阻塞冲突 |
@@ -911,7 +911,7 @@ Delivery QA Agent（独立 spawn）核查
 |---|---|
 | `skills/amazon-product-research/agents/market-demand-evaluation-agent.md` | 市场需求评价 |
 | `skills/amazon-product-research/agents/competition-evaluation-agent.md` | 竞争结构评价 |
-| `skills/amazon-product-research/agents/price-profit-evaluation-agent.md` | 价格利润评价 |
+| `skills/amazon-product-research/agents/price-profit-evaluation-agent.md` | 价格带机会评价 |
 | `skills/amazon-product-research/agents/voc-opportunity-evaluation-agent.md` | VOC 机会评价 |
 | `skills/amazon-product-research/agents/risk-evaluation-agent.md` | 风险评价 |
 | `skills/amazon-product-research/agents/data-quality-evaluation-agent.md` | 数据质量评价 |

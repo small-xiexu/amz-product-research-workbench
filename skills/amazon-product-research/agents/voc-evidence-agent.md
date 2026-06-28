@@ -55,6 +55,8 @@ VOC Evidence Agent 要把“用户骂什么/夸什么”翻译成主 Agent 和�
 - 哪些痛点只是说明书、包装、售后或预期管理问题。
 - 哪些痛点要转成样品测试、规格要求或购买前提醒。
 - 哪些规格会影响后续产品方案，如重量、包装、配件数量、材质升级。
+- `priority` 字段按契约可以继续写 `P0/P1/P2`，但任何解释性文字必须写成"必须验证 / 重点优化 / 建议优化"，不得写 `P0安全风险`、`P0痛点` 这类内部标签。
+- 不写"致命弱点"、"生死考验"、"摧毁 ASIN"、"赌博"等惊吓式表达；痛点描述采用"评论证据 → 对用户体验的影响 → 产品规格/样品测试动作"。
 
 ## 可以做
 
@@ -94,7 +96,7 @@ VOC Evidence Agent 要把“用户骂什么/夸什么”翻译成主 Agent 和�
 | 你写什么 | 脚本怎么读 | 常见错误 |
 |----------|-----------|---------|
 | `pain_points[].evidence_refs[]` | 校验每个 ref 含 `review_id` + `quote` | 只写 ASIN 不写 review_id，或缺原文 quote |
-| `pain_points[].priority` | 校验值为 P0/P1/P2 | 写成 High/Medium/Low |
+| `pain_points[].priority` | 校验值为 P0/P1/P2（仅 JSON 枚举；面向运营时翻译为必须验证/重点优化/建议优化） | 写成 High/Medium/Low，或在解释字段裸露 P0/P1/P2 |
 | `pain_points[].mention_count` | 校验 ≥3 | 只提 1-2 条评论就标为痛点 |
 | `spec_requirement` | 校验含 `spec_requirement`/`sample_tests`/`listing_risk_note` | 写成裸字符串而非 object |
 | `execution_provenance` | 校验 `executed_by_agent=true` + `execution_mode="agent"` | 标记为 serial_fallback 或漏写 subagent_id |

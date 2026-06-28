@@ -50,10 +50,16 @@ from packages.research_core.pipeline.constants import (
 from packages.research_core.pipeline.xlsx_back_table import (
     xlsx_sheets_from_report_data,
 )
+from packages.research_core.pipeline.public_language import (
+    find_public_language_issues,
+    public_label,
+    public_text,
+)
 from packages.research_core.pipeline.seed_report_data import (
     seed_report_data_from_analysis,
 )
 from packages.research_core.pipeline.quick_market_check import run_quick_market_check
+from packages.report_renderer.xlsx_writer import write_xlsx
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -65,6 +71,25 @@ def _cli_env() -> dict:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT) + (":" + env.get("PYTHONPATH", "") if env.get("PYTHONPATH") else "")
     return env
+
+
+# ── Public language cleanup ─────────────────────────────────────────────
+
+class PublicLanguageTests(unittest.TestCase):
+    """Operator-facing deliverables translate internal labels and dramatic phrasing."""
+
+    def test_public_text_translates_internal_jargon(self) -> None:
+        dirty = "P0安全风险是0评论新品的生死考验，confidence Medium，final_verdict=watch，rating=blocked，Stage 10a。"
+        clean = public_text(dirty)
+        self.assertIn("上市前必须验证的安全可靠性问题", clean)
+        self.assertIn("判断置信度中等", clean)
+        self.assertIn("建议先验证", clean)
+        self.assertIn("当前不满足放行条件", clean)
+        self.assertEqual(find_public_language_issues(clean), [])
+
+    def test_public_label_translates_priority_and_confidence(self) -> None:
+        self.assertEqual(public_label("P0", context="priority"), "必须验证")
+        self.assertEqual(public_label("medium", context="confidence"), "判断置信度中等")
 
 
 # ── Seed handoff ────────────────────────────────────────────────────────
@@ -268,6 +293,49 @@ class XLSXBackTableTests(unittest.TestCase):
         for name, rows in sheets:
             self.assertGreater(len(rows), 0, f"Sheet '{name}' has no rows")
 
+    def test_xlsx_sanitizes_public_language(self) -> None:
+        """Decision workbook cells do not expose internal jargon or dramatic phrasing."""
+        rd = _minimal_valid_report_data()
+        rd["competitors"] = [{
+            "asin": {"value": "B0TEST", "source_path": "test"},
+            "brand": {"value": "BrandX", "source_path": "test"},
+            "monthly_sales": {"value": "500", "source_path": "test"},
+            "price": {"value": "$19.99", "source_path": "test"},
+            "rating": {"value": "4.2", "source_path": "test"},
+            "rating_count": {"value": "200", "source_path": "test"},
+            "available_date": {"value": "2026-01-01", "source_path": "test"},
+            "route": {"value": "主线", "source_path": "test"},
+            "source_path": "test",
+        }]
+        rd["pain_points"] = [{
+            "priority": "P0",
+            "dimension": {"value": "安全可靠性", "source_path": "test"},
+            "review_count": {"value": "8", "source_path": "test"},
+            "issue_description": "P0安全风险是0评论新品的生死考验。",
+            "spec_requirement": "当前状态下做Go/No-Go是赌博。",
+            "source_path": "test",
+        }]
+        judgment = {
+            "competitor_weakness_map": [{
+                "asin": "B0TEST",
+                "fatal_weakness": "致命弱点：P0痛点。",
+                "voc_evidence": "致命弱点：P0痛点。",
+                "my_counter": "Stage 10a validation roadmap。",
+            }],
+            "competitor_benchmark": [{"asin": "B0TEST", "strength": "confidence Medium"}],
+        }
+        rd_path = self._tmp / "report_data.json"
+        judgment_path = self._tmp / "judgment.json"
+        rd_path.write_text(json.dumps(rd, ensure_ascii=False, indent=2), encoding="utf-8")
+        judgment_path.write_text(json.dumps(judgment, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        sheets = xlsx_sheets_from_report_data(rd_path, judgment_path)
+        for _, rows in sheets:
+            for row in rows:
+                for cell in row:
+                    if isinstance(cell, str):
+                        self.assertEqual(find_public_language_issues(cell), [])
+
 
 # ── QA blocking rules ───────────────────────────────────────────────────
 
@@ -299,6 +367,24 @@ class QABlockingRulesTests(unittest.TestCase):
         html_path = self._tmp / "test.html"
         html_path.write_text("<html>Agent says MCP tool pipeline spawn evidence_packet source_path</html>", encoding="utf-8")
         result = _has_no_forbidden_html_patterns(html_path)
+        self.assertFalse(result["pass"])
+        self.assertGreater(len(result.get("hits", [])), 0)
+
+    def test_public_language_html_terms_detected(self) -> None:
+        """Public-language violations are caught by HTML QA."""
+        from packages.research_core.pipeline.delivery_qa import _has_no_forbidden_html_patterns
+        html_path = self._tmp / "test.html"
+        html_path.write_text("<html>P0安全风险是0评论新品的生死考验，confidence Medium。</html>", encoding="utf-8")
+        result = _has_no_forbidden_html_patterns(html_path)
+        self.assertFalse(result["pass"])
+        self.assertGreater(len(result.get("hits", [])), 0)
+
+    def test_public_language_xlsx_terms_detected(self) -> None:
+        """Public-language violations are caught by XLSX QA."""
+        from packages.research_core.pipeline.delivery_qa import _has_no_forbidden_xlsx_patterns
+        xlsx_path = self._tmp / "bad.xlsx"
+        write_xlsx(xlsx_path, [("Sheet1", [["说明"], ["P0安全风险是0评论新品的生死考验"]])])
+        result = _has_no_forbidden_xlsx_patterns(xlsx_path)
         self.assertFalse(result["pass"])
         self.assertGreater(len(result.get("hits", [])), 0)
 
@@ -534,6 +620,50 @@ class ReportAgentEnhancementTests(unittest.TestCase):
         self.assertTrue(pb.get("judgment"))
         self.assertIn("机会", pb.get("judgment", ""))
 
+    def test_enhance_sanitizes_judgment_public_language(self) -> None:
+        """Judgment prose is cleaned before it can feed HTML/XLSX deliverables."""
+        from packages.research_core.pipeline.report_agent import enhance_seed_to_report_data
+        seed = _minimal_valid_report_data()
+        seed["pain_points"] = [{
+            "priority": "P0",
+            "dimension": {"value": "安全可靠性", "source_path": "test"},
+            "review_count": {"value": "8", "source_path": "test"},
+            "issue_description": "",
+            "spec_requirement": "",
+            "source_path": "test",
+        }]
+        seed["risks"] = [{
+            "severity": "高",
+            "description": "",
+            "mitigation": "",
+            "evidence_basis": "",
+            "source_path": "test",
+        }]
+        dirty = "P0安全风险是0评论新品的生死考验，confidence Medium，final_verdict=watch，rating=blocked，Stage 10a。"
+        judgment = {
+            "final_verdict": "watch",
+            "confidence": "medium",
+            "route_recommendation": {"primary_recommendation": dirty},
+            "voc_to_spec": [{
+                "dimension": "安全可靠性",
+                "issue_description": dirty,
+                "spec_requirement": "P0安全项必须送测。",
+            }],
+            "risk_mitigation": [{
+                "operational_meaning": dirty,
+                "mitigation_path": "Stage 10a validation roadmap。",
+            }],
+        }
+        rd = enhance_seed_to_report_data(seed, judgment, None)
+        visible_text = "\n".join([
+            rd["hero"]["lead_analysis"],
+            rd["pain_points"][0]["issue_description"],
+            rd["pain_points"][0]["spec_requirement"],
+            rd["risks"][0]["description"],
+            rd["risks"][0]["mitigation"],
+        ])
+        self.assertEqual(find_public_language_issues(visible_text), [])
+
 
 class ReportAgentHTMLTests(unittest.TestCase):
     """Agent HTML output follows contract rules."""
@@ -577,6 +707,26 @@ class ReportAgentHTMLTests(unittest.TestCase):
         self.assertNotIn("market_research_statistics", html)
         self.assertNotIn("keyword_detail", html)
         self.assertNotIn("product_traffic_terms", html)
+
+    def test_html_sanitizes_public_language(self) -> None:
+        """Generated HTML translates internal labels and dramatic risk phrasing."""
+        from packages.research_core.pipeline.report_agent import generate_operator_html
+        rd = _minimal_valid_report_data()
+        rd["hero"]["lead_analysis"] = (
+            "P0安全风险是0评论新品的生死考验，confidence Medium，final_verdict=watch，rating=blocked，Stage 10a。"
+        )
+        rd["pain_points"] = [{
+            "priority": "P0",
+            "dimension": {"value": "安全可靠性", "source_path": "test"},
+            "review_count": {"value": "8", "source_path": "test"},
+            "issue_description": "致命弱点：P0痛点。",
+            "spec_requirement": "当前状态下做Go/No-Go是赌博。",
+            "source_path": "test",
+        }]
+        html = generate_operator_html(rd)
+        self.assertEqual(find_public_language_issues(html), [])
+        self.assertIn("必须验证", html)
+        self.assertIn("判断置信度中等", html)
 
     def test_html_has_inline_style_not_external_css(self) -> None:
         """HTML embeds <style>, no report_template.css path."""

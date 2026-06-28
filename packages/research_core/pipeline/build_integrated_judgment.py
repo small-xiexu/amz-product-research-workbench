@@ -30,6 +30,8 @@ from packages.research_core.contracts.p7_contracts import (
 )
 from packages.research_core.pipeline._utils import load_json
 from packages.research_core.pipeline.constants import VOC_MIN_REVIEW_THRESHOLD
+from packages.research_core.pipeline.public_language import public_text
+from packages.research_core.pipeline.public_language import public_label
 
 
 def build_integrated_judgment(run_dir: Path) -> dict[str, Any]:
@@ -164,7 +166,7 @@ def _build_verdict_reason(
     if verdict == "blocked":
         parts.append("数据质量不达标")
         if tensions:
-            parts.append("；".join(str(t) for t in tensions[:2]))
+            parts.append("；".join(public_text(t) for t in tensions[:2]))
         return "，".join(parts) + "，必须先补数再推进。"
 
     if verdict == "go":
@@ -176,26 +178,26 @@ def _build_verdict_reason(
             dim_names = {
                 "market_demand": "市场需求",
                 "competition": "竞争格局",
-                "price_profit": "价格利润",
+                "price_profit": "价格带机会",
                 "voc_opportunity": "VOC机会",
                 "risk": "风险",
                 "data_quality": "数据质量",
             }
             strong_labels = [dim_names.get(d, d) for d in strong_dims[:4]]
-            parts.append(f"{'、'.join(strong_labels)}均处于 strong 水平")
+            parts.append(f"{'、'.join(strong_labels)}均为正向信号")
         if low_conf:
-            parts.append(f"{len(low_conf)} 项低置信度，P7 会跟踪但暂不阻断")
+            parts.append(f"{len(low_conf)} 项置信度偏低，需在后续验证中跟踪，但暂不阻断")
         return "，".join(parts) + "。"
 
     if verdict == "watch":
         if blocked:
             core_blocked = [d for d in blocked if d in P6_CORE_DIMENSIONS]
             if core_blocked:
-                parts.append(f"核心维度 blocked: {', '.join(core_blocked)}")
-                parts.append("不能直接 go，需补充信息后重新评估")
+                parts.append(f"核心维度当前不满足放行条件: {', '.join(core_blocked)}")
+                parts.append("不能直接放行，需补充信息后重新评估")
                 return "，".join(parts) + "。"
             else:
-                parts.append(f"辅助维度 blocked: {', '.join(blocked)}")
+                parts.append(f"辅助维度当前不满足放行条件: {', '.join(blocked)}")
                 parts.append("核心维度无阻塞，但需关注辅助维度风险后谨慎推进")
                 return "，".join(parts) + "。"
         weak_dims = [
@@ -205,7 +207,7 @@ def _build_verdict_reason(
             dim_names = {
                 "market_demand": "市场需求",
                 "competition": "竞争格局",
-                "price_profit": "价格利润",
+                "price_profit": "价格带机会",
                 "voc_opportunity": "VOC机会",
                 "risk": "风险",
                 "data_quality": "数据质量",
@@ -219,7 +221,7 @@ def _build_verdict_reason(
 
     # no_go
     if blocked:
-        parts.append(f"关键维度 blocked: {', '.join(blocked[:3])}")
+        parts.append(f"关键维度当前不满足放行条件: {', '.join(blocked[:3])}")
     parts.append("核心条件不满足，建议暂缓推进")
     return "，".join(parts) + "。"
 
@@ -319,8 +321,8 @@ def _build_next_actions(
     actions: list[str] = []
 
     if verdict == "blocked":
-        actions.append("补齐阻塞数据：检查 data_quality_evaluation 的 required_followups")
-        actions.append("解决 blocking_conflicts 后重新触发 P4→P6 流程")
+        actions.append("补齐阻塞数据：检查数据质量评价中列出的补充项")
+        actions.append("解决阻断性数据缺口后重新完成评价流程")
 
     for dim, ev in evaluations.items():
         rating = ev.get("rating", "")
@@ -338,7 +340,7 @@ def _build_next_actions(
         actions.append("进入供应商阶段：基于推荐路线和价格带联系供应商打样")
         actions.append("根据 VOC 痛点制定品质验收标准")
     elif verdict == "watch":
-        actions.append("补齐关键缺口后重新评估，重点关注 blocked/weak 维度")
+        actions.append("补齐关键缺口后重新评估，重点关注阻断或偏弱维度")
     elif verdict == "no_go":
         # Look for alternative routes that weren't selected
         actions.append("不建议当前路线推进，可考虑评估路线矩阵中的备选路线")
@@ -359,8 +361,8 @@ def _build_constraints_applied(summary: dict[str, Any]) -> list[str]:
         if c and str(c).strip():
             result.append(str(c).strip())
     if not result:
-        result.append("所有维度均未 blocked，P7 可在 go/watch/no_go 范围内自由判断")
-    return result
+        result.append("所有维度均未出现阻断项，可在建议进入小批量验证、建议先验证、建议暂停推进范围内判断")
+    return [public_text(item) for item in result]
 
 
 def _collect_evidence_refs(
@@ -634,8 +636,48 @@ def _build_competitor_weakness_map(run_dir: Path) -> list[dict[str, Any]]:
 
 
 def _build_validation_roadmap(evaluations: dict[str, Any]) -> list[dict[str, Any]]:
-    """生成验证路线图骨架。Agent 需根据品类特征自行定义阶段数、时间线和每步的 actions/exit_criteria/if_fail。"""
-    return []  # 阶段数、时间线、决策条件完全由 Agent 根据证据决定，脚本不预设模板
+    """生成验证路线图骨架。
+
+    Agent 需根据品类特征填充每条 action 的具体内容、通过标准和不通过应对。
+    骨架提供了运营基线阶段结构——阶段名和关键里程碑是固定的，actions 内具体步骤由 Agent 细化。
+    """
+    risk_eval = evaluations.get("risk", {})
+    has_safety_risk = any(
+        "安全" in str(r.get("risk_name", "")) or "safety" in str(r.get("risk_name", "")).lower()
+        for r in risk_eval.get("risks", risk_eval.get("route_evaluations", []))
+    ) if isinstance(risk_eval, dict) else False
+
+    phase1_actions = [
+        "__ai_judgment__品牌注册：完成亚马逊品牌注册（Brand Registry）→ 解锁 A+页面、Vine计划、品牌旗舰店、品牌分析报告。如果美国商标尚未下证，此项为阶段0前置。",
+    ]
+    if has_safety_risk:
+        phase1_actions.append("__ai_judgment__品质工程验证：安全可靠性项目（关键结构件/功能件等）送第三方测试，取得测试报告。")
+
+    return [
+        {
+            "phase": "阶段1：上线前准备（Week 1-4，品牌注册 + 品质验证）",
+            "actions": phase1_actions,
+            "exit_criteria": "__ai_judgment__",
+            "if_fail": "__ai_judgment__",
+        },
+        {
+            "phase": "阶段2：小规模市场验证（Week 5-12，首发 + 广告测试）",
+            "actions": [
+                "__ai_judgment__最小可行上线：首单FBA + Listing完整搭建（已有品牌注册→A+页面可用）。",
+                "__ai_judgment__Vine送测 + 广告小规模测试 + 竞品监控。",
+            ],
+            "exit_criteria": "__ai_judgment__",
+            "if_fail": "__ai_judgment__",
+        },
+        {
+            "phase": "阶段3：规模化放量（Week 13-26，补货 + 广告放量 + 品牌深化）",
+            "actions": [
+                "__ai_judgment__补货决策 + 广告放量 + 品牌旗舰店建设 + 评论积累。",
+            ],
+            "exit_criteria": "__ai_judgment__",
+            "if_fail": "__ai_judgment__",
+        },
+    ]
 
 
 def update_progress(run_dir: Path, judgment: dict[str, Any]) -> None:
@@ -661,7 +703,10 @@ def update_progress(run_dir: Path, judgment: dict[str, Any]) -> None:
         ],
         "validation_checks": [],
         "resume_policy": {"reuse_existing_artifacts": True},
-        "notes": f"final_verdict={judgment.get('final_verdict', '')}, confidence={judgment.get('confidence', '')}",
+        "notes": (
+            f"最终判断: {public_label(judgment.get('final_verdict', ''), context='verdict')}, "
+            f"{public_label(judgment.get('confidence', ''), context='confidence')}"
+        ),
     }
 
     completed = progress.setdefault("completed_artifacts", [])
@@ -674,8 +719,8 @@ def update_progress(run_dir: Path, judgment: dict[str, Any]) -> None:
     progress["next_action"] = {
         "type": "ai_step",
         "description": (
-            "脚本阶段完成，judgment skeleton 已生成。下一步："
-            "Stage 10a — 强制并行 spawn Route Strategy Agent + Growth & Risk Agent，"
+            "脚本阶段完成，集成判断骨架已生成。下一步："
+            "深度分析阶段 — 强制并行启动 Route Strategy Agent + Growth & Risk Agent，"
             "各自填充 5 个深度分析字段（共 10 字段）。"
         ),
     }

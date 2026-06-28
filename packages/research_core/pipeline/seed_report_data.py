@@ -57,7 +57,7 @@ def _core_search_volume_estimate(kw_pool: dict[str, Any]) -> str:
 
 
 def _recommended_price_from_routes(route_judgment: list[dict[str, Any]]) -> str:
-    """从路线判断中提取推荐定价区间。优先取主线的 price_range，其次取第一条路线的。"""
+    """从路线判断中提取关注价格带。优先取主线的 price_range，其次取第一条路线的。"""
     for rj in route_judgment:
         if not isinstance(rj, dict):
             continue
@@ -218,7 +218,7 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
         "monthly_demand": {"label": "月销", "value": f"{primary.get('avg_monthly_units', '')} units", "source_path": "analysis.seller_sprite_validation.primary_market.avg_monthly_units"},
         "core_search_volume": {"label": "核心词月搜", "value": derived["core_search_volume"], "source_path": "analysis._derived.core_search_volume"},
         "avg_price": {"label": "均价", "value": f"${primary.get('avg_price_usd', '')}", "source_path": "analysis.seller_sprite_validation.primary_market.avg_price_usd"},
-        "recommended_price": {"label": "推荐定价", "value": derived["recommended_price"], "source_path": "analysis._derived.recommended_price"},
+        "recommended_price": {"label": "关注价格带", "value": derived["recommended_price"], "source_path": "analysis._derived.recommended_price"},
         "avg_rating": {"label": "类目均分", "value": primary.get("avg_rating", "待补"), "source_path": "analysis.seller_sprite_validation.primary_market.avg_rating"},
     }
 
@@ -329,5 +329,4 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
         "gonogo_conditions": gonogo,
         "next_steps": next_steps,
     }
-
 

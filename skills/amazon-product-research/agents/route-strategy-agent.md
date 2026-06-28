@@ -24,7 +24,7 @@
 |---|---|---|
 | 市场需求评价 | `evaluations/market_demand_evaluation.json` | 路线级需求评级、route_breakdown |
 | 竞争结构评价 | `evaluations/competition_evaluation.json` | 头部垄断、评论门槛、新品空间、route_breakdown |
-| 价格利润评价 | `evaluations/price_profit_evaluation.json` | 价格带健康度、利润空间 |
+| 价格带机会评价 | `evaluations/price_profit_evaluation.json` | 价格带健康度、切入窗口和溢价证据 |
 | 市场结构证据 | `market_structure/market_structure_evidence_packet.json` | **必须回查**：价格带分布、品牌/商品集中度、Top100 ASIN 明细 |
 | VOC 证据 | `review_voc/voc_evidence_packet.json` | 差评原文（用于竞品弱点地图） |
 | 路线矩阵 | `route_matrix_confirm.json` | 路线配置和 ASIN 角色 |
@@ -86,14 +86,14 @@
 
 ### `competitor_weakness_map` — 竞品弱点地图
 
-每个核心竞品最致命的 1-2 个弱点（必须有 VOC 差评原文支撑）+ 反击方案。
+每个核心竞品最主要的 1-2 个差评点（必须有 VOC 差评原文支撑）+ 反击方案。字段名 `fatal_weakness` 是历史契约字段，值里不要写"致命弱点"等夸张措辞。
 
 ```json
 "competitor_weakness_map": [
   {
     "asin": "B0XXXX",
     "route": "路线名",
-    "fatal_weakness": "致命弱点描述",
+    "fatal_weakness": "主要差评点描述",
     "voc_evidence": "差评原文引用",
     "my_counter": "反击方案（具体到可以写进Listing）",
     "counter_difficulty": "低 | 中 | 高"
@@ -115,6 +115,8 @@
 ]
 ```
 
+价格带解读只基于市场价格结构，不做落地利润核算。不得输出 COGS、FOB、采购价、供应商报价、毛利率、FBA 费用、1688 实际报价等后置变量；也不得把缺少这些数据写成市场分析阻塞项。
+
 ## 分析要求
 
 ### 必须回查原始证据
@@ -131,6 +133,13 @@
 ### 路线级拆解
 
 每条保留路线独立分析，不合并。差异化路线的竞争数据不得套用大盘数据。
+
+### 面向报告的话术边界
+
+- 解释性字段要写运营能直接读懂的表达，不能把内部字段名和枚举当正文。
+- 不写"致命弱点"、"生死考验"、"摧毁 ASIN"、"赌博"等惊吓式表达。
+- `fatal_weakness` 字段的值写成"主要差评点：证据 + 影响 + 我的反击"，不要只写情绪化结论。
+- `price_band_analysis` 只解释市场价格结构，不输出 COGS、FOB、采购价、供应商报价、毛利率、FBA 费用、1688 实际报价等后置变量。
 
 ## 禁止
 

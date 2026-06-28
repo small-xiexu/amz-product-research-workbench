@@ -1,7 +1,7 @@
 # Pipeline 契约对齐待优化清单
 
 **日期**: 2026-06-27
-**来源**: 宠物牵引绳全流程跑通过程中发现的 Agent–脚本契约断裂点
+**来源**: 宠物牵引绳全流程跑通过程中发现的 Agent–脚本契约断裂点 <!-- generic-redline: allow historical run postmortem retains original case name -->
 **优先级**: P1（影响批量跑品类的自动化程度）
 
 ---

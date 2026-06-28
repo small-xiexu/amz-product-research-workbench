@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from packages.research_core.pipeline._utils import _report_value, as_list
+from packages.research_core.pipeline.public_language import public_label, public_text
 
 
 # ── CSS template ──────────────────────────────────────────────────────────
@@ -72,11 +73,17 @@ def _public_html_text(text: str) -> str:
     result = str(text)
     for raw, public in replacements.items():
         result = result.replace(raw, public)
-    return result
+    return public_text(result)
 
 
 def _tag_html(label: str, level: str) -> str:
     """Render a <span class="tag ..."> element."""
+    cls = _tag_class(level)
+    return f'<span class="tag {cls}">{_esc(public_label(label))}</span>'
+
+
+def _tag_class(level: str) -> str:
+    """Return the CSS class for a semantic tag level."""
     color_map = {
         "strong": "tag-green",
         "watch": "tag-amber",
@@ -98,8 +105,7 @@ def _tag_html(label: str, level: str) -> str:
         "should": "tag-amber",
         "nice_to_have": "tag-green",
     }
-    cls = color_map.get(str(level), "tag-gray")
-    return f'<span class="tag {cls}">{_esc(str(label))}</span>'
+    return color_map.get(str(level), "tag-gray")
 
 
 def _bar_color(opportunity_level: str) -> str:
@@ -176,10 +182,10 @@ def enhance_seed_to_report_data(
         route_rec = judgment.get("route_recommendation") or {}
         primary = route_rec.get("primary_recommendation", "")
         if _is_filled(primary):
-            hero["lead_analysis"] = primary
+            hero["lead_analysis"] = public_text(primary)
         # Priority 2: verdict_reason (decision summary)
         elif _is_filled(judgment.get("verdict_reason", "")):
-            hero["lead_analysis"] = judgment["verdict_reason"]
+            hero["lead_analysis"] = public_text(judgment["verdict_reason"])
         elif not hero.get("lead_analysis"):
             hero["lead_analysis"] = "基于市场、竞争、价格、VOC、风险和数据质量六维评价的综合判断。"
 
@@ -235,13 +241,13 @@ def enhance_seed_to_report_data(
 
         # Transcribe weakness/counter from judgment
         if _is_filled(wm.get("fatal_weakness")):
-            c["weakness"] = wm["fatal_weakness"]
+            c["weakness"] = public_text(wm["fatal_weakness"])
         if _is_filled(wm.get("my_counter")):
-            c["counter"] = wm["my_counter"]
+            c["counter"] = public_text(wm["my_counter"])
 
         # Transcribe judgment from competitor_benchmark differentiation
         if _is_filled(bm.get("differentiation_direction")):
-            c["judgment"] = bm["differentiation_direction"]
+            c["judgment"] = public_text(bm["differentiation_direction"])
         elif not c.get("judgment"):
             # Template fallback
             role = _rv(c.get("asin_role", ""))
@@ -274,12 +280,12 @@ def enhance_seed_to_report_data(
         vs = voc_specs.get(dim, {})
 
         if _is_filled(vs.get("issue_description")):
-            pp["issue_description"] = vs["issue_description"]
+            pp["issue_description"] = public_text(vs["issue_description"])
         elif not pp.get("issue_description"):
             pp["issue_description"] = f"竞品在{dim}方面存在用户反馈问题，需重点关注。"
 
         if _is_filled(vs.get("spec_requirement")):
-            pp["spec_requirement"] = vs["spec_requirement"]
+            pp["spec_requirement"] = public_text(vs["spec_requirement"])
         elif not pp.get("spec_requirement"):
             pp["spec_requirement"] = "基于 VOC 分析制定品质标准，在打样阶段验证。"
     rd["pain_points"] = pain_points
@@ -299,7 +305,7 @@ def enhance_seed_to_report_data(
         pba = pb_analysis.get(band, {})
 
         if _is_filled(pba.get("competitive_meaning")):
-            pb["judgment"] = pba["competitive_meaning"]
+            pb["judgment"] = public_text(pba["competitive_meaning"])
         elif not pb.get("judgment"):
             level = _rv(pb.get("opportunity_level", ""))
             share = _rv(pb.get("unit_share", ""))
@@ -322,7 +328,7 @@ def enhance_seed_to_report_data(
                     kw_text = str(kw_entry.get("keyword", "")).strip()
                     rationale = kw_entry.get("strategy_rationale", "")
                     if kw_text and _is_filled(rationale):
-                        kw_strategy[kw_text] = rationale
+                        kw_strategy[kw_text] = public_text(rationale)
 
     for kw in keywords:
         if not isinstance(kw, dict):
@@ -369,9 +375,9 @@ def enhance_seed_to_report_data(
         rm = risk_mitigations[i] if i < len(risk_mitigations) else {}
         if isinstance(rm, dict):
             if _is_filled(rm.get("operational_meaning")):
-                risk["description"] = rm["operational_meaning"]
+                risk["description"] = public_text(rm["operational_meaning"])
             if _is_filled(rm.get("mitigation_path")):
-                risk["mitigation"] = rm["mitigation_path"]
+                risk["mitigation"] = public_text(rm["mitigation_path"])
         if not risk.get("mitigation"):
             risk["mitigation"] = "在下一步中跟进验证，补齐缺失数据后再做判断。"
     rd["risks"] = risks
@@ -398,8 +404,8 @@ def enhance_seed_to_report_data(
                 if title and action_text:
                     new_steps.append({
                         "order": i + 1,
-                        "title": title,
-                        "description": desc,
+                        "title": public_text(title),
+                        "description": public_text(desc),
                         "source_path": f"integrated_operator_judgment.validation_roadmap[{i}]",
                     })
             if new_steps:
@@ -414,7 +420,7 @@ def enhance_seed_to_report_data(
                     if isinstance(action, str) and action.strip():
                         new_steps.append({
                             "order": i + 1,
-                            "title": action.strip(),
+                            "title": public_text(action.strip()),
                             "description": "基于六维评价和集成判断的自动化建议。",
                             "source_path": f"integrated_operator_judgment.required_next_actions[{i}]",
                         })
@@ -436,15 +442,15 @@ def enhance_seed_to_report_data(
             rd["gonogo_conditions"] = [
                 {
                     "condition": "六维评价无阻断项",
-                    "go_threshold": "所有维度 rating 不为 blocked",
-                    "nogo_threshold": "任一核心维度 blocked",
+                    "go_threshold": "所有关键维度未出现阻断项",
+                    "nogo_threshold": "任一核心维度当前不满足放行条件",
                     "current_status": "已通过" if jv != "blocked" else "未通过",
                     "source_path": "integrated_operator_judgment.final_verdict",
                 },
                 {
                     "condition": "数据质量可支撑结论",
-                    "go_threshold": "data_quality 不为 blocked，无低置信强结论",
-                    "nogo_threshold": "data_quality blocked 或低置信支撑强结论",
+                    "go_threshold": "数据质量可支撑判断，且没有用低置信证据支撑强结论",
+                    "nogo_threshold": "数据质量当前不满足放行条件，或低置信证据支撑强结论",
                     "current_status": "待验证",
                     "source_path": "evaluation_summary.dimension_results.data_quality",
                 },
@@ -483,6 +489,7 @@ def _build_hero_html(hero: dict[str, Any], run_id: str) -> str:
     verdict = _rv(hero.get("verdict", ""))
     lead = _rv(hero.get("lead_analysis", ""))
     confidence = _rv(hero.get("confidence", ""))
+    confidence_display = public_label(confidence, context="confidence") if confidence else ""
     metrics = hero.get("metrics") or {}
 
     metric_order = [
@@ -490,7 +497,7 @@ def _build_hero_html(hero: dict[str, Any], run_id: str) -> str:
         ("monthly_demand", "月销"),
         ("core_search_volume", "核心词月搜"),
         ("avg_price", "均价"),
-        ("recommended_price", "推荐定价"),
+        ("recommended_price", "关注价格带"),
         ("avg_rating", "类目均分"),
     ]
 
@@ -509,7 +516,7 @@ def _build_hero_html(hero: dict[str, Any], run_id: str) -> str:
     product_name = target or run_id
 
     return f"""<section class="hero">
-  <div class="eyebrow">选品调研 · {_esc(product_name)} · {_esc(confidence or '')}</div>
+  <div class="eyebrow">选品调研 · {_esc(product_name)} · {_esc(confidence_display)}</div>
   <h1>{_esc(product_name)}</h1>
   <div class="verdict">{_esc(verdict)}</div>
   <p class="lead">{_esc(lead)}</p>
@@ -535,13 +542,13 @@ def _build_category_html(cp: dict[str, Any]) -> str:
         role = _rv(cat.get("category_role", ""))
         reason = cat.get("reason", "")
         cat_rows += f"""<tr>
-      <td>{_esc(name)}</td>
-      <td>{_esc(node)}</td>
-      <td>{_esc(path)}</td>
-      <td>{_esc(sales)}</td>
-      <td>{_esc(revenue)}</td>
-      <td>{_esc(price)}</td>
-      <td>{_tag_html(role, role)}</td>
+      <td class="tc">{_esc(name)}</td>
+      <td class="keyword-cell">{_esc(node)}</td>
+      <td class="tc">{_esc(path)}</td>
+      <td class="tc">{_esc(sales)}</td>
+      <td class="tc">{_esc(revenue)}</td>
+      <td class="tc">{_esc(price)}</td>
+      <td class="tc">{_tag_html(role, role)}</td>
       <td>{_esc(str(reason))}</td>
     </tr>"""
 
@@ -589,12 +596,24 @@ def _build_category_html(cp: dict[str, Any]) -> str:
     return f"""<section class="section">
   <h2>类目全景</h2>
   <p class="subtitle">样本边界：基于 Top100 产品数据，不代表整个类目。判断口径：先判断后数据。</p>
-  <table>
+  <div class="table-scroll">
+  <table style="width:1360px">
+    <colgroup>
+      <col style="width:180px">
+      <col style="width:130px">
+      <col style="width:250px">
+      <col style="width:120px">
+      <col style="width:130px">
+      <col style="width:110px">
+      <col style="width:120px">
+      <col style="width:320px">
+    </colgroup>
     <thead><tr>
-      <th>类目名</th><th>Node ID</th><th>类目路径</th><th>月销(units)</th><th>月销额($)</th><th>均价($)</th><th>角色</th><th>判断理由</th>
+      <th>类目名</th><th class="tc nowrap">Node ID</th><th>类目路径</th><th class="tc">月销(units)</th><th class="tc">月销额($)</th><th class="tc">均价($)</th><th class="tc">角色</th><th>判断理由</th>
     </tr></thead>
     <tbody>{cat_rows if cat_rows else '<tr><td colspan="8">暂无类目数据</td></tr>'}</tbody>
   </table>
+  </div>
   <div class="insight-row">
 {insight_cards}
   </div>
@@ -617,26 +636,37 @@ def _build_competitors_html(competitors: list[Any]) -> str:
         role = _rv(c.get("asin_role", ""))
         judgment = c.get("judgment", "")
         rows += f"""<tr>
-      <td>{_esc(asin)}</td>
-      <td>{_esc(route)}</td>
-      <td>{_esc(brand)}</td>
-      <td>{_esc(price)}</td>
-      <td>{_esc(sales)}</td>
-      <td>{_esc(rating)}</td>
-      <td>{_esc(rcount)}</td>
-      <td>{_tag_html(role, role)}</td>
+      <td class="asin-cell">{_esc(asin)}</td>
+      <td class="tc">{_esc(route)}</td>
+      <td class="brand-cell"><div class="brand-stack"><strong>{_esc(brand)}</strong><span class="tag {_tag_class(role)}">{_esc(public_label(role))}</span></div></td>
+      <td class="tc">{_esc(price)}</td>
+      <td class="tc">{_esc(sales)}</td>
+      <td class="tc">{_esc(rating)}</td>
+      <td class="tc">{_esc(rcount)}</td>
       <td>{_esc(str(judgment))}</td>
     </tr>"""
 
     return f"""<section class="section">
   <h2>核心竞品</h2>
   <p class="subtitle">每条路线的代表竞品对比，帮助判断竞争态势。</p>
-  <table>
+  <div class="table-scroll">
+  <table style="width:1120px">
+    <colgroup>
+      <col style="width:130px">
+      <col style="width:150px">
+      <col style="width:170px">
+      <col style="width:90px">
+      <col style="width:90px">
+      <col style="width:90px">
+      <col style="width:100px">
+      <col style="width:300px">
+    </colgroup>
     <thead><tr>
-      <th>ASIN</th><th>路线</th><th>品牌</th><th>价格($)</th><th>月销</th><th>评分</th><th>评论数</th><th>角色</th><th>判断</th>
+      <th class="tc nowrap">ASIN</th><th class="tc">路线</th><th class="tc">品牌</th><th class="tc">价格($)</th><th class="tc">月销</th><th class="tc">评分</th><th class="tc">评论数</th><th>判断</th>
     </tr></thead>
-    <tbody>{rows if rows else '<tr><td colspan="9">暂无竞品数据</td></tr>'}</tbody>
+    <tbody>{rows if rows else '<tr><td colspan="8">暂无竞品数据</td></tr>'}</tbody>
   </table>
+  </div>
 </section>"""
 
 
@@ -651,9 +681,9 @@ def _build_pain_points_html(pain_points: list[Any]) -> str:
         issue = pp.get("issue_description", "")
         spec = pp.get("spec_requirement", "")
         rows += f"""<tr>
-      <td>{_tag_html(priority, priority)}</td>
-      <td>{_esc(dim)}</td>
-      <td>{_esc(rcount)}</td>
+      <td class="tc">{_tag_html(priority, priority)}</td>
+      <td class="tc">{_esc(dim)}</td>
+      <td class="tc">{_esc(rcount)}</td>
       <td>{_esc(str(issue))}</td>
       <td>{_esc(str(spec))}</td>
     </tr>"""
@@ -661,12 +691,21 @@ def _build_pain_points_html(pain_points: list[Any]) -> str:
     return f"""<section class="section">
   <h2>用户痛点</h2>
   <p class="subtitle">基于差评提取核心痛点，直接指导产品打样和品质标准制定。</p>
-  <table>
+  <div class="table-scroll">
+  <table style="width:1240px">
+    <colgroup>
+      <col style="width:90px">
+      <col style="width:160px">
+      <col style="width:90px">
+      <col style="width:450px">
+      <col style="width:450px">
+    </colgroup>
     <thead><tr>
-      <th>优先级</th><th>痛点维度</th><th>提及数</th><th>竞品出了什么问题</th><th>你的产品应该做到</th>
+      <th class="tc">优先级</th><th class="tc">痛点维度</th><th class="tc">提及数</th><th>竞品出了什么问题</th><th>你的产品应该做到</th>
     </tr></thead>
     <tbody>{rows if rows else '<tr><td colspan="5">暂无痛点数据</td></tr>'}</tbody>
   </table>
+  </div>
 </section>"""
 
 
@@ -708,23 +747,33 @@ def _build_keywords_html(keywords: list[Any]) -> str:
         comp = _rv(kw.get("competitor_count", ""))
         strategy = kw.get("strategy", "")
         rows += f"""<tr>
-      <td>{_tag_html(role, role)}</td>
-      <td>{_esc(word)}</td>
-      <td>{_esc(ms)}</td>
-      <td>{_esc(cpc)}</td>
-      <td>{_esc(comp)}</td>
+      <td class="tc">{_tag_html(role, role)}</td>
+      <td class="keyword-cell">{_esc(word)}</td>
+      <td class="tc">{_esc(ms)}</td>
+      <td class="tc">{_esc(cpc)}</td>
+      <td class="tc">{_esc(comp)}</td>
       <td>{_esc(str(strategy))}</td>
     </tr>"""
 
     return f"""<section class="section">
   <h2>关键词与流量策略</h2>
   <p class="subtitle">按运营意图分层：主攻词 / 可测词 / 否定词，每条配策略说明。</p>
-  <table>
+  <div class="table-scroll">
+  <table style="width:1100px">
+    <colgroup>
+      <col style="width:90px">
+      <col style="width:240px">
+      <col style="width:100px">
+      <col style="width:90px">
+      <col style="width:100px">
+      <col style="width:480px">
+    </colgroup>
     <thead><tr>
-      <th>角色</th><th>关键词</th><th>月搜索量</th><th>CPC($)</th><th>竞品数</th><th>策略说明</th>
+      <th class="tc">角色</th><th>关键词</th><th class="tc">月搜索量</th><th class="tc">CPC($)</th><th class="tc">竞品数</th><th>策略说明</th>
     </tr></thead>
     <tbody>{rows if rows else '<tr><td colspan="6">暂无关键词数据</td></tr>'}</tbody>
   </table>
+  </div>
 </section>"""
 
 
@@ -774,7 +823,7 @@ def _build_risks_next_html(
       <td>{_esc(str(cond))}</td>
       <td>{_esc(str(go_t))}</td>
       <td>{_esc(str(nogo_t) or '—')}</td>
-      <td>{_tag_html(str(status), str(status))}</td>
+      <td class="tc">{_tag_html(str(status), str(status))}</td>
     </tr>"""
 
     # Next steps
@@ -802,7 +851,7 @@ def _build_risks_next_html(
 
     return f"""<section class="section">
   <h2>风险与下一步</h2>
-  <p class="subtitle">风险与优势对照，Go/No-Go 条件表，下一步行动建议。</p>
+  <p class="subtitle">风险与优势对照，放行条件表，下一步行动建议。</p>
   <div class="insight-row">
     <div class="insight-card warn">
       <h4>主要风险</h4>
@@ -817,13 +866,21 @@ def _build_risks_next_html(
       </ul>
     </div>
   </div>
-  <h3 style="margin-top:16px">Go / No-Go 条件</h3>
-  <table class="go-nogo">
+  <h3 style="margin-top:16px">放行条件</h3>
+  <div class="table-scroll">
+  <table class="go-nogo" style="width:1180px">
+    <colgroup>
+      <col style="width:260px">
+      <col style="width:350px">
+      <col style="width:300px">
+      <col style="width:270px">
+    </colgroup>
     <thead><tr>
-      <th>条件</th><th>Go 阈值</th><th>No-Go 红线</th><th>当前状态</th>
+      <th>条件</th><th>放行条件</th><th>暂停条件</th><th class="tc">当前状态</th>
     </tr></thead>
-    <tbody>{gonogo_rows if gonogo_rows else '<tr><td colspan="4">暂无 Go/No-Go 条件</td></tr>'}</tbody>
+    <tbody>{gonogo_rows if gonogo_rows else '<tr><td colspan="4">暂无放行条件</td></tr>'}</tbody>
   </table>
+  </div>
   <h3 style="margin-top:16px">下一步</h3>
   <div class="next-steps">
 {step_cards}

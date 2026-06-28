@@ -28,6 +28,7 @@ from packages.research_core.pipeline.xlsx_back_table import (
 from packages.research_core.pipeline.delivery_qa import (
     run_delivery_qa,
 )
+from packages.research_core.pipeline.public_language import public_label, public_text
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -132,6 +133,7 @@ def _write_qa_notes(
         if name in (
             "report_data_sources_note", "report_data_values_note",
             "report_data_value_mismatches", "forbidden_html_hits",
+            "forbidden_xlsx_hits",
             "p0_blocker_hits",
         ):
             continue
@@ -146,7 +148,11 @@ def _write_qa_notes(
     if checks.get("report_data_values_note"):
         lines.append(f"- 值校验: {checks['report_data_values_note']}")
     if checks.get("p0_blocker_hits"):
-        lines.append(f"- P0 阻断: {checks['p0_blocker_hits']}")
+        lines.append(f"- 阻断项: {public_text(checks['p0_blocker_hits'])}")
+    if checks.get("forbidden_html_hits"):
+        lines.append(f"- HTML 话术检查: {public_text(checks['forbidden_html_hits'])}")
+    if checks.get("forbidden_xlsx_hits"):
+        lines.append(f"- XLSX 话术检查: {public_text(checks['forbidden_xlsx_hits'])}")
 
     # Failure classification
     classification = qa.get("failure_classification") or {}
@@ -168,8 +174,8 @@ def _write_qa_notes(
         lines.append("")
         lines.append("## 集成判断摘要")
         lines.append("")
-        lines.append(f"- 最终判词: {judgment.get('final_verdict', '')}")
-        lines.append(f"- 置信度: {judgment.get('confidence', '')}")
+        lines.append(f"- 最终判断: {public_label(judgment.get('final_verdict', ''), context='verdict')}")
+        lines.append(f"- 置信度: {public_label(judgment.get('confidence', ''), context='confidence')}")
 
     notes_path = analysis_dir / "qa_notes.md"
     notes_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

@@ -48,7 +48,7 @@
 | `data_completeness_check.json` | `build_route_matrix_confirmation.py` | Stage 7 前置校验 | `overall_level` ∈ {acceptable,warning,blocker} |
 
 **Agent 输出约束**:
-- **`route_id` 必须用 kebab-case 英文**（如 `retractable-tape-leash`），禁止中文 `route_name`、抽象代码（C01, R01）、`p2-NN-xxx` 简写 <!-- fix: #3 -->
+- **`route_id` 必须用 kebab-case 英文**（如 `scenario-specific-form`），禁止中文 `route_name`、抽象代码（C01, R01）、`p2-NN-xxx` 简写 <!-- fix: #3 -->
 - `selected_routes[].route_id` 是全链路路线匹配的唯一 key —— Stage 6/7/8/9/10 全部依赖它
 - 每个 selected_route 至少有 1 个参考 ASIN，否则触发 `merge_or_exclude` 判定
 
@@ -115,7 +115,7 @@
 |----------|--------|--------|------------|
 | `evaluations/market_demand_evaluation.json` | Market Demand Agent | `build_evaluation_summary.py` | `score` (0-100), `rating` ∈ {strong,watch,weak,blocked}, `confidence`, `key_reasons[]` ≥1 |
 | `evaluations/competition_evaluation.json` | Competition Agent | 同上 | 同上 |
-| `evaluations/price_profit_evaluation.json` | Price/Profit Agent | 同上 | 同上 |
+| `evaluations/price_profit_evaluation.json` | Price Band Opportunity Agent | 同上 | 同上 |
 | `evaluations/voc_opportunity_evaluation.json` | VOC Opportunity Agent | 同上 | 同上 |
 | `evaluations/risk_evaluation.json` | Risk Agent | 同上 | 同上 |
 | `evaluations/data_quality_evaluation.json` | Data Quality Agent | 同上 | 同上 |
@@ -155,7 +155,7 @@
 
 | 约定 | 说明 |
 |------|------|
-| `route_id` | 全链路统一用 kebab-case 英文（`retractable-tape-leash`）。禁止中文、抽象代码、`p2-NN-xxx` 简写。Stage 5 定义，Stage 6-12 消费。 |
+| `route_id` | 全链路统一用 kebab-case 英文（`scenario-specific-form`）。禁止中文、抽象代码、`p2-NN-xxx` 简写。Stage 5 定义，Stage 6-12 消费。 |
 | `evidence_refs` / `source_refs` | 使用 `path#fragment` 格式（`market_structure/market_structure_evidence_packet.json#evidence_items[0]`）。QA 阶段依赖此格式做三级溯源。 |
 | `execution_provenance` | Agent 产出: `executed_by_agent: true, execution_mode: agent`；脚本产出: `execution_mode: script_generated` |
 | `confidence` | 全链路统一枚举: {high, medium, low} |

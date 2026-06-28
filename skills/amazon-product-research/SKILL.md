@@ -73,7 +73,7 @@
 | VOC Evidence Agent | 8 | 用户痛点分析 | 评论插件 | `voc_evidence_packet.json` |
 | Market Demand Evaluation Agent | 9 | 市场需求评价 | 市场结构 + 搜索需求 | `market_demand_evaluation.json` |
 | Competition Evaluation Agent | 9 | 竞争结构评价 | 市场结构 | `competition_evaluation.json` |
-| Price Profit Evaluation Agent | 9 | 价格利润评价 | 市场结构 | `price_profit_evaluation.json` |
+| Price Band Opportunity Evaluation Agent | 9 | 价格带机会评价 | 市场结构 | `price_profit_evaluation.json` |
 | VOC Opportunity Evaluation Agent | 9 | VOC 机会评价 | VOC 证据 | `voc_opportunity_evaluation.json` |
 | Risk Evaluation Agent | 9 | 风险评价 | 全部证据 + 冲突 | `risk_evaluation.json` |
 | Data Quality Evaluation Agent | 9 | 数据质量评价 | 全部证据 + snapshot | `data_quality_evaluation.json` |
@@ -84,9 +84,9 @@
 | Delivery QA Agent | 13 | 交付质检（强制 spawn） | 全部产物 + MCP snapshot | `qa_notes.md` |
 
 硬边界：
-- 专家 Agent 只产证据、缺口和置信度，不输出最终 Go/No-Go。
+- 专家 Agent 只产证据、缺口和置信度，不输出最终放行判断。
 - 评价 Agent 只打分和列风险，不越权生成最终判断。
-- Lead Operator Agent 是唯一有权给 Go/No-Go 的 Agent。
+- Lead Operator Agent 是唯一有权给最终放行判断的 Agent。
 - Report Generation Agent 不新增证据包外数字。
 - Delivery QA Agent 不改判断、不改数据，只检查。
 
@@ -117,7 +117,7 @@
 | 8 (VOC) | `validate_voc_packet.py` | 痛点结构 + evidence_refs 带 review_id/quote + execution_provenance + 路线覆盖 ≥ 2 ASIN |
 | 9 (六维评价) | `validate_evaluation.py` | 评分 0-100 + route_breakdown + tier 合规 + 跨维度冲突 |
 | 10a (深度分析) | `validate_judgment.py --check-placeholders` | 10 字段无 __ai_judgment__ 占位 |
-| 10b (决策) | `validate_judgment.py --check-verdict` | final_verdict 有效 + 治理规则 + Stage 9 交叉一致性 |
+| 10b (决策) | `validate_judgment.py --check-verdict` | final_verdict 内部枚举有效 + 治理规则 + Stage 9 交叉一致性 |
 | 12 (报告) | `run_delivery_qa.py` + Delivery QA Agent | 脚本 QA + Agent QA 双层门禁 |
 
 ### 校验流程模板
@@ -159,8 +159,8 @@
 
 | Quick Agent | 职责 | 禁止 |
 |---|---|---|
-| 卖家精灵 | 大盘容量、候选类目、Top 产品结构、价格带、集中度、Review 门槛、混池判断。**强制：发现 ALL 子方向 + 每方向挖 6-8 参考 ASIN（≥3 品牌、≥2 价格段、覆盖不同特征）** | 不写最终 Go/No-Go、不替 Sorftime 判断搜索需求、不以"快验"为借口只查大盘不做子方向深挖 |
-| Sorftime | 关键词搜索量、搜索意图匹配、混池判断、候选类目、相似品、类目趋势。**强制：每方向独立采词 + 每方向挖 6-8 参考 ASIN（≥3 品牌、≥2 价格段、覆盖不同特征）** | 不写最终 Go/No-Go、不用关键词搜索量替代市场销量、不以"快验"为借口只查大词不做子方向深挖 |
+| 卖家精灵 | 大盘容量、候选类目、Top 产品结构、价格带、集中度、Review 门槛、混池判断。**强制：发现 ALL 子方向 + 每方向挖 6-8 参考 ASIN（≥3 品牌、≥2 价格段、覆盖不同特征）** | 不写最终放行判断、不替 Sorftime 判断搜索需求、不以"快验"为借口只查大盘不做子方向深挖 |
+| Sorftime | 关键词搜索量、搜索意图匹配、混池判断、候选类目、相似品、类目趋势。**强制：每方向独立采词 + 每方向挖 6-8 参考 ASIN（≥3 品牌、≥2 价格段、覆盖不同特征）** | 不写最终放行判断、不用关键词搜索量替代市场销量、不以"快验"为借口只查大词不做子方向深挖 |
 
 Quick Agent 在 `candidate_seeds` 中写入所有发现的子方向和参考 ASIN（每方向 6-8 个，≥3 品牌，≥2 价格段）。主 Agent 在快验后方向分析中检查 ASIN 覆盖是否充分，不充分则要求 Quick Agent 补采后再进 Stage 4。
 
@@ -185,7 +185,7 @@ python3 scripts/build_quick_market_gate.py <run_dir>
 **快验阶段铁律（Agent 决策约束）**：
 
 - **Gate 结果是唯一权威**。主 Agent 不得越过 Quick Gate 自行拍板 stop。Gate 说 `watch` 就继续推进，说 `continue` 就直接进 Stage 4。
-- **禁止单指标判死刑**。任一负面信号（搜索量跌、购买率低、混池等）不能单独作为放弃理由。必须至少 3 个独立负面信号同时成立（如：需求弱 + 类目垄断 + 利润不可行），且双源交叉确认，才能判定不值得继续。
+- **禁止单指标判死刑**。任一负面信号（搜索量跌、购买率低、混池等）不能单独作为放弃理由。必须至少 3 个独立负面信号同时成立（如：需求弱 + 类目垄断 + 价格带不可切入），且双源交叉确认，才能判定不值得继续。
 - **三源交叉优先**。判断市场健康度时，类目销量 > 关键词搜索量。搜索量可能因搜索行为迁移而下降，但类目成交额是实打实的市场证据。
 - **"不确定"不等于"不做"**。数据矛盾时默认继续调研，在深挖阶段解决不确定性，而不是在快验阶段猜测结论。
 1. spawn 卖家精灵 Quick Agent + Sorftime Quick Agent（并行）
@@ -251,7 +251,7 @@ python3 scripts/build_mcp_candidate_pool.py <run_dir>
 | 搜索量级 | 快验关键词数据 |
 | 销量级/Top ASIN 月销 | 快验竞品数据 |
 | 竞争强度（评论门槛/头部集中度） | 快验市场结构 |
-| 利润空间（价格带/均价） | 快验价格数据 |
+| 价格带机会（价格段/均价） | 快验价格数据 |
 
 三条路线归类：
 
@@ -269,9 +269,9 @@ python3 scripts/build_mcp_candidate_pool.py <run_dir>
 
 | `route_name` | ✅ 正确 `route_id` | ❌ 错误 `route_id` |
 |---|---|---|
-| 标准尼龙反光牵引绳 | `standard-nylon-reflective` | `C01` |
-| 伸缩牵引绳 (Retractable) | `retractable-tape-cord` | `C03` |
-| 训练长绳 (15-100ft) | `training-long-line` | `R05` |
+| 基础款产品形态 | `basic-product-form` | `C01` |
+| 功能升级形态 | `feature-upgrade-form` | `C03` |
+| 场景专用形态 | `scenario-specific-form` | `R05` |
 
 此规则确保全链路（Stage 6-12）的 Agent 引用 `route_id` 时不会泄漏无意义代号到最终报告。
 
@@ -408,7 +408,7 @@ ASIN 导出清单必须确保 Stage 5 确认的**每条保留路线**至少覆�
 2. **运营导出评论** — 按 README.txt 中的要求导出，放入 `inputs/reviews/`
 3. `build_review_voc_package.py` — 规范化评论数据
 4. `build_voc_gate.py` — VOC 门控（总评论 ≥30 条 → continue；不足 → need_more_reviews）+ 路线覆盖度检查，并生成 `voc_evidence_packet.json` 骨架
-5. **Spawn VOC Evidence Agent**（强制） — 读取 `review_voc_package.json` 的 `normalized_reviews`，完成：痛点提取（≥3 条评论提及 + 原文引用）、按产品维度归类、P0/P1/P2 优先级分级、规格推导（`spec_requirement` / `sample_tests` / `listing_risk_note`）、未满足需求（`unmet_needs`）、差异化机会（`differentiation_opportunities`）→ 写入 `voc_evidence_packet.json` 并更新 `execution_provenance` 为 `executed_by_agent: true, execution_mode: "agent"`
+5. **Spawn VOC Evidence Agent**（强制） — 读取 `review_voc_package.json` 的 `normalized_reviews`，完成：痛点提取（≥3 条评论提及 + 原文引用）、按产品维度归类、必须验证/重点优化/建议优化优先级分级（JSON 枚举仍为 P0/P1/P2）、规格推导（`spec_requirement` / `sample_tests` / `listing_risk_note`）、未满足需求（`unmet_needs`）、差异化机会（`differentiation_opportunities`）→ 写入 `voc_evidence_packet.json` 并更新 `execution_provenance` 为 `executed_by_agent: true, execution_mode: "agent"`
 6. **🔒 契约校验（阻断）**：`validate_voc_packet.py` — 检查痛点结构、evidence_refs 溯源、路线覆盖、必填字段。校验失败 → 打回 VOC Agent 修复
 
 ```bash
@@ -425,7 +425,7 @@ python3 scripts/validate_voc_packet.py <run_dir>
 |---|---|
 | 市场需求评价 | 需求是否真实、稳定、足够大 |
 | 竞争结构评价 | 是否头部垄断、评论门槛是否过高 |
-| 价格利润评价 | 价格带是否健康，有无利润空间 |
+| 价格带机会评价 | 价格带是否健康，有无切入窗口 |
 | VOC 机会评价 | 痛点能否转成产品差异化 |
 | 风险评价 | 合规、季节性、退货、体积、同质化 |
 | 数据质量评价 | 样本是否足够，是否混池，是否有阻塞冲突 |
@@ -437,7 +437,7 @@ python3 scripts/build_evaluation_summary.py <run_dir>
 治理规则（路线级）：
 
 - 品类级 `blocked` 不等于所有路线 blocked。必须对照各评价 Agent 的 `route_breakdown`，仅在**目标路线的评级为 blocked** 时触发阻断。
-- 任一核心维度的**目标路线** `rating=blocked` → 该路线不能 Go。
+- 任一核心维度的**目标路线** `rating=blocked` → 该路线不能直接放行。
 - `data_quality` 的**目标路线** `rating=blocked` → 该路线只能"补数后再判断"。
 - 如果 route_breakdown 显示差异化路线为 `strong`/`watch`，即使品类大盘 `blocked`，差异化路线不受阻断。
 
@@ -501,7 +501,7 @@ python3 scripts/validate_judgment.py <run_dir> --check-placeholders
 
 ### Stage 10b · 决策合成
 
-Lead Operator Agent 读取 Stage 10a 产出的 10 个深度分析字段，做交叉一致性检查，给出最终 Go/No-Go。
+Lead Operator Agent 读取 Stage 10a 产出的 10 个深度分析字段，做交叉一致性检查，给出最终放行判断。
 
 **本 Agent 不再重做深度分析**，只做三件事：
 1. 交叉验证：检查 10a 产出的 10 个字段是否与评价的 `route_breakdown`、证据包原始数据自洽
@@ -512,25 +512,25 @@ Lead Operator Agent 读取 Stage 10a 产出的 10 个深度分析字段，做交
 
 | 字段 | 说明 |
 |---|---|
-| `final_verdict` | `go` / `watch` / `no_go` / `blocked` |
+| `final_verdict` | 内部枚举：`go` / `watch` / `no_go` / `blocked`；报告中必须翻译为建议进入小批量验证/建议先验证/建议暂停推进/当前不满足放行条件 |
 | `verdict_reason` | 综合判断理由（2-4 段，讲清维度间张力和最终权衡） |
-| `confidence` | `high` / `medium` / `low` |
+| `confidence` | 内部枚举：`high` / `medium` / `low`；报告中必须翻译为判断置信度高/中等/偏低 |
 | `biggest_opportunity` | 最大机会（含维度、评分、核心理由） |
 | `biggest_risk` | 最大风险（含维度、评分、具体风险描述） |
 | `required_next_actions` | 下一步验证动作列表 |
 
 **治理规则**（不可逾越）：
-- 任一核心维度**目标路线** `rating=blocked` → 该路线不能 Go
+- 任一核心维度**目标路线** `rating=blocked` → 该路线不能直接放行
 - `data_quality`**目标路线** `rating=blocked` → 只能"补数后再判断"
-- 合规/知产 `blocked` → 所有路线不能 Go
-- blocking conflict 未解决 → 最终不能 Go
-- Stage 10a 10 字段任一为 `__ai_judgment__` 占位 → 只能 `blocked`，打回 Stage 10a
+- 合规/知产 `blocked` → 所有路线不能直接放行
+- blocking conflict 未解决 → 最终不能直接放行
+- Stage 10a 10 字段任一为 `__ai_judgment__` 占位 → 当前不满足放行条件，打回 Stage 10a
 
 **本阶段执行顺序**：
 1. 确认 Stage 10a 两个 Agent 均已完成
 2. spawn Lead Operator Agent（推荐独立 spawn）— 验证 → 拍板 → 合并写入
 
-这是唯一有权给最终 Go/No-Go 的 Agent。
+这是唯一有权给最终放行判断的 Agent。
 
 **🔒 10b 校验（阻断）**：Lead Operator Agent 完成后立即运行：
 
@@ -575,12 +575,12 @@ HTML 报告结构（运营必备板块）：
 - **资深运营评估** — 市场判断 / 机会判断 / 瓶颈与建议，三小节叙事
 - **产品路线对比** — 路线表格（含 tradeoff"选了它你就放弃了什么"列）+ 推荐策略/搁置双卡片
 - **类目全景** — 目标品类涉及的所有类目，不遗漏
-- **核心竞品** — ASIN 对比表（含致命弱点 + 我的反击列），每条路线至少 2 个代表 ASIN
-- **用户痛点 → 产品规格** — P0/P1/P2 优先级排序
+- **核心竞品** — ASIN 对比表（含主要差评点 + 我的反击列），每条路线至少 2 个代表 ASIN
+- **用户痛点 → 产品规格** — 必须验证 / 重点优化 / 建议优化优先级排序
 - **价格带分布** — 可视化价格带 + 竞品参考价
 - **关键词与流量策略** — 按意图分三类：主攻意图词 / 可测词 / 明确否定词
 - **验证路线图** — 按时间线组织的验证计划（每周什么动作、什么标准、不通过怎么办）
-- **风险与 Go/No-Go** — 风险/优势双栏 + Go/No-Go 决策条件表
+- **风险与放行条件** — 风险/优势双栏 + 放行条件表
 - **已评估暂不深挖路线** — 附录表格，列出所有未进入深挖的路线，每条含：排除原因（引用快验数据）、数据信号摘要、什么条件变化后会重新考虑。确保运营看到全貌而非被过滤后的结论
 
 报告铁律：
@@ -615,7 +615,7 @@ python3 -m packages.research_core.pipeline.build_report_xlsx <run_dir>
 
 **第一层：脚本 QA**（自动执行）
 
-确定性检查：文件完整性、板块完整性、禁止术语扫描、source_path 可解析性、数值一致性抽查、P0 阻塞项。
+确定性检查：文件完整性、板块完整性、禁止术语扫描、source_path 可解析性、数值一致性抽查、阻断项。
 
 ```bash
 python3 scripts/run_delivery_qa.py <run_dir>
@@ -640,7 +640,7 @@ pass → 交付。fail → 按失败类型智能打回：
 `delivery_qa_result.json` 中 `failure_classification` 字段明确标识每类失败及对应 retry 目标。修复后重新执行 Stage 13 两层 QA，最多 3 轮。3 轮不过 → `progress.json` 标记 `blocked`，需人工介入。
 
 **本阶段执行顺序**：
-1. `run_delivery_qa.py` — 脚本 QA（文件完整性、source_path 溯源、禁止术语、P0 阻断）
+1. `run_delivery_qa.py` — 脚本 QA（文件完整性、source_path 溯源、禁止术语、阻断项）
 2. spawn Delivery QA Agent（强制独立 spawn，不可降级）— 7 条阻断规则 + 运营判断质量
 3. QA 修复循环（最多 3 轮）：fail → 查看 `failure_classification` 按类型打回 → 重新 1+2 → 仍 fail → `blocked`
 
@@ -664,14 +664,14 @@ pass → 交付。fail → 按失败类型智能打回：
 - **所有结论必须能回溯到具体数据来源**，不拍脑袋。
 - **多 Agent 不越权**：专家 Agent 只输出证据包，最终判断只由 Lead Operator Agent 给出。
 - **用户报告不露内部术语**：HTML 禁止展示 Agent、MCP、tool、spawn、packet、pipeline、source_path。路线在 HTML 中只用中文产品名，不得出现 `route_id`（无论 slug 还是旧式代号）。
-- **`route_id` 用业务描述词**：Stage 5 定义路线时，`route_id` 必须使用英文 kebab-case 描述词（如 `training-long-line`），禁止使用抽象序号（C01、R02、路线A）。详见 Stage 5 命名铁律。
+- **`route_id` 用业务描述词**：Stage 5 定义路线时，`route_id` 必须使用英文 kebab-case 描述词（如 `scenario-specific-form`），禁止使用抽象序号（C01、R02、路线A）。详见 Stage 5 命名铁律。
 - **缺证据不甩锅**：系统未采到写"系统侧待补"，需运营目视判断写"人工 review 待补"。
 - **混池要主动识别**，不把不同产品形态的数据加总分析。
 - **先 ASIN 后关键词**：先建立参考 ASIN 池，再反查关键词。
 - **类目必须反推确认，多类目强制覆盖**：Stage 1 需多词搜索 + ASIN 反查发现所有相关类目，Stage 12 报告全部展示。
 - **价格带优先于均价**：报告必须展示价格段分布，不能只用均价判断。
 - **多路线必须主动深挖**：每条保留路线配参考 ASIN Top5 和补数计划。
-- **后置落地变量不进入主链路结论**：成本、供应商、认证等只作为待验证动作记录。
+- **后置落地变量不进入主链路结论**：成本、供应商、认证、1688、FOB、FBA、COGS、毛利率等不进入当前市场分析结论，也不能被写成数据缺口；只有用户明确开启后续复核模块时才单独处理。
 - **VOC 只在路线确认后接入**，不在快验阶段提前做。
 - **通用性红线必须过扫描**：`python3 scripts/check_generic_redlines.py`。
 - **禁止新增数字**：HTML 每个数字必须在 `report_data.json` 有对应条目。
@@ -710,7 +710,7 @@ pass → 交付。fail → 按失败类型智能打回：
 - [ ] Stage 7：冲突复核包已生成。
 - [ ] Stage 8：VOC 证据包已生成（有效评论 ≥ 30 条，痛点有原文引用）。
 - [ ] Stage 9：6 份 Evaluation + Evaluation Summary 已生成。
-- [ ] Stage 10：Integrated Judgment 已生成，Go/No-Go 有明确依据。
+- [ ] Stage 10：Integrated Judgment 已生成，最终放行判断有明确依据。
 - [ ] Stage 11：`report_data.seed.json` 已生成。
 - [ ] Stage 12：`report_data.json` + HTML + XLSX 已生成，HTML 无内部术语。
 - [ ] Stage 13：脚本 QA + Agent QA 均通过，`qa_notes.md` 无阻断项。

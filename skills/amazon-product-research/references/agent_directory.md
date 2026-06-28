@@ -37,7 +37,7 @@
                     │    Stage 9 六维评价         │
                     │  Market Demand      (6)   │
                     │  Competition        (7)   │
-                    │  Price Profit       (8)   │  ← 6 并行
+                    │  Price Band         (8)   │  ← 6 并行
                     │  VOC Opportunity    (9)   │
                     │  Risk              (10)   │
                     │  Data Quality      (11)   │
@@ -89,7 +89,7 @@
 |---|---|---|---|---|
 | 6 | Market Demand Evaluation Agent | 9 | Market Structure + Search Demand | `evaluations/market_demand_evaluation.json` |
 | 7 | Competition Evaluation Agent | 9 | Market Structure | `evaluations/competition_evaluation.json` |
-| 8 | Price Profit Evaluation Agent | 9 | Market Structure | `evaluations/price_profit_evaluation.json` |
+| 8 | Price Band Opportunity Evaluation Agent | 9 | Market Structure | `evaluations/price_profit_evaluation.json` |
 | 9 | VOC Opportunity Evaluation Agent | 9 | VOC Evidence | `evaluations/voc_opportunity_evaluation.json` |
 | 10 | Risk Evaluation Agent | 9 | 全部证据 + Conflict Review | `evaluations/risk_evaluation.json` |
 | 11 | Data Quality Evaluation Agent | 9 | 全部证据 + MCP Snapshots | `evaluations/data_quality_evaluation.json` |
@@ -204,13 +204,13 @@
 
 ---
 
-### Agent 8: Price Profit Evaluation Agent（Stage 9）
+### Agent 8: Price Band Opportunity Evaluation Agent（Stage 9）
 - **定义文件**: `agents/price-profit-evaluation-agent.md`
-- **角色**: 专注价格利润评价
-- **核心问题**: 价格带是否健康、目标价格段是否有竞争空间、利润结构是否存在硬伤
+- **角色**: 专注价格带机会评价
+- **核心问题**: 价格带是否健康、目标价格段是否有竞争空间、是否存在低价内卷或溢价窗口
 - **输入**: Market Structure 证据包
 - **输出**: `evaluations/price_profit_evaluation.json`（0-100 评分 + route_breakdown）
-- **不可以**: 不给具体定价（那是运营结合自身成本做的）、不给毛利率数字
+- **不可以**: 不给具体定价，不输出 COGS、FOB、采购价、毛利率、FBA 费用、1688 实际报价等后置落地变量
 
 ---
 
@@ -249,7 +249,7 @@
 - **定义文件**: `agents/route-strategy-agent.md`
 - **角色**: 资深亚马逊选品与竞品策略分析师
 - **职责**: 聚焦供给端分析——路线竞争分析、竞品对标、价格带解读。必须回查原始证据
-- **输入**: Market Demand / Competition / Price Profit 评价 + Market Structure + VOC 证据包 + route_matrix
+- **输入**: Market Demand / Competition / Price Band 评价 + Market Structure + VOC 证据包 + route_matrix
 - **输出**: `analysis/integrated_operator_judgment.json` 的 5 个字段：
   1. `route_recommendation` — 路线优先级 + 理由
   2. `route_tradeoff` — 路线取舍分析

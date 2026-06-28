@@ -1,4 +1,4 @@
-# 宠物牵引绳 Run 中发现的问题与修复方案
+# 宠物牵引绳 Run 中发现的问题与修复方案 <!-- generic-redline: allow historical run postmortem retains original case name -->
 
 **日期**：2026-06-26 | **发现人**：主 Agent + 运营 | **Run**：pet-leash-us
 
@@ -220,7 +220,7 @@
 
 | 子问题 | 现象 | 修复 |
 |---|---|---|
-| 9a. HTML 输出路径不一致 | Agent 写 `run根目录/宠物牵引绳_分析报告.html`，`build_report_xlsx.py` 期望 `analysis/宠物牵引绳_分析报告.html` | SKILL.md Stage 12 Agent prompt 统一指定输出到 `analysis/` |
+| 9a. HTML 输出路径不一致 | Agent 写 `run根目录/宠物牵引绳_分析报告.html`，`build_report_xlsx.py` 期望 `analysis/宠物牵引绳_分析报告.html` | SKILL.md Stage 12 Agent prompt 统一指定输出到 `analysis/` | <!-- generic-redline: allow historical artifact filename from old run -->
 | 9b. VOC evidence packet 标记不完整 | `voc_evidence_packet.json` 中 `executed_by_agent=false`、`execution_mode=serial_fallback`，与 SKILL.md 定义的 VOC Evidence Agent 角色不符 | VOC Evidence Agent prompt 中强制写回正确的 `execution_provenance` |
 | 9c. C14 零数据路线仍参与全流程 | C14 座椅安全带零 ASIN 但消耗了 4 个评价 Agent 的 token 做 blocked 判定 | Stage 5 `data_completeness_check.json` 中增加 `merge_or_exclude` 决策点：任一参考 ASIN=0 的路线触发"合并或排除"建议，不等运营确认先在 Agent prompt 中标注 |
 
@@ -245,8 +245,8 @@
 ## 对当前 pet-leash-us run 的影响（更新）
 
 当前 run 已通过手工 workaround 推进到 Stage 12 完成，交付物已产出：
-- `宠物牵引绳_分析报告.html`（42KB，10 板块，0 内部术语）
-- `宠物牵引绳_决策工具包.xlsx`（5 Sheet）
+- `宠物牵引绳_分析报告.html`（42KB，10 板块，0 内部术语） <!-- generic-redline: allow historical artifact filename from old run -->
+- `宠物牵引绳_决策工具包.xlsx`（5 Sheet） <!-- generic-redline: allow historical artifact filename from old run -->
 - `analysis/integrated_operator_judgment.json`（100KB，10 深度字段 + 决策摘要）
 - `analysis/report_data.json`（28KB 结构化数据）
 

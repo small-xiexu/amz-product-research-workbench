@@ -17,6 +17,7 @@ from typing import Any
 from packages.research_core.pipeline._utils import (
     _report_value, as_list,
 )
+from packages.research_core.pipeline.public_language import public_label, public_value
 
 
 def xlsx_sheets_from_report_data(
@@ -29,7 +30,7 @@ def xlsx_sheets_from_report_data(
         judgment = json.loads(judgment_path.read_text(encoding="utf-8"))
 
     def _rv(val: Any) -> Any:
-        return _report_value(val)
+        return public_value(_report_value(val))
 
     sheets: list[tuple[str, list[list[object]]]] = []
 
@@ -45,15 +46,25 @@ def xlsx_sheets_from_report_data(
     # ── Sheet 4: 样品检查表 ─────────────────────────────────────────────
     sheets.append(("样品检查表", _sample_checklist(rd, _rv)))
 
-    return sheets
+    return _clean_sheets(sheets)
+
+
+def _clean_sheets(
+    sheets: list[tuple[str, list[list[object]]]]
+) -> list[tuple[str, list[list[object]]]]:
+    """Apply public-language cleanup to every string cell."""
+    return [
+        (name, [[public_value(cell) for cell in row] for row in rows])
+        for name, rows in sheets
+    ]
 
 
 def _route_scorecard(rd: dict, judgment: dict | None, _rv) -> list[list[object]]:
     """路线计分卡：每条路线 × 6 维度评分 + 一句话判断。运营可改权重重新排序。"""
     header = [
-        "路线名", "市场需求", "竞争结构", "价格利润", "VOC机会",
-        "风险", "数据质量", "综合判断", "tradeoff_得到什么",
-        "tradeoff_放弃什么", "tradeoff_适合谁", "tradeoff_不适合谁",
+        "路线名", "市场需求", "竞争结构", "价格带机会", "VOC机会",
+        "风险", "数据质量", "综合判断", "取舍_得到什么",
+        "取舍_放弃什么", "取舍_适合谁", "取舍_不适合谁",
     ]
     rows = [header]
 
@@ -107,10 +118,10 @@ def _route_scorecard(rd: dict, judgment: dict | None, _rv) -> list[list[object]]
 
 
 def _competitor_breakdown(rd: dict, judgment: dict | None, _rv) -> list[list[object]]:
-    """竞品拆解：每个核心竞品的完整画像，含致命弱点和反击方案。"""
+    """竞品拆解：每个核心竞品的完整画像，含主要差评点和反击方案。"""
     header = [
         "ASIN", "品牌", "月销", "价格", "评分", "评论数", "上架时间",
-        "路线", "致命弱点_VOC原文", "可抄的优点", "我的反击方案", "反击难度",
+        "路线", "主要差评点_VOC原文", "可抄的优点", "我的反击方案", "反击难度",
     ]
     rows = [header]
 
@@ -167,31 +178,30 @@ def _keyword_matrix(rd: dict, _rv) -> list[list[object]]:
     rows = [header]
 
     keywords = rd.get("keywords") or {}
-    if isinstance(keywords, dict):
+    if isinstance(keywords, dict) and any(isinstance(v, list) for v in keywords.values()):
         # Try dict-of-lists pattern (intent → keywords)
-        if any(isinstance(v, list) for v in keywords.values()):
-            for intent, kw_list in keywords.items():
-                for kw in as_list(kw_list):
-                    if isinstance(kw, dict):
-                        rows.append([
-                            _rv(kw.get("keyword", kw.get("term", ""))),
-                            intent,
-                            _rv(kw.get("monthly_search_volume", kw.get("search_volume", ""))),
-                            _rv(kw.get("cpc", "")),
-                            _rv(kw.get("competitor_count", "")),
-                            _rv(kw.get("strategy", kw.get("recommended_action", ""))),
-                        ])
-        else:
-            for kw in as_list(keywords):
+        for intent, kw_list in keywords.items():
+            for kw in as_list(kw_list):
                 if isinstance(kw, dict):
                     rows.append([
                         _rv(kw.get("keyword", kw.get("term", ""))),
-                        _rv(kw.get("role", kw.get("intent", ""))),
+                        intent,
                         _rv(kw.get("monthly_search_volume", kw.get("search_volume", ""))),
                         _rv(kw.get("cpc", "")),
                         _rv(kw.get("competitor_count", "")),
                         _rv(kw.get("strategy", kw.get("recommended_action", ""))),
                     ])
+    else:
+        for kw in as_list(keywords):
+            if isinstance(kw, dict):
+                rows.append([
+                    _rv(kw.get("keyword", kw.get("term", ""))),
+                    _rv(kw.get("role", kw.get("intent", ""))),
+                    _rv(kw.get("monthly_search_volume", kw.get("search_volume", ""))),
+                    _rv(kw.get("cpc", "")),
+                    _rv(kw.get("competitor_count", "")),
+                    _rv(kw.get("strategy", kw.get("recommended_action", ""))),
+                ])
     return rows
 
 
@@ -208,7 +218,7 @@ def _sample_checklist(rd: dict, _rv) -> list[list[object]]:
             continue
         rows.append([
             _rv(pp.get("dimension", "")),
-            _rv(pp.get("priority", pp.get("severity", ""))),
+            public_label(_rv(pp.get("priority", pp.get("severity", ""))), context="priority"),
             _rv(pp.get("issue_description", pp.get("issue", ""))),
             _rv(pp.get("test_item", pp.get("spec_requirement", ""))),
             _rv(pp.get("pass_criteria", pp.get("spec_target", ""))),
@@ -222,7 +232,7 @@ def _sample_checklist(rd: dict, _rv) -> list[list[object]]:
 
 def build_workbook_sheets(analysis: dict[str, Any]) -> list[tuple[str, list[list[object]]]]:
     """Legacy wrapper — used by build_analysis_packet flow (not decision workbook)."""
-    return [
+    return _clean_sheets([
         ("Summary", summary_rows(analysis)),
         ("Source Packets", source_packet_rows(analysis)),
         ("Category Derivation", category_derivation_rows(analysis)),
@@ -233,7 +243,7 @@ def build_workbook_sheets(analysis: dict[str, Any]) -> list[tuple[str, list[list
         ("VOC", voc_rows(analysis)),
         ("Route Judgment", route_rows(analysis)),
         ("Risks And Next", risk_next_rows(analysis)),
-    ]
+    ])
 
 
 def summary_rows(analysis: dict[str, Any]) -> list[list[object]]:

@@ -68,7 +68,7 @@ Market Structure Agent 和 Search Demand Agent 必须同时启动，互不依赖
 |---|---|---|
 | Market Demand Evaluation Agent | 市场结构 + 搜索需求证据 | `market_demand_evaluation.json` |
 | Competition Evaluation Agent | 市场结构证据 | `competition_evaluation.json` |
-| Price Profit Evaluation Agent | 市场结构证据 | `price_profit_evaluation.json` |
+| Price Band Opportunity Evaluation Agent | 市场结构证据 | `price_profit_evaluation.json` |
 | VOC Opportunity Evaluation Agent | VOC 证据 | `voc_opportunity_evaluation.json` |
 | Risk Evaluation Agent | 全部证据 + 冲突复核 | `risk_evaluation.json` |
 | Data Quality Evaluation Agent | 全部证据 + MCP snapshot + 冲突复核 | `data_quality_evaluation.json` |

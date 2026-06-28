@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
-QA_RULE_VERSION = "2026-06-25-p8-v2"
+from packages.research_core.pipeline.public_language import PUBLIC_FORBIDDEN_TEXT_PATTERNS
+
+QA_RULE_VERSION = "p8-public-language-v1-2026-06-28"
 VOC_MIN_REVIEW_THRESHOLD = 30  # stage_7_voc_gate 最低评论数
 REPORT_VERDICT_LABELS = {
     "继续看": "建议进入小批量验证",
@@ -47,7 +49,7 @@ FORBIDDEN_HTML_PATTERNS = [
     (r"conflict_review", "冲突复核过程泄漏，不得出现'conflict_review'"),
     (r"冲突复核", "冲突复核过程泄漏，不得出现'冲突复核'"),
     (r"融合策略", "冲突复核过程泄漏，不得出现'融合策略'"),
-]
+] + list(PUBLIC_FORBIDDEN_TEXT_PATTERNS)
 REQUIRED_SECTION_MARKERS = (
     "类目全景",
     "核心竞品",

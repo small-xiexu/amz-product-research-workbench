@@ -46,7 +46,7 @@
 
 ```json
 "route_breakdown": [
-  {"route_name": "路线A-标准款", "rating": "strong", "reason": "P0痛点跨ASIN复现、信号清晰，可转化为差异化卖点"},
+  {"route_name": "路线A-标准款", "rating": "strong", "reason": "必须验证的用户高频痛点跨ASIN复现、信号清晰，可转化为差异化卖点"},
   {"route_name": "路线C-差异款", "rating": "watch", "reason": "仅1个ASIN的评论样本，痛点信号不足以支撑强结论"}
 ]
 ```
@@ -60,7 +60,7 @@
   "score": 73,
   "rating": "strong",
   "key_reasons": [
-    "Top3痛点（{P0痛点A}/{P0痛点B}/{P1痛点C}）在多个竞品ASIN中重复出现，为可解决的制造/设计问题",
+    "Top3痛点（{必须验证痛点A}/{必须验证痛点B}/{重点优化痛点C}）在多个竞品ASIN中重复出现，为可解决的制造/设计问题",
     "好评驱动集中在'{好评高频词A}''{好评高频词B}''{好评高频词C}'三点，可作为核心卖点组合"
   ],
   "top_opportunities": [
@@ -68,7 +68,7 @@
     {"priority": "P1", "pain_point": "{竞品缺陷描述B}（N条评论提及）", "spec_requirement": "{具体产品规格改进方案B}"},
     {"priority": "P2", "pain_point": "{竞品缺陷描述C}（N条评论提及）", "spec_requirement": "{具体产品规格改进方案C}"}
   ],
-  "required_followups": ["打样时优先验证{P0痛点对应的规格项}和{关键材料属性}"],
+  "required_followups": ["打样时优先验证{必须验证痛点对应的规格项}和{关键材料属性}"],
   "evidence_refs": ["voc_evidence.pain_points_by_dimension.durability", "voc_evidence.pain_points_by_dimension.material_quality"],
   "confidence": "medium",
   "execution_provenance": {"execution_mode": "real_subagent_spawn", "agent_role": "VOC Opportunity Evaluation Agent"}
@@ -90,7 +90,7 @@
 
 - 把痛点转化为可验证的样品测试项。
 - 区分"结构性问题"（无法通过产品改进解决）和"产品问题"（可以通过设计改进解决）。
-- 给出痛点的优先级排序（P0=必须解决/P1=强烈建议/P2=锦上添花）。
+- 给出痛点的优先级排序（P0=必须验证/P1=重点优化/P2=建议优化）。JSON 枚举可保留，解释字段必须使用中文含义。
 
 ## 不可以做
 
@@ -99,6 +99,12 @@
 - 不使用 HTML AI 报告摘要替代评论明细证据。
 - 评论样本不足时不强行出痛点结论。
 - 不修改 VOC 证据包内容。
+
+## 面向报告的话术边界
+
+- `priority` 字段可按契约写 `P0/P1/P2`，但 `key_reasons`、`top_opportunities`、`required_followups` 中不得裸露内部标签。
+- 不写 `P0安全风险`、`P0痛点`、`致命弱点`、`生死考验`、`摧毁 ASIN`、`赌博`。
+- 对运营解释时写"必须验证的结构性问题""重点优化项""建议优化项"，并说明证据和样品验证动作。
 
 ## 契约约束（输出前自查）
 

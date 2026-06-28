@@ -21,6 +21,7 @@ from packages.research_core.pipeline.constants import (
 from packages.research_core.pipeline._utils import (
     _NOT_FOUND, _split_path, _navigate,
 )
+from packages.research_core.pipeline.public_language import find_public_language_issues
 
 # 冲突泄漏扫描关键词（独立于 FORBIDDEN_HTML_PATTERNS，聚焦冲突复核过程）
 _CONFLICT_LEAK_PATTERNS: list[tuple[str, str]] = [
@@ -64,6 +65,16 @@ _ALLOWED_REPORT_CLASS_TOKENS = {
     "go-nogo",
     "tc",
     "pill",
+    "table-scroll",
+    "brand-cell",
+    "brand-stack",
+    "route-cell",
+    "route-name",
+    "route-en",
+    "asin-cell",
+    "keyword-cell",
+    "brand-list-cell",
+    "nowrap",
 }
 
 _KEY_STRUCTURE_CLASSES = {"hero", "page", "section", "go-nogo"}
@@ -85,6 +96,7 @@ _FAILURE_CLASSIFICATION: dict[str, dict[str, str]] = {
     "has_required_operator_sections": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
     "has_gonogo_class": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
     "has_no_forbidden_html_patterns": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
+    "has_no_forbidden_xlsx_patterns": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
     "no_conflict_leak": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
     # data: seed/data pipeline failures → retry Stage 11 (seed generation)
     "report_data_exists": {"class": "data", "retry_stage": "stage_11", "retry_target": "build_analysis_report seed"},
@@ -148,7 +160,7 @@ def print_qa_summary(result: dict) -> None:
     for name, passed in checks.items():
         if name in ("report_data_sources_note", "report_data_values_note",
                      "report_data_value_mismatches", "forbidden_html_hits",
-                     "p0_blocker_hits", "conflict_leak_hits",
+                     "forbidden_xlsx_hits", "p0_blocker_hits", "conflict_leak_hits",
                      "report_template_css_hits", "report_class_hits",
                      "fixed_data_source_section_hits"):
             continue
@@ -171,6 +183,11 @@ def print_qa_summary(result: dict) -> None:
     if checks.get("forbidden_html_hits"):
         print("\nForbidden HTML patterns found:")
         for hit in checks["forbidden_html_hits"]:
+            print(f"  - {hit}")
+
+    if checks.get("forbidden_xlsx_hits"):
+        print("\nForbidden XLSX patterns found:")
+        for hit in checks["forbidden_xlsx_hits"]:
             print(f"  - {hit}")
 
     if checks.get("conflict_leak_hits"):
@@ -218,6 +235,7 @@ def run_delivery_qa(report_data_path: Path, html_path: Path, xlsx_path: Path, an
     blocker_result = _validate_p0_delivery_blockers(run_dir, report_data_path)
     has_data = _report_data_has_required_sections(report_data_path)
     forbidden_result = _has_no_forbidden_html_patterns(html_path)
+    forbidden_xlsx_result = _has_no_forbidden_xlsx_patterns(xlsx_path)
     conflict_leak_result = _scan_conflict_leak(html_path, run_dir)
     template_css_result = _uses_report_template_css(html_path)
     class_result = _has_only_allowed_report_classes(html_path)
@@ -237,11 +255,14 @@ def run_delivery_qa(report_data_path: Path, html_path: Path, xlsx_path: Path, an
         "report_data_sources_valid": source_result["pass"],
         "report_data_values_consistent": value_result["pass"],
         "has_no_forbidden_html_patterns": forbidden_result["pass"],
+        "has_no_forbidden_xlsx_patterns": forbidden_xlsx_result["pass"],
         "no_conflict_leak": conflict_leak_result["pass"],
         "p0_blockers_clear": blocker_result["pass"],
     }
     if forbidden_result.get("hits"):
         checks["forbidden_html_hits"] = forbidden_result["hits"]
+    if forbidden_xlsx_result.get("hits"):
+        checks["forbidden_xlsx_hits"] = forbidden_xlsx_result["hits"]
     if conflict_leak_result.get("hits"):
         checks["conflict_leak_hits"] = conflict_leak_result["hits"]
     if template_css_result.get("hits"):
@@ -326,6 +347,36 @@ def _has_no_forbidden_html_patterns(html_path: Path) -> dict:
         if matches:
             unique_matches = list(set(matches))[:5]
             hits.append(f"{description}（匹配: {', '.join(unique_matches)}）")
+    return {"pass": len(hits) == 0, "hits": hits}
+
+
+def _has_no_forbidden_xlsx_patterns(xlsx_path: Path) -> dict:
+    """扫描 XLSX 单元格中的交付禁用话术。"""
+    if not xlsx_path.exists():
+        return {"pass": False, "hits": ["XLSX 文件不存在"]}
+    try:
+        from openpyxl import load_workbook
+
+        wb = load_workbook(xlsx_path, read_only=True, data_only=True)
+    except Exception as exc:  # pragma: no cover - defensive for corrupt workbook
+        return {"pass": False, "hits": [f"XLSX 读取失败: {exc}"]}
+
+    hits: list[str] = []
+    try:
+        for ws in wb.worksheets:
+            for row in ws.iter_rows():
+                for cell in row:
+                    value = cell.value
+                    if not isinstance(value, str) or not value.strip():
+                        continue
+                    issues = find_public_language_issues(value)
+                    for issue in issues:
+                        hits.append(f"{ws.title}!{cell.coordinate}: {issue}")
+                        if len(hits) >= 20:
+                            return {"pass": False, "hits": hits}
+    finally:
+        wb.close()
+
     return {"pass": len(hits) == 0, "hits": hits}
 
 

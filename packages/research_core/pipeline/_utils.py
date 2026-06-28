@@ -29,7 +29,7 @@ def _lead_analysis(one_sentence: str, raw_verdict: Any, contract_verdict: str) -
         return contract_verdict + text[len(raw):]
     if text:
         return text
-    return f"{contract_verdict}：市场、搜索、VOC 和供应链证据仍需补齐后再形成强结论。"
+    return f"{contract_verdict}：市场、搜索、VOC 和价格带证据仍需补齐后再形成强结论。"
 
 
 def _report_value(value: Any) -> Any:
@@ -472,4 +472,3 @@ def _validate_artifacts(run_path: Path, artifacts: list[str], error_cls: type[Ex
         p = run_path / artifact
         if not p.exists():
             raise error_cls(f"required input not found: {artifact}")
-

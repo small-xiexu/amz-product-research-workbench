@@ -598,7 +598,7 @@ def _build_data_gaps(
                 "gap_type": "route_missing_critical_roles",
                 "route_ref": rc["route_ref"],
                 "description": f"route '{rc['route_ref']}' missing critical roles: {', '.join(sorted(critical_roles & set(missing)))}",
-                "impact": "VOC conclusions may lack reference benchmarks",
+                "impact": "VOC conclusions may lack enough comparable references",
             })
     return gaps
 

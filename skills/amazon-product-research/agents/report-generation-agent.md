@@ -47,7 +47,7 @@ Stage 11-12 使用三段式：脚本生成 `report_data.seed.json` → `report_a
 
 `report_data.json` 已由 `report_agent.py` 从 seed 自动生成，所有数据字段（`value`、`source_path`）完整。Agent 在这一步只做：
 
-- **从 `integrated_operator_judgment.json` 转录判断结论**：将 judgment 中的深度分析转录到 `report_data.json` 的判断类字段（`judgment`、`lead_analysis`、`strategy`、`issue_description`、`spec_requirement`、`description`、`evidence_basis` 等）。转录时保持与 judgment 原文一致，不做额外解读或补充。
+- **从 `integrated_operator_judgment.json` 转录判断结论**：将 judgment 中的深度分析转录到 `report_data.json` 的判断类字段（`judgment`、`lead_analysis`、`strategy`、`issue_description`、`spec_requirement`、`description`、`evidence_basis` 等）。转录时保留事实、判断和动作，不保留内部黑话或情绪化原句；必须翻译成运营能直接读懂的表达。
 - **判断字段映射**：
   - `competitor_benchmark[].differentiation_direction` → `competitors[].judgment`
   - `competitor_weakness_map[].fatal_weakness` + `.my_counter` → `competitors[].weakness` + `.counter`
@@ -59,6 +59,12 @@ Stage 11-12 使用三段式：脚本生成 `report_data.seed.json` → `report_a
   - `validation_roadmap[].phase` + `.actions` + `.exit_criteria` + `.if_fail` → `next_steps[]` 验证路线图
 - **检查完整性**：如果 judgment 中缺少某个板块的判断，在 `report_data.json` 中保留 `__ai_judgment__` 占位，不自行补充。
 - **不碰数据字段**：`value` 和 `source_path` 只读，绝不修改。
+- **交付话术翻译**：JSON 字段名和枚举值可以保留用于脚本校验，但写入 HTML/XLSX/解释字段时必须翻译：
+  - `P0/P1/P2` → `必须验证 / 重点优化 / 建议优化`
+  - `go/watch/no_go/blocked` → `建议进入小批量验证 / 建议先验证 / 建议暂停推进 / 当前不满足放行条件`
+  - `high/medium/low`（置信度）→ `判断置信度高 / 中等 / 偏低`
+  - `strong/watch/weak/blocked`（评级）→ `正向信号 / 需要关注 / 信号偏弱 / 当前不满足放行条件`
+- **禁止交付话术**：HTML/XLSX/`qa_notes.md` 不得出现 `P0安全风险`、`P0痛点`、`致命弱点`、`生死考验`、`赌博`、`confidence Medium`、`final_verdict=watch`、`rating=blocked`、`Stage 10a` 等内部或惊吓式表达。
 
 **这不是可选步骤。** 在判断文字转录完成之前，禁止开始写 HTML。
 
@@ -159,7 +165,7 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
       <col style="width:10%;"><col style="width:8%;"><col style="width:6%;"><col style="width:6%;"><col style="width:6%;"><col style="width:7%;"><col style="width:27%;"><col style="width:30%;">
     </colgroup>
     <thead>
-      <tr><th>ASIN</th><th class="tc">品牌</th><th class="tc">月销</th><th class="tc">价格</th><th class="tc">评论</th><th class="tc">路线</th><th>致命弱点（有差评原文）</th><th>我的反击</th></tr>
+      <tr><th>ASIN</th><th class="tc">品牌</th><th class="tc">月销</th><th class="tc">价格</th><th class="tc">评论</th><th class="tc">路线</th><th>主要差评点（有差评原文）</th><th>我的反击</th></tr>
     </thead>
     <tbody>
       <!-- 来自 competitor_weakness_map: fatal_weakness + voc_evidence → my_counter -->
@@ -186,7 +192,7 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 </section>
 
 <section class="section">
-  <h2>风险与 Go/No-Go</h2>
+  <h2>风险与放行条件</h2>
   <p class="subtitle">风险/优势双栏 + 决策条件表</p>
   <div class="insight-row">
     <div class="insight-card warn">
@@ -203,8 +209,8 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
     </div>
   </div>
   <table class="go-nogo" style="margin-top:20px;">
-    <thead><tr><th>决策条件</th><th>Go 阈值</th><th>No-Go 红线</th><th>当前状态</th></tr></thead>
-    <tbody><!-- Go/No-Go 前置条件 --></tbody>
+    <thead><tr><th>决策条件</th><th>放行条件</th><th>暂停条件</th><th>当前状态</th></tr></thead>
+    <tbody><!-- 放行前置条件 --></tbody>
   </table>
 </section>
 </div>
@@ -238,28 +244,41 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 | 内容卡片 | `.section` → `h2` `.subtitle` | 每个内容板块 |
 | 洞察卡片行 | `.insight-row` → `.insight-card` `.good`/`.warn` → `h4` `p` | 2 列布局 |
 | 表格 | `table` `th` `td`（无额外类名） | 标准表格 |
-| 表格辅助 | `.tc` | 列居中（用于价格、评分、优先级等短值列） |
-| 优先级标识 | `.pill` | 圆角小徽章，P1/P2/P4（颜色为中性灰蓝） |
+| 表格辅助 | `.tc` `.nowrap` `.asin-cell` `.keyword-cell` `.brand-list-cell` `.brand-cell` `.route-cell` `.route-name` `.route-en` | `.tc` 短值列居中；`.asin-cell`/`.keyword-cell` 禁止标识换行；`.brand-list-cell` 用于代表品牌/月销列表；`.brand-cell` 用于核心竞品品牌列；`.route-cell` 用于路线对比表路线列 |
+| 优先级标识 | `.pill` | 圆角小徽章，展示"必须验证/重点优化/建议优化"等运营标签 |
 | 标签 | `.tag` `.tag-green` `.tag-amber` `.tag-red` `.tag-blue` `.tag-gray` | 只有 5 色 |
-| 价格柱状图 | `.price-band` → `.price-bar` → `.bar` + `.label` | 竖柱图。`.bar` 高度必须使用 `bar_height` 值（单位 px），颜色必须使用 `opportunity_level` 映射：strong→#059669, watch→#d97706, weak→#dc2626。禁止硬编码高度或颜色。 |
+| 价格柱状图 | `.price-band` → `.price-bar` → `.bar` + `.label` | 竖柱图。`.bar` 高度必须使用 `bar_height` 值（单位 px），颜色必须使用 `opportunity_level` 映射：strong→#059669, watch→#d97706, weak→#dc2626。柱体位于固定柱图区底部基线，说明文字放在 `.label`，禁止硬编码高度或颜色。 |
 | 风险列表 | `.risk-list` → `li` → `.severity` | 风险/优势列表 |
 | 下一步 | `.next-steps` → `.next-step` → `.num` `h4` `p` | 3 列网格 |
-| Go/No-Go 表 | `table.go-nogo` | 前置条件表 |
+| 放行条件表 | `table.go-nogo` | 前置条件表 |
 
 **表格列宽分配（强制）：**
 
-所有多列表格必须使用 `<colgroup>` 分配列宽，避免文字挤在一起：
+所有表格必须使用 `<div class="table-scroll">` 包裹 + `<table style="width:XXXXpx">` + `<colgroup>` 像素列宽。CSS 已全局设 `table-layout:fixed`。禁止依赖百分比列宽或 auto 布局——这会导致中文竖排。
 
-- **路线对比表**（7列）：18% / 7% / 7% / 7% / 20% / 20% / 21%（最后一列"选了它你就放弃了..."来自 route_tradeoff[].lose）
-- **类目全景表**（7列）：15% / 10% / 11% / 11% / 33% / 9% / 11%
-- **核心竞品表**（8列）：10% / 8% / 6% / 6% / 6% / 7% / 27% / 30%（新增"致命弱点"和"我的反击"列，来自 competitor_weakness_map）
-- **痛点-规格表**（6列）：8% / 12% / 9% / 22% / 24% / 25%
+| 表格 | 列数 | 表总宽 | 各列像素宽 |
+|---|---|---|---|
+| 路线对比表 | 6 | 1480px | 路线 245 / 优先级 90 / 判罚 100 / 核心机会 315 / 核心风险 320 / Tradeoff 410 |
+| 类目全景表 | 7 | 1185px | 类目 160 / Node ID 105 / 竞争密度 145 / 供需比 140 / 价格区间 110 / 代表品牌 425 / 定位 100 |
+| 核心竞品表 | 8 | 1450px | ASIN 130 / 品牌 170 / 月销 70 / 价格 75 / 评分评论 95 / 主要差评点 450 / 我的反击 380 / 难度 80 |
+| 痛点-规格表 | 5 | 1240px | 优先级 90 / 痛点维度 160 / 竞品问题 340 / 规格要求 330 / 竞品差距 320 |
+| 关键词策略表 | 5 | 980px | 类型 80 / 关键词 160 / 月搜量 80 / CPC 60 / 策略逻辑 600 |
+| 放行条件表 | 4 | 1180px | 条件 260 / 放行条件 350 / 暂停条件 300 / 当前状态 270 |
+| 验证路线图表 | 4 | 980px | 阶段 160 / 动作 400 / 通过标准 240 / 不通过则 180 |
 
 通用原则：
-- 短值列（价格、评分、评论数、优先级、判罚、类型、判断等）用 `class="tc"` 居中，列宽 ≤ 9%
-- 长文本列（核心机会、核心风险、关键判断、典型差评等）列宽 ≥ 22%
+- 短值列（价格、评分、评论数、优先级、判罚等）用 `class="tc"` 居中。所有表头默认居中；长文本列正文保持左对齐但垂直居中，禁止为了“居中”牺牲可读性。
+- 表格一律居中嵌入视口：`.table-scroll table` 必须至少 `min-width:100%` 且左右自动外边距居中。若手写表宽小于容器，允许横向滚动但不能缩成半张表。
+- ASIN、Node ID、关键词等标识型短文本必须禁止断行：ASIN 用 `class="asin-cell"`，关键词/Node ID 等用 `class="keyword-cell"` 或 `class="tc nowrap"`。
+- 类目全景表的“代表品牌及月销”列必须使用 `class="brand-list-cell"`，同一行展示品牌/月销列表，禁止用 `<br>` 强制换行。表格有 `.table-scroll` 承载横向滚动，不能把品牌列表挤到第二行。
+- 长文本列（核心机会、核心风险、主要差评点、我的反击等）列宽 ≥ 260px
+- **路线列（路线对比表）**：路线中文名和英文括号名允许上下两行，但英文括号整体禁止拆行。格式：`<td class="route-cell"><div class="route-name">中文路线名<span class="route-en">(English Route Name)</span></div></td>`。路线列宽 ≥ 245px；`.route-en` 已设置 `white-space:nowrap`。既然表格有 `.table-scroll`，禁止为了塞进视口把路线名/英文名挤成多行。
+- **关键词策略表**：主攻/可测词表固定 980px，4 列分别为 260 / 100 / 80 / 540；明确否定词表也按 980px 处理，2 列分别为 260 / 720。关键词、月搜索量、CPC 等标识/短值列用 `.keyword-cell` 或 `.tc`；策略说明/理由是长文本列，保持默认左对齐但垂直居中，禁止加 `.tc`。
 - 优先级值用 `<span class="pill">P1</span>`，不裸写数字
-- 行数 > 4 的表才用 colgroup；只有 2-3 行的表（如价格带、关键词表）不需要
+- **品牌列（核心竞品表）**：品牌名在上、角色标签在下，并在单元格内水平/垂直居中，禁止横排挤在一行。格式：`<td class="brand-cell"><div class="brand-stack"><strong>品牌名</strong><span class="tag ...">角色标签</span></div></td>`。列宽 ≥ 170px。CSS 已提供 `.brand-cell { text-align:center; vertical-align:middle }`、`.brand-stack { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px }`、`.brand-cell strong { display:block }` 与 `.brand-cell .tag { display:inline-block }`
+- **核心竞品 ASIN 列**：表头写 `<th class="tc nowrap">ASIN</th>`，每个 ASIN 写 `<td class="asin-cell">...</td>`。禁止让 ASIN 在中间断成两行。
+- **痛点-规格表**：必须使用 `.table-scroll` 与 1240px 像素列宽。优先级、痛点维度用 `.tc`，其余 3 个长文本列左对齐但垂直居中。禁止使用无 `colgroup` 的普通表格，否则第一列会被平均分配出大空白。
+- **铁律：所有表格一律 `.table-scroll` 包裹 + 像素 `<colgroup>`。CSS 已全局 `table-layout:fixed`，不需再写在 inline style 中。**
 
 ## report_data.json 结构
 
@@ -400,8 +419,8 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
   "gonogo_conditions": [
     {
       "condition": "条件名",
-      "go_threshold": "Go 阈值",
-      "nogo_threshold": "No-Go 红线",
+      "go_threshold": "放行条件",
+      "nogo_threshold": "暂停条件",
       "current_status": "待验证 | 未开始 | 已通过"
     }
   ],
@@ -426,7 +445,7 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 | Hero | 月销(子市场) | market_structure | `market_size.primary_market.overview_all.月均销量` |
 | Hero | 核心词月搜 | keyword_pool (由 search_demand 构建) | `analysis._derived.core_search_volume`（pipeline 从 main_traffic 聚合） |
 | Hero | 类目均价 | seller_sprite_validation | `analysis.seller_sprite_validation.primary_market.avg_price_usd` |
-| Hero | 推荐定价 | route_judgment | `analysis._derived.recommended_price`（pipeline 从主推路线 price_range 提取） |
+| Hero | 关注价格带 | route_judgment | `analysis._derived.recommended_price`（pipeline 从主推路线 price_range 提取；字段名历史兼容，不代表最终定价） |
 | Hero | 类目均分 | market_structure | `market_size.primary_market.avg_rating` 或 Top100加权计算 |
 | 类目全景 | 类目名/NodeId/销量/均价/集中度/自营占比 | search_demand | `facts[f8,f9,f10].value` |
 | 类目全景 | 月销额 | market_structure | `market_size.primary_market.overview_all.月均销售额($)` |
@@ -461,7 +480,8 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 - **不新增竞品信息。** 竞品的品牌名、子体数、产地、材质细节等如不在证据包中，不得写入 HTML。如果证据包中只有 ASIN 和品牌名，就只能写这两个。
 - **不发明痛点。** VOC 痛点只能来自 `voc_evidence_packet.json` 的 `pain_points_by_dimension`，不能根据"行业常识"补充未在证据中出现的痛点。
 - **不推测缺失数据。** 如果某个竞品的评分不在证据包中，写"待补"或不写，不能猜一个数字。
-- **不把推断当事实。** 定价建议、毛利预估、差异点价值是推断，报告中使用"建议""可考虑""预估"等措辞区分。
+- **不把推断当事实。** 价格带建议、差异点价值是推断，报告中使用"建议""可考虑""预估"等措辞区分。
+- **不写后置落地变量。** 本报告默认只判断市场能不能继续看，禁止输出 COGS、FOB、采购价、供应商报价、毛利率、FBA 费用、1688 实际报价等内容；也禁止把缺少这些数据写成"待补充"或放行阻塞项。只有用户明确开启利润/供应链复核模块时，才可单独展示。
 - **不复制粘贴 insight 原文。** `insights_for_handoff` 是给主 Agent 看的提示，不能直接抄进 HTML。HTML 里的分析应该基于原始数据重新撰写。
 - **不出现内部术语。** HTML 中不出现 Agent、MCP、tool、spawn、packet、pipeline、evidence_packet、source_path、冲突复核过程或内部数据来源分歧。
 - **不使用抽象路线标签。** 禁止在 HTML 中使用任何非业务描述词的路线标识——包括"路线A/B""路线1/2"等抽象代号，也包括 C01/C02 等内部序号（Stage 5 已从源头使用 kebab-case slug 作为 `route_id`，但即使上游 Agent 错引了 `route_id`，HTML 中也必须替换为中文业务名）。路线名必须使用业务描述词，让运营一眼看懂每个方向在做什么产品。路线命名基于 `route_matrix_confirm.json` 中的 `route_name`。
@@ -472,13 +492,13 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 - [ ] `report_data.json` 已审阅，判断文字已优化，数据字段未被修改
 - [ ] 数字口径一致：同一个数字在不同板块出现时值相同（如 172,183 在 Hero 和类目全景中一致）
 - [ ] 细分 TAM 和大类 TAM 已分开，数值不同
-- [ ] Hero 6 指标按契约顺序：目标市场 / 月销(子市场) / 核心词月搜 / 类目均价 / 推荐定价 / 类目均分
+- [ ] Hero 6 指标按契约顺序：目标市场 / 月销(子市场) / 核心词月搜 / 类目均价 / 关注价格带 / 类目均分
 - [ ] 竞品表中所有字段（ASIN/品牌/月销/价格/评论数/评分）都能在证据包中找到
 - [ ] 关键词表中所有数字（月搜/CPC/竞品数/低评论占比）都能在 search_demand 中找到
 - [ ] 痛点提及条数与 voc_evidence_packet 一致
 - [ ] 没有证据包之外的数字或事实性断言
 - [ ] 路线标签使用业务描述词，无"路线A/B"等抽象代号
-- [ ] HTML 视觉规范：内嵌 `<style>` CSS、绿色 Hero、4 种 tag、价格柱状图、Go/No-Go 表
+- [ ] HTML 视觉规范：内嵌 `<style>` CSS、绿色 Hero、4 种 tag、价格柱状图、放行条件表
 - [ ] **模板合规：`<style>` 块从 report_template.css 完整复制，未修改任何 CSS 值/类名/变量名**
 - [ ] **类名合规：HTML 中只出现了类名速查表中的类名，未出现自定义类名（如 `.hero-metric-label` `.container` `.section-card` `.insight-cards` 等）**
 
@@ -492,9 +512,9 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 | 2 | 类目全景 | 所有相关类目表 + 4 insight cards | search_demand facts + market_structure | 只写一个类目；月销额数字与Hero不一致 |
 | 3 | 核心竞品 | ASIN表（含品牌/月销/价格/评论/评分/路线/判断） | market_structure reference_asin_pool | 发明不在证据中的品牌名或子体数 |
 | 4 | 用户痛点→产品规格 | P0/P1/P2排序 + 竞品问题 + 产品规格 | voc pain_points_by_dimension | 发明新痛点；修改提及条数 |
-| 5 | 价格带分布 | 柱状图 + 价格带表 | market_structure price_band | 硬编码柱高或颜色（必须用 bar_height + opportunity_level）；修改占比数字；发明代表竞品 |
+| 5 | 价格带分布 | 柱状图 + 价格带表 | market_structure price_band | 硬编码柱高或颜色（必须用 bar_height + opportunity_level）；修改占比数字；发明代表竞品；把价格带写成利润/供应链核算 |
 | 6 | 关键词与流量策略 | 主攻/可测/否定三分 + 策略说明 | search_demand keyword_demand + facts | 修改月搜量或CPC；遗漏否定词 |
-| 7 | 风险与下一步 | 风险/优势双栏 + Go/No-Go表 + 3步骤；可自然嵌入样本边界和判断口径 | voc data_gaps + market_structure + 运营判断 | 风险无证据支撑；步骤写空话；把内部采集分歧写进 HTML |
+| 7 | 风险与下一步 | 风险/优势双栏 + 放行条件表 + 3步骤；可自然嵌入样本边界和判断口径 | voc data_gaps + market_structure + 运营判断 | 风险无证据支撑；步骤写空话；把内部采集分歧写进 HTML |
 
 ## 契约约束（输出前自查）
 
@@ -506,8 +526,8 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 | `source_path` | 脚本 QA 检查有效性：路径是否指向真实文件/字段 | source_path 为空字符串或不存在的路径 |
 | HTML 板块完整性 | 脚本 QA 检查 7 大板块是否齐全 | 漏写 Hero/类目全景/竞品/痛点/价格带/关键词/风险 |
 | 禁止术语 | 脚本 QA 扫描 HTML 无 MCP/Agent/tool/spawn/packet/source_path | HTML 中出现"卖家精灵 MCP"等内部术语 |
-| `route_id` 泄漏 | QA Agent 检查路线名只用中文产品名 | HTML 中出现 `retractable-tape-leash` 等 kebab-case |
-| 判断一致性 | QA Agent 检查 HTML Hero 与 judgment final_verdict 一致 | HTML 写 Go，judgment 写 No-Go |
+| `route_id` 泄漏 | QA Agent 检查路线名只用中文产品名 | HTML 中出现通用 route_id slug 等 kebab-case |
+| 判断一致性 | QA Agent 检查 HTML Hero 与 judgment final_verdict 一致 | HTML 建议进入小批量验证，judgment 是建议暂停推进 |
 | 竞品判词合理性 | QA Agent 检查竞品弱点/反击是否有 VOC 原文支撑 | 发明不存在的竞品弱点 |
 
 详细契约见 `references/CONTRACT_MAP.md` Stage 12 章节。

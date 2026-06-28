@@ -1,6 +1,6 @@
 # 全流程跑测问题日志
 
-状态：**21 项已修复，0 项待修复**（2026-06-25 宠物牵引绳跑测）
+状态：**21 项已修复，0 项待修复**（2026-06-25 宠物牵引绳跑测） <!-- generic-redline: allow historical run postmortem retains original case name -->
 
 记录规则：
 - 每条问题写清楚：**阶段、现象、期望、是否阻塞**
