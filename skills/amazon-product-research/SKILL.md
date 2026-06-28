@@ -635,7 +635,7 @@ pass → 交付。fail → 按失败类型智能打回：
 |---|---|---|
 | **analysis** (分析错误) | judgment 逻辑错误、弱结论、数值不一致 | retry Stage 10 (Lead Operator Agent) |
 | **rendering** (渲染错误) | HTML 缺板块、CSS 违规、禁止术语泄漏 | retry Stage 12 (Report Generation Agent) |
-| **data** (数据错误) | source_path 无效、seed 缺失、XLSX 缺失 | retry Stage 11 (build_analysis_report seed) |
+| **data** (数据错误) | source_path 无效、seed 缺失、XLSX 缺失 | retry Stage 11 (build_report_seed) |
 
 `delivery_qa_result.json` 中 `failure_classification` 字段明确标识每类失败及对应 retry 目标。修复后重新执行 Stage 13 两层 QA，最多 3 轮。3 轮不过 → `progress.json` 标记 `blocked`，需人工介入。
 

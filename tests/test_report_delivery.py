@@ -1,6 +1,6 @@
 """P7 report delivery tests: seed handoff → Agent output → XLSX/QA chain.
 
-Verifies that build_analysis_report keeps the Report Generation Agent boundary:
+Verifies that build_report_seed / build_report_xlsx keep the Report Generation Agent boundary:
 the script creates report_data.seed.json, then only generates XLSX/QA after an
 agent has written report_data.json and the formal HTML report.
 """
@@ -436,7 +436,7 @@ class FullChainCLITests(unittest.TestCase):
         run_integrated_judgment(run_dir)
         return run_dir
 
-    def test_cli_build_analysis_report_after_agent_handoff(self) -> None:
+    def test_build_report_chain_after_agent_handoff(self) -> None:
         """build_report_seed → agent → build_report_xlsx chain."""
         run_dir = self._seed_full_pipeline()
         analysis_dir = run_dir / "analysis"

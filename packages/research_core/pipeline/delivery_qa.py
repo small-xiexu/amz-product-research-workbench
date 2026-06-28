@@ -99,9 +99,9 @@ _FAILURE_CLASSIFICATION: dict[str, dict[str, str]] = {
     "has_no_forbidden_xlsx_patterns": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
     "no_conflict_leak": {"class": "rendering", "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
     # data: seed/data pipeline failures → retry Stage 11 (seed generation)
-    "report_data_exists": {"class": "data", "retry_stage": "stage_11", "retry_target": "build_analysis_report seed"},
-    "report_data_sources_valid": {"class": "data", "retry_stage": "stage_11", "retry_target": "build_analysis_report seed"},
-    "xlsx_exists": {"class": "data", "retry_stage": "stage_11", "retry_target": "build_analysis_report seed"},
+    "report_data_exists": {"class": "data", "retry_stage": "stage_11", "retry_target": "build_report_seed"},
+    "report_data_sources_valid": {"class": "data", "retry_stage": "stage_11", "retry_target": "build_report_seed"},
+    "xlsx_exists": {"class": "data", "retry_stage": "stage_11", "retry_target": "build_report_seed"},
 }
 
 
@@ -112,13 +112,13 @@ def _classify_failures(failures: list[str]) -> dict[str, Any]:
         {
             "analysis": {"failures": [...], "retry_stage": "stage_10", "retry_target": "Lead Operator Agent"},
             "rendering": {"failures": [...], "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
-            "data": {"failures": [...], "retry_stage": "stage_11", "retry_target": "build_analysis_report seed"},
+            "data": {"failures": [...], "retry_stage": "stage_11", "retry_target": "build_report_seed"},
         }
     """
     classified: dict[str, dict[str, Any]] = {
         "analysis": {"failures": [], "retry_stage": "stage_10", "retry_target": "Lead Operator Agent"},
         "rendering": {"failures": [], "retry_stage": "stage_12", "retry_target": "Report Generation Agent"},
-        "data": {"failures": [], "retry_stage": "stage_11", "retry_target": "build_analysis_report seed"},
+        "data": {"failures": [], "retry_stage": "stage_11", "retry_target": "build_report_seed"},
     }
     for name in failures:
         fc = _FAILURE_CLASSIFICATION.get(name)

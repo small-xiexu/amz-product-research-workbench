@@ -157,7 +157,7 @@ def build_stage_checks(
         stage_9_evidence = "市场分析报告已生成并通过 QA"
     elif stage_9_artifacts_exist:
         qa_exists = bool(qa_result)
-        stage_9_evidence = "市场分析报告已生成（QA 未通过）" if qa_exists else "市场分析报告已生成（QA 未执行，请运行 build_analysis_report.py）"
+        stage_9_evidence = "市场分析报告已生成（QA 未通过）" if qa_exists else "市场分析报告已生成（QA 未执行，请运行 build_report_seed.py + build_report_xlsx.py）"
     else:
         stage_9_evidence = ""
 
@@ -214,7 +214,7 @@ def build_stage_checks(
             "stage_9_report",
             stage_9_done,
             stage_9_evidence,
-            "运行 build_analysis_report.py 或 AI 手写报告。",
+            "运行 build_report_seed.py + build_report_xlsx.py 或 AI 手写报告。",
         ),
     ]
 
@@ -308,7 +308,7 @@ def build_blockers(
                 "severity": "blocking",
                 "item": "QA 结果缺少规则版本号（旧格式，可能遗漏值一致性校验等检查项）",
                 "impact": "旧 QA 文件不包含新增检查项（值一致性、禁止模式等），应重跑 QA。",
-                "next_step": "运行 build_analysis_report.py 重新生成 QA 结果。",
+                "next_step": "运行 build_report_seed.py + build_report_xlsx.py 重新生成 QA 结果。",
                 "source": "analysis/delivery_qa_result.json",
             })
         elif qa_version != _current_qa_version():
@@ -317,7 +317,7 @@ def build_blockers(
                 "severity": "blocking",
                 "item": f"QA 规则版本过期 (当前: {_current_qa_version()}, 文件: {qa_version})",
                 "impact": "旧规则可能遗漏新增检查项（如值一致性校验、禁止模式等），需按当前规则重新 QA。",
-                "next_step": "运行 build_analysis_report.py 重新生成 QA 结果。",
+                "next_step": "运行 build_report_seed.py + build_report_xlsx.py 重新生成 QA 结果。",
                 "source": "analysis/delivery_qa_result.json",
             })
         elif qa_result.get("status") != "pass":
@@ -336,7 +336,7 @@ def build_blockers(
             "severity": "blocking",
             "item": "Stage 9 产出已存在但 QA 文件缺失（delivery_qa_result.json）",
             "impact": "报告质量未经校验，无法确认是否满足交付标准。",
-            "next_step": "运行 build_analysis_report.py 完成 QA 校验。",
+            "next_step": "运行 build_report_seed.py + build_report_xlsx.py 完成 QA 校验。",
             "source": "analysis/delivery_qa_result.json",
         })
     return blockers[:20]

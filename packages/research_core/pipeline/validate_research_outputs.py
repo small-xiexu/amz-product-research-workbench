@@ -744,12 +744,12 @@ def _check_delivery_qa(result: ValidationResult, analysis_dir: Path) -> None:
         return
     qa_version = qa.get("qa_rule_version", "")
     if not qa_version:
-        result.errors.append("Delivery QA 规则版本缺失（旧格式，可能遗漏值一致性校验），请重跑 build_analysis_report.py")
+        result.errors.append("Delivery QA 规则版本缺失（旧格式，可能遗漏值一致性校验），请重跑 build_report_seed.py + build_report_xlsx.py")
         return
     if qa_version != QA_RULE_VERSION:
         result.errors.append(
             f"Delivery QA 规则版本过期 (当前: {QA_RULE_VERSION}, 文件: {qa_version})，"
-            "旧规则可能遗漏值一致性、禁止模式等新增检查项，请重跑 build_analysis_report.py"
+            "旧规则可能遗漏值一致性、禁止模式等新增检查项，请重跑 build_report_seed.py + build_report_xlsx.py"
         )
         return
     if qa.get("status") != "pass":

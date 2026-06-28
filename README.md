@@ -101,7 +101,10 @@ python3 scripts/plan_interactive_workflow.py \
 AI 完成 7 阶段分析后，运行脚本生成决策工具包和 QA：
 
 ```bash
-python3 -m packages.research_core.pipeline.build_analysis_report runs/<yyyymmdd_中文品类方向>
+# Stage 11: 生成 seed
+python3 -m packages.research_core.pipeline.build_report_seed runs/<yyyymmdd_中文品类方向>
+# Stage 12: 生成 XLSX + QA
+python3 -m packages.research_core.pipeline.build_report_xlsx runs/<yyyymmdd_中文品类方向>
 ```
 
 产物：

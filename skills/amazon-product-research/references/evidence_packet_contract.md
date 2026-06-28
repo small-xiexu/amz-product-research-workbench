@@ -57,7 +57,7 @@ Evidence Packet 是多 Agent 协作的交接单位。每个数据源专家 Agent
 | `search_demand_evidence` | Search Demand Agent | Sorftime 类目、关键词、趋势、竞品流量词 |
 | `voc_evidence` | VOC Evidence Agent | 评论插件、评论证据、痛点到规格映射 |
 | `integrated_operator_judgment` | Senior Operator Agent | 基于 P6 多评价结果输出最终综合判断，不生成报告 |
-| `report_data` | 脚本 `build_analysis_report.py` 生成 seed，Report Generation Agent 增强 | 唯一数据中枢，所有事实含 `source_path` 溯源，供 HTML 和 XLSX 使用 |
+| `report_data` | 脚本 `build_report_seed.py` 生成 seed，Report Generation Agent 增强 | 唯一数据中枢，所有事实含 `source_path` 溯源，供 HTML 和 XLSX 使用 |
 | `delivery_qa_result` | Delivery QA Agent | 最终交付物、校验结果和证据边界 |
 
 ## 通用业务对象

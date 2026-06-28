@@ -5,7 +5,7 @@ Usage:
   python3 scripts/run_report_agent.py <run_dir>
 
 This runs the agent in serial_fallback mode. After the agent completes,
-run build_analysis_report.py again to generate XLSX and QA artifacts.
+run build_report_seed.py then build_report_xlsx.py to generate XLSX and QA artifacts.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         print(
-            "Run build_analysis_report.py first to generate the seed.",
+            "Run build_report_seed.py first to generate the seed.",
             file=sys.stderr,
         )
         return 3

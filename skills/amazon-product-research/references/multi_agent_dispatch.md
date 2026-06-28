@@ -31,7 +31,7 @@ Stage 1 (意图收集) → Stage 2-3 (快验+门控) → Stage 4 (候选池) →
 | Stage 9 六维评价 | **推荐并行 spawn** | Stage 6、7、8 全部 done | 6 个 Evaluation Agent | `evaluations/*.json`、`evaluation_summary.json` |
 | Stage 10a 深度分析 | **强制并行 spawn** | Stage 9 done | Route Strategy Agent、Growth & Risk Agent | `integrated_operator_judgment.json` 的 9 个深度分析字段（路线推荐/路线取舍/竞品对标/竞品弱点/价格带解读 — Route Strategy；VOC→规格/关键词策略/风险缓解/验证路线图 — Growth & Risk） |
 | Stage 10b 决策合成 | **推荐独立 spawn** | Stage 10a done | Lead Operator Agent（跨维度权衡 + 最终决策） | `integrated_operator_judgment.json`（决策摘要 + 合并 10a 的 9 个深度分析字段） |
-| Stage 11 seed | 不 spawn（脚本执行） | Stage 10 done | 脚本 `build_analysis_report.py` | `report_data.seed.json` |
+| Stage 11 seed | 不 spawn（脚本执行） | Stage 10 done | 脚本 `build_report_seed.py` | `report_data.seed.json` |
 | Stage 12 报告生成 | 不 spawn | Stage 10 + 11 done | Report Generation Agent + 脚本 | `report_data.json`、`<中文品名>_分析报告.html`、`<中文品名>_决策工具包.xlsx` |
 | Stage 13 QA | **强制 spawn**（不可降级） | Stage 12 done | Delivery QA Agent + 脚本 `run_delivery_qa.py` | `delivery_qa_result.json`、`qa_notes.md` |
 

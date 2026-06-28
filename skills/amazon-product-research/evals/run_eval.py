@@ -16,12 +16,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from packages.report_renderer.xlsx_writer import write_xlsx
-from packages.research_core.pipeline.build_analysis_report import (
-    build_analysis_packet,
-    seed_report_data_from_analysis,
-    xlsx_sheets_from_report_data,
-    run_delivery_qa,
-)
+from packages.research_core.pipeline.build_analysis_packet import build_analysis_packet
+from packages.research_core.pipeline.seed_report_data import seed_report_data_from_analysis
+from packages.research_core.pipeline.xlsx_back_table import xlsx_sheets_from_report_data
+from packages.research_core.pipeline.delivery_qa import run_delivery_qa
 
 EVAL_DIR = Path(__file__).resolve().parent
 
@@ -191,7 +189,7 @@ def _write_minimal_evidence_packets(run_dir: Path) -> None:
 
 
 def _load_packets(run_dir: Path) -> dict[str, Any]:
-    from packages.research_core.pipeline.build_analysis_report import load_packets
+    from packages.research_core.pipeline.build_analysis_packet import load_packets
     return load_packets(run_dir)
 
 
