@@ -78,7 +78,7 @@
 | Risk Evaluation Agent | 9 | 风险评价 | 全部证据 + 冲突 | `risk_evaluation.json` |
 | Data Quality Evaluation Agent | 9 | 数据质量评价 | 全部证据 + snapshot | `data_quality_evaluation.json` |
 | Route Strategy Agent | 10a | 路线竞争分析 | 评价 + 市场结构 + VOC | judgment 路线/竞品/价格5字段 |
-| Growth & Risk Agent | 10a | 增长风控分析 | 评价 + 搜索需求 + VOC | judgment 增长/风控5字段 |
+| Growth & Risk Agent | 10a | 增长风控分析 | 评价 + 搜索需求 + VOC | judgment 增长/风控4字段 |
 | Lead Operator Agent | 10b | 跨维度权衡+最终决策 | 6 evaluation + 2份10a产出 | `integrated_operator_judgment.json` |
 | Report Generation Agent | 12 | 报告生成 | seed + judgment + 证据包 | `report_data.json` + HTML |
 | Delivery QA Agent | 13 | 交付质检（强制 spawn） | 全部产物 + MCP snapshot | `qa_notes.md` |

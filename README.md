@@ -154,7 +154,7 @@ VOC 包可直接用于 Stage 9 六维评价阶段。
 
 Codex 版主线已闭环（2026-06-25）。完整 13 阶段流程：运营意图 → 双 Agent 快验 → 门控 → 候选池 → 路线矩阵 → 双 MCP 深挖 → 冲突复核 → VOC → 六维评价 → 资深运营判断 → seed → 报告 → QA 门禁。
 
-已收敛：1 个主 Skill、15 个 Agent、5 个 Reference、2 份最终产物（HTML + XLSX）。
+已收敛：1 个主 Skill、16 个 Agent、5 个 Reference、2 份最终产物（HTML + XLSX）。
 
 ## 暂不包含
 

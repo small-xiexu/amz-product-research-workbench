@@ -35,3 +35,8 @@ __pycache__/
 *.local
 !.env.example
 !.env.local.example
+
+# Claude Code local state. Keep .claude/agents tracked for project subagents.
+.claude/settings.local.json
+.claude/reviews/
+.claude/worktrees/

@@ -1,0 +1,308 @@
+{
+  "schema_version": "agent-manifest-v1",
+  "manifest_scope": "runtime_routing_only",
+  "description_policy": "agents[].routing_hint is only a runtime discovery hint for Claude/Codex adapter descriptions. It is not a business rule source. Canonical responsibilities, prohibitions, inputs, outputs, and judgment boundaries live in agents[].source_file and are embedded into generated adapters with source_sha256.",
+  "canonical_skill": "skills/amazon-product-research/SKILL.md",
+  "canonical_references": [
+    "skills/amazon-product-research/references/runtime_rules.md",
+    "skills/amazon-product-research/references/CONTRACT_MAP.md",
+    "skills/amazon-product-research/references/multi_agent_dispatch.md",
+    "skills/amazon-product-research/references/agent_directory.md"
+  ],
+  "agents": [
+    {
+      "id": "sellersprite-quick-agent",
+      "display_name": "SellerSprite Quick Agent",
+      "source_file": "skills/amazon-product-research/agents/market-structure-agent.md",
+      "stage": "stage_2_quick_check",
+      "category": "evidence",
+      "outputs": [
+        "mcp_snapshots/sellersprite_quick_snapshot.json",
+        "quick_check/sellersprite_quick_evidence_packet.json"
+      ],
+      "validation_commands": [
+        "python3 scripts/fill_quick_packet_contract.py <run_dir>/quick_check/sellersprite_quick_evidence_packet.json --source sellersprite"
+      ],
+      "parallel_group": "stage_2_quick_check",
+      "fallback_policy": "serial_fallback_allowed",
+      "max_retries": 2,
+      "tools_profile": "market_mcp_read_write",
+      "routing_hint": "Stage 2 市场结构快验，采集类目容量、价格带、集中度、Review 门槛、混池和候选方向信号。"
+    },
+    {
+      "id": "sorftime-quick-agent",
+      "display_name": "Sorftime Quick Agent",
+      "source_file": "skills/amazon-product-research/agents/search-demand-agent.md",
+      "stage": "stage_2_quick_check",
+      "category": "evidence",
+      "outputs": [
+        "mcp_snapshots/sorftime_quick_snapshot.json",
+        "quick_check/sorftime_quick_evidence_packet.json"
+      ],
+      "validation_commands": [
+        "python3 scripts/fill_quick_packet_contract.py <run_dir>/quick_check/sorftime_quick_evidence_packet.json --source sorftime"
+      ],
+      "parallel_group": "stage_2_quick_check",
+      "fallback_policy": "serial_fallback_allowed",
+      "max_retries": 2,
+      "tools_profile": "search_mcp_read_write",
+      "routing_hint": "Stage 2 搜索需求快验，采集关键词搜索量、搜索意图、类目趋势、相似品和候选方向信号。"
+    },
+    {
+      "id": "market-structure-agent",
+      "display_name": "Market Structure Agent",
+      "source_file": "skills/amazon-product-research/agents/market-structure-agent.md",
+      "stage": "stage_6_deep_dive",
+      "category": "evidence",
+      "outputs": [
+        "mcp_snapshots/sellersprite_deep_snapshot.json",
+        "market_structure/market_structure_evidence_packet.json"
+      ],
+      "validation_commands": [
+        "python3 scripts/validate_evidence_packet.py <run_dir> --packet market_structure"
+      ],
+      "parallel_group": "stage_6_deep_dive",
+      "fallback_policy": "serial_fallback_allowed_with_provenance",
+      "max_retries": 2,
+      "tools_profile": "market_mcp_read_write",
+      "routing_hint": "Stage 6 市场结构深挖，围绕已确认路线验证参考 ASIN、候选类目、价格带、集中度和新品机会。"
+    },
+    {
+      "id": "search-demand-agent",
+      "display_name": "Search Demand Agent",
+      "source_file": "skills/amazon-product-research/agents/search-demand-agent.md",
+      "stage": "stage_6_deep_dive",
+      "category": "evidence",
+      "outputs": [
+        "mcp_snapshots/sorftime_deep_snapshot.json",
+        "search_demand/search_demand_evidence_packet.json"
+      ],
+      "validation_commands": [
+        "python3 scripts/validate_evidence_packet.py <run_dir> --packet search_demand"
+      ],
+      "parallel_group": "stage_6_deep_dive",
+      "fallback_policy": "serial_fallback_allowed_with_provenance",
+      "max_retries": 2,
+      "tools_profile": "search_mcp_read_write",
+      "routing_hint": "Stage 6 搜索需求深挖，为每条保留路线独立采集关键词、流量入口、趋势和搜索意图证据。"
+    },
+    {
+      "id": "voc-evidence-agent",
+      "display_name": "VOC Evidence Agent",
+      "source_file": "skills/amazon-product-research/agents/voc-evidence-agent.md",
+      "stage": "stage_8_voc",
+      "category": "evidence",
+      "outputs": [
+        "review_voc/voc_evidence_packet.json"
+      ],
+      "validation_commands": [
+        "python3 scripts/validate_voc_packet.py <run_dir>"
+      ],
+      "parallel_group": "",
+      "fallback_policy": "serial_fallback_allowed_with_provenance",
+      "max_retries": 2,
+      "tools_profile": "review_export_read_write",
+      "routing_hint": "Stage 8 评论 VOC 分析，把评论原文中的痛点、好评驱动和混池信号转成产品规格与风险提示。"
+    },
+    {
+      "id": "market-demand-evaluation-agent",
+      "display_name": "Market Demand Evaluation Agent",
+      "source_file": "skills/amazon-product-research/agents/market-demand-evaluation-agent.md",
+      "stage": "stage_9_evaluations",
+      "category": "evaluation",
+      "outputs": [
+        "evaluations/market_demand_evaluation.json"
+      ],
+      "validation_commands": [
+        "python3 scripts/validate_evaluation.py <run_dir>"
+      ],
+      "parallel_group": "stage_9_evaluations",
+      "fallback_policy": "serial_fallback_allowed_with_provenance",
+      "max_retries": 2,
+      "tools_profile": "evidence_read_evaluation_write",
+      "routing_hint": "Stage 9 市场需求评价，判断需求是否真实、稳定且足够大。"
+    },
+    {
+      "id": "competition-evaluation-agent",
+      "display_name": "Competition Evaluation Agent",
+      "source_file": "skills/amazon-product-research/agents/competition-evaluation-agent.md",
+      "stage": "stage_9_evaluations",
+      "category": "evaluation",
+      "outputs": [
+        "evaluations/competition_evaluation.json"
+      ],
+      "validation_commands": [
+        "python3 scripts/validate_evaluation.py <run_dir>"
+      ],
+      "parallel_group": "stage_9_evaluations",
+      "fallback_policy": "serial_fallback_allowed_with_provenance",
+      "max_retries": 2,
+      "tools_profile": "evidence_read_evaluation_write",
+      "routing_hint": "Stage 9 竞争结构评价，判断头部垄断、评论门槛和新品进入空间。"
+    },
+    {
+      "id": "price-profit-evaluation-agent",
+      "display_name": "Price Band Opportunity Evaluation Agent",
+      "source_file": "skills/amazon-product-research/agents/price-profit-evaluation-agent.md",
+      "stage": "stage_9_evaluations",
+      "category": "evaluation",
+      "outputs": [
+        "evaluations/price_profit_evaluation.json"
+      ],
+      "validation_commands": [
+        "python3 scripts/validate_evaluation.py <run_dir>"
+      ],
+      "parallel_group": "stage_9_evaluations",
+      "fallback_policy": "serial_fallback_allowed_with_provenance",
+      "max_retries": 2,
+      "tools_profile": "evidence_read_evaluation_write",
+      "routing_hint": "Stage 9 价格带机会评价，判断目标价格段的竞争空间和价格带健康度。"
+    },
+    {
+      "id": "voc-opportunity-evaluation-agent",
+      "display_name": "VOC Opportunity Evaluation Agent",
+      "source_file": "skills/amazon-product-research/agents/voc-opportunity-evaluation-agent.md",
+      "stage": "stage_9_evaluations",
+      "category": "evaluation",
+      "outputs": [
+        "evaluations/voc_opportunity_evaluation.json"
+      ],
+      "validation_commands": [
+        "python3 scripts/validate_evaluation.py <run_dir>"
+      ],
+      "parallel_group": "stage_9_evaluations",
+      "fallback_policy": "serial_fallback_allowed_with_provenance",
+      "max_retries": 2,
+      "tools_profile": "evidence_read_evaluation_write",
+      "routing_hint": "Stage 9 VOC 机会评价，判断用户痛点能否转化为可验证的产品差异化机会。"
+    },
+    {
+      "id": "risk-evaluation-agent",
+      "display_name": "Risk Evaluation Agent",
+      "source_file": "skills/amazon-product-research/agents/risk-evaluation-agent.md",
+      "stage": "stage_9_evaluations",
+      "category": "evaluation",
+      "outputs": [
+        "evaluations/risk_evaluation.json"
+      ],
+      "validation_commands": [
+        "python3 scripts/validate_evaluation.py <run_dir>"
+      ],
+      "parallel_group": "stage_9_evaluations",
+      "fallback_policy": "serial_fallback_allowed_with_provenance",
+      "max_retries": 2,
+      "tools_profile": "evidence_read_evaluation_write",
+      "routing_hint": "Stage 9 风险评价，覆盖合规、季节性、退货、体积、售后和同质化风险。"
+    },
+    {
+      "id": "data-quality-evaluation-agent",
+      "display_name": "Data Quality Evaluation Agent",
+      "source_file": "skills/amazon-product-research/agents/data-quality-evaluation-agent.md",
+      "stage": "stage_9_evaluations",
+      "category": "evaluation",
+      "outputs": [
+        "evaluations/data_quality_evaluation.json"
+      ],
+      "validation_commands": [
+        "python3 scripts/validate_evaluation.py <run_dir>"
+      ],
+      "parallel_group": "stage_9_evaluations",
+      "fallback_policy": "serial_fallback_allowed_with_provenance",
+      "max_retries": 2,
+      "tools_profile": "evidence_read_evaluation_write",
+      "routing_hint": "Stage 9 数据质量评价，裁决样本、混池和跨源冲突，是冲突裁决唯一出口。"
+    },
+    {
+      "id": "route-strategy-agent",
+      "display_name": "Route Strategy Agent",
+      "source_file": "skills/amazon-product-research/agents/route-strategy-agent.md",
+      "stage": "stage_10a_deep_analysis",
+      "category": "decision_analysis",
+      "outputs": [
+        "analysis/integrated_operator_judgment.json"
+      ],
+      "validation_commands": [
+        "python3 scripts/validate_judgment.py <run_dir> --check-placeholders"
+      ],
+      "parallel_group": "stage_10a_deep_analysis",
+      "fallback_policy": "serial_fallback_allowed_with_provenance",
+      "max_retries": 2,
+      "tools_profile": "evidence_read_judgment_write",
+      "routing_hint": "Stage 10a 供给端深度分析，输出路线推荐、路线取舍、竞品对标、竞品弱点和价格带解读。"
+    },
+    {
+      "id": "growth-risk-agent",
+      "display_name": "Growth & Risk Agent",
+      "source_file": "skills/amazon-product-research/agents/growth-risk-agent.md",
+      "stage": "stage_10a_deep_analysis",
+      "category": "decision_analysis",
+      "outputs": [
+        "analysis/integrated_operator_judgment.json"
+      ],
+      "validation_commands": [
+        "python3 scripts/validate_judgment.py <run_dir> --check-placeholders"
+      ],
+      "parallel_group": "stage_10a_deep_analysis",
+      "fallback_policy": "serial_fallback_allowed_with_provenance",
+      "max_retries": 2,
+      "tools_profile": "evidence_read_judgment_write",
+      "routing_hint": "Stage 10a 需求与风控深度分析，输出 VOC 规格推导、关键词策略、风险缓解和验证路线图。"
+    },
+    {
+      "id": "lead-operator-agent",
+      "display_name": "Lead Operator Agent",
+      "source_file": "skills/amazon-product-research/agents/lead-operator-agent.md",
+      "stage": "stage_10b_final_judgment",
+      "category": "decision",
+      "outputs": [
+        "analysis/integrated_operator_judgment.json"
+      ],
+      "validation_commands": [
+        "python3 scripts/validate_judgment.py <run_dir> --check-verdict"
+      ],
+      "parallel_group": "",
+      "fallback_policy": "serial_fallback_allowed_with_provenance",
+      "max_retries": 2,
+      "tools_profile": "evidence_read_judgment_write",
+      "routing_hint": "Stage 10b 资深运营最终判断，唯一有权输出 final_verdict 并合并 10a 深度分析。"
+    },
+    {
+      "id": "report-generation-agent",
+      "display_name": "Report Generation Agent",
+      "source_file": "skills/amazon-product-research/agents/report-generation-agent.md",
+      "stage": "stage_12_report_generation",
+      "category": "report",
+      "outputs": [
+        "analysis/report_data.json",
+        "analysis/<中文品名>_分析报告.html"
+      ],
+      "validation_commands": [
+        "python3 -m packages.research_core.pipeline.build_report_xlsx <run_dir>",
+        "python3 scripts/run_delivery_qa.py <run_dir>"
+      ],
+      "parallel_group": "",
+      "fallback_policy": "independent_agent_recommended",
+      "max_retries": 3,
+      "tools_profile": "report_data_read_write",
+      "routing_hint": "Stage 12 报告生成，基于 seed 和最终判断写 report_data.json 与正式 HTML 报告。"
+    },
+    {
+      "id": "delivery-qa-agent",
+      "display_name": "Delivery QA Agent",
+      "source_file": "skills/amazon-product-research/agents/delivery-qa-agent.md",
+      "stage": "stage_13_delivery_qa",
+      "category": "qa",
+      "outputs": [
+        "analysis/qa_notes.md"
+      ],
+      "validation_commands": [
+        "python3 scripts/run_delivery_qa.py <run_dir>"
+      ],
+      "parallel_group": "",
+      "fallback_policy": "must_spawn",
+      "max_retries": 3,
+      "tools_profile": "delivery_read_qa_write",
+      "routing_hint": "Stage 13 独立交付质检，交叉验证 HTML、report_data、XLSX、证据包和原始快照。"
+    }
+  ]
+}
