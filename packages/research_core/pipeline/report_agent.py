@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from packages.research_core.pipeline._utils import _report_value, as_list
+from packages.research_core.pipeline.build_analysis_packet import _extract_product_name
 from packages.research_core.pipeline.public_language import public_label, public_text
 
 
@@ -1082,20 +1083,12 @@ def run_report_agent(
     if _analysis and _analysis.exists():
         analysis = json.loads(_analysis.read_text(encoding="utf-8"))
 
-    # Determine product name for HTML filename
-    run_id = seed.get("run_id", run_dir.name)
-    product_name = run_id
+    # Determine product name for HTML filename. Keep this aligned with the
+    # post-Agent XLSX/QA step, which looks for <product>_分析报告.html.
+    product_name = _extract_product_name(run_dir)
     if _html := (html_path):
         pass
     else:
-        # Try to extract product name from seed
-        hero = seed.get("hero") or {}
-        metrics = hero.get("metrics") or {}
-        target = metrics.get("target_market", {})
-        if isinstance(target, dict):
-            pn = _rv(target.get("value", ""))
-            if pn and pn not in ("", "目标市场"):
-                product_name = pn
         _html = analysis_dir / f"{product_name}_分析报告.html"
 
     # Step 1: Enhance seed → report_data.json

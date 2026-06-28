@@ -642,10 +642,11 @@ def _build_validation_roadmap(evaluations: dict[str, Any]) -> list[dict[str, Any
     骨架提供了运营基线阶段结构——阶段名和关键里程碑是固定的，actions 内具体步骤由 Agent 细化。
     """
     risk_eval = evaluations.get("risk", {})
+    risk_items = risk_eval.get("risks", risk_eval.get("route_evaluations", [])) if isinstance(risk_eval, dict) else []
     has_safety_risk = any(
-        "安全" in str(r.get("risk_name", "")) or "safety" in str(r.get("risk_name", "")).lower()
-        for r in risk_eval.get("risks", risk_eval.get("route_evaluations", []))
-    ) if isinstance(risk_eval, dict) else False
+        "安全" in _risk_name_for_match(r) or "safety" in _risk_name_for_match(r).lower()
+        for r in (risk_items if isinstance(risk_items, list) else [])
+    )
 
     phase1_actions = [
         "__ai_judgment__品牌注册：完成亚马逊品牌注册（Brand Registry）→ 解锁 A+页面、Vine计划、品牌旗舰店、品牌分析报告。如果美国商标尚未下证，此项为阶段0前置。",
@@ -678,6 +679,12 @@ def _build_validation_roadmap(evaluations: dict[str, Any]) -> list[dict[str, Any
             "if_fail": "__ai_judgment__",
         },
     ]
+
+
+def _risk_name_for_match(risk: Any) -> str:
+    if isinstance(risk, dict):
+        return str(risk.get("risk_name", risk.get("risk", risk.get("description", ""))))
+    return str(risk)
 
 
 def update_progress(run_dir: Path, judgment: dict[str, Any]) -> None:
