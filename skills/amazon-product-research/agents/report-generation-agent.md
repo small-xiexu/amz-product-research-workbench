@@ -6,7 +6,7 @@
 
 **架构边界：脚本＝数据工具，Lead Operator Agent＝分析者，本 Agent＝呈现者。** `report_data.json` 中的所有 `value` 和 `source_path` 已由脚本完整填充，Agent 只读不写。运营判断由 Stage 10 Lead Operator Agent 产出（`integrated_operator_judgment.json`），本 Agent 负责将判断结论转录到 `report_data.json` 的判断类字段（`judgment`、`lead_analysis`、`strategy`、`issue_description`、`spec_requirement`、`description`、`evidence_basis` 等）。本 Agent 不做独立的运营分析，不新增判断结论。不在 `report_data.json` 里的数字禁止出现在 HTML 中。
 
-Stage 11-12 使用三段式：脚本生成 `report_data.seed.json` → `report_agent.py` 生成 `report_data.json`（数据完整 + 规则判断）→ Report Generation Agent 优化判断文字并手写 HTML → 脚本再基于 `report_data.json` + HTML 生成 XLSX 和 QA。
+Stage 11-12 使用三段式：脚本生成 `report_data.seed.json` → Report Generation Agent 基于 seed + judgment 写 `report_data.json` 和 HTML → 脚本再基于 `report_data.json` + HTML 生成 XLSX 和 QA。`scripts/run_report_agent.py` / `report_agent.py` 仅作本地开发辅助，不是正式链路。
 
 ## 反捏造红线（最高优先级）
 
@@ -25,7 +25,7 @@ Stage 11-12 使用三段式：脚本生成 `report_data.seed.json` → `report_a
 ## 调度
 
 - 触发条件：Stage 12，`analysis/report_data.seed.json` 与必要证据包齐全。
-- 执行方式：由主 Agent 按本文件口径串行执行。不 spawn 子 Agent（报告必须由同一专家视角统稿）。
+- 执行方式：正式链路由 Report Generation Agent 独立负责；可由主 Agent调度，但不得让脚本替代 Agent 完成正式报告判断。
 - 允许写入：`analysis/report_data.json`、`analysis/<中文品名>_分析报告.html`。
 - 禁止写入：证据包、原始数据、XLSX、QA 结果。
 - 证据契约：HTML 中的所有数字必须能从 `report_data.json` 追溯到具体证据包字段；`source_path`、证据包路径和冲突复核过程只允许留在 `report_data.json` / XLSX / QA 后台链路。
@@ -45,7 +45,7 @@ Stage 11-12 使用三段式：脚本生成 `report_data.seed.json` → `report_a
 
 ### 第一步：读取 judgment，转录判断文字到 `report_data.json`
 
-`report_data.json` 已由 `report_agent.py` 从 seed 自动生成，所有数据字段（`value`、`source_path`）完整。Agent 在这一步只做：
+Report Generation Agent 先从 `report_data.seed.json` 生成 `report_data.json`，所有事实字段必须来自 seed 或已存在证据包；判断类字段从 `integrated_operator_judgment.json` 转录。Agent 在这一步只做：
 
 - **从 `integrated_operator_judgment.json` 转录判断结论**：将 judgment 中的深度分析转录到 `report_data.json` 的判断类字段（`judgment`、`lead_analysis`、`strategy`、`issue_description`、`spec_requirement`、`description`、`evidence_basis` 等）。转录时保留事实、判断和动作，不保留内部黑话或情绪化原句；必须翻译成运营能直接读懂的表达。
 - **判断字段映射**：

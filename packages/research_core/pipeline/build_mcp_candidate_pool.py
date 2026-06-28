@@ -28,8 +28,6 @@ P2_SCHEMA_VERSION = "p2-mcp-candidate-pool-v1"
 STAGE_ID_CANDIDATE_POOL = "stage_4_candidate_pool"
 QUICK_CHECK_DIR = "quick_check"
 
-_ALLOW_GENERATION_FALLBACK = False
-
 _TECHNICAL_KEY_PATTERNS = (
     "source_name", "source_agent", "source_ref", "source_refs",
     "evidence_ref", "evidence_refs", "source_packet_path",
@@ -42,6 +40,7 @@ _TECHNICAL_KEY_PATTERNS = (
     "support_level", "demand_signal_level", "mixed_pool_level",
     "price_band_health", "category_boundary_clarity",
     "confidence", "status", "selection_status", "gap_level",
+    "decision",
     "route_id", "route_type", "recommended_role", "role",
     "voc_readiness", "data_completeness_ref", "route_matrix_ref",
     "confirmed_boundary", "category_selection_derivation",
@@ -81,17 +80,18 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def run_candidate_pool(run_dir: Path | str, allow_generation: bool | None = None) -> dict[str, Path]:
+def run_candidate_pool(run_dir: Path | str) -> dict[str, Path]:
     """Validate candidate_pool.json (Agent-generated) and update progress.json for P2.
 
-    When allow_generation is True (or module flag _ALLOW_GENERATION_FALLBACK is True),
-    falls back to the legacy generation path from quick packets and gate.
+    The production P2 boundary is intentionally narrow: the main AI/Agent must
+    write ``candidate_pool.json`` first, then this script validates the artifact
+    and updates ``progress.json``.  Business candidate generation belongs to the
+    AI layer, not to this deterministic pipeline script.
     """
     run_path = Path(run_dir).expanduser().resolve()
     if not run_path.exists():
         raise P2ContractError(f"run_dir not found: {run_path}")
 
-    gen = allow_generation if allow_generation is not None else _ALLOW_GENERATION_FALLBACK
     progress_path = run_path / "progress.json"
     candidate_pool_path = run_path / "candidate_pool.json"
 
@@ -100,24 +100,15 @@ def run_candidate_pool(run_dir: Path | str, allow_generation: bool | None = None
         validate_workflow_state(workflow_state)
         _write_running_progress(run_path, workflow_state, progress_path)
 
-        if gen:
-            packets = {
-                source_name: _load_quick_packet(run_path, source_name)
-                for source_name in SOURCE_CONFIG
-            }
-            gate = _load_quick_gate(run_path)
-            candidate_pool = build_candidate_pool(workflow_state, packets, gate, run_path)
-            _write_json(candidate_pool_path, candidate_pool)
-        else:
-            if not candidate_pool_path.exists() or candidate_pool_path.stat().st_size == 0:
-                raise P2ContractError(
-                    "candidate_pool.json 应由主 Agent 生成，脚本仅负责校验。"
-                    "请先运行 Stage 4 Agent 产出候选池。"
-                )
-            candidate_pool = load_json(candidate_pool_path)
-            candidate_pool.setdefault("generation_provenance", {})
-            if isinstance(candidate_pool.get("generation_provenance"), dict):
-                candidate_pool["generation_provenance"]["build_strategy"] = "agent_generated_script_validated"
+        if not candidate_pool_path.exists() or candidate_pool_path.stat().st_size == 0:
+            raise P2ContractError(
+                "candidate_pool.json 应由主 Agent 生成，脚本仅负责校验。"
+                "请先运行 Stage 4 Agent 产出候选池。"
+            )
+        candidate_pool = load_json(candidate_pool_path)
+        candidate_pool.setdefault("generation_provenance", {})
+        if isinstance(candidate_pool.get("generation_provenance"), dict):
+            candidate_pool["generation_provenance"]["build_strategy"] = "agent_generated_script_validated"
 
         validate_candidate_pool(candidate_pool)
         validate_candidate_pool_contract(candidate_pool)
@@ -153,6 +144,12 @@ def build_candidate_pool(
     gate: dict[str, Any],
     run_path: Path,
 ) -> dict[str, Any]:
+    """Build a deterministic candidate-pool fixture from quick artifacts.
+
+    This helper is kept for tests and local fixture generation only.  The
+    production Stage 4 path must use ``run_candidate_pool`` against a
+    main-Agent-authored ``candidate_pool.json``.
+    """
     seller_packet = packets["sellersprite"]
     sorftime_packet = packets["sorftime"]
     gate_result = str(gate.get("gate_result") or "watch").strip()
@@ -516,7 +513,7 @@ def _seed_rows_from_packet(source_name: str, packet: dict[str, Any]) -> list[dic
                 "candidate_type": normalized["candidate_type"],
                 "label": normalized["label"],
                 "source_name": source_name,
-                "source_agent": config["agent_role"],
+                "source_agent": _public_source_agent(source_name),
                 "source_packet_path": f"{QUICK_CHECK_DIR}/{config['packet_name']}",
                 "source_ref": source_ref,
                 "evidence_ref": f"{source_ref}[{index}]",
@@ -543,7 +540,7 @@ def _seed_rows_from_gate(gate: dict[str, Any]) -> list[dict[str, Any]]:
                 "candidate_type": normalized["candidate_type"],
                 "label": normalized["label"],
                 "source_name": "quick_gate",
-                "source_agent": "Quick Gate",
+                "source_agent": "快验门控规则",
                 "source_packet_path": f"{QUICK_CHECK_DIR}/quick_market_gate.json",
                 "source_ref": f"{QUICK_CHECK_DIR}/quick_market_gate.json#candidate_seeds",
                 "evidence_ref": f"{QUICK_CHECK_DIR}/quick_market_gate.json#candidate_seeds[{index}]",
@@ -582,7 +579,7 @@ def _build_candidates(
                 "candidate_type": "route_seed",
                 "label": first_text(workflow_state.get("initial_intent"), "candidate"),
                 "source_name": "workflow_state",
-                "source_agent": "workflow_state",
+                "source_agent": "初始需求输入",
                 "source_packet_path": "workflow_state.json",
                 "source_ref": "workflow_state.json#initial_intent",
                 "evidence_ref": "workflow_state.json#initial_intent",
@@ -878,12 +875,11 @@ def _readiness_from_gate_result(gate_result: str) -> tuple[str, str, str]:
 
 
 def _candidate_reason(gate_result: str, source_agents: list[str], gate: dict[str, Any]) -> str:
-    agents = "、".join(source_agents) if source_agents else "快验数据源"
     if gate_result == "continue":
-        return f"{agents} 均给出正向种子，保留为候选方向，待路线矩阵确认。"
+        return "双源快验均给出正向种子，保留为候选方向，待路线矩阵确认。"
     if gate_result == "watch":
-        return f"{agents} 保留为待确认候选方向，但仍存在边界或缺口，需要先补齐再进入 P3。"
-    return f"{agents} 命中阻塞级缺口，先停止进入 P3。"
+        return "当前保留为待确认候选方向，但仍存在边界或缺口，需要先补齐再进入 P3。"
+    return "当前候选方向命中阻塞级缺口，先停止进入 P3。"
 
 
 def _appearance_reasons(rows: list[dict[str, Any]], gate_result: str) -> list[str]:
@@ -906,12 +902,19 @@ def _risk_flags(rows: list[dict[str, Any]], gate: dict[str, Any]) -> list[str]:
 
 
 def _competition_notes(gate_result: str, source_agents: list[str]) -> str:
-    agents = "、".join(source_agents) if source_agents else "快验数据源"
     if gate_result == "continue":
-        return f"{agents} 的候选池边界清晰，可进入下一阶段。"
+        return "候选池边界清晰，可进入下一阶段。"
     if gate_result == "watch":
-        return f"{agents} 的候选池边界仍需复核，先补缺口。"
-    return f"{agents} 当前存在阻塞级缺口，不进入下一阶段。"
+        return "候选池边界仍需复核，先补缺口。"
+    return "当前存在阻塞级缺口，不进入下一阶段。"
+
+
+def _public_source_agent(source_name: str) -> str:
+    if source_name == "sellersprite":
+        return "类目数据快验 Agent"
+    if source_name == "sorftime":
+        return "搜索趋势快验 Agent"
+    return "市场快验 Agent"
 
 
 def _candidate_metric_basis(rows: list[dict[str, Any]], run_path: Path) -> dict[str, Any]:

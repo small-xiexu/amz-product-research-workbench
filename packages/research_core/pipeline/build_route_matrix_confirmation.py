@@ -34,8 +34,6 @@ DATA_COMPLETENESS_OUTPUT_NAME = "data_completeness_check.json"
 ALLOWED_DECISIONS = {"confirm", "revise_candidate_pool", "stop"}
 COMPLETENESS_LEVELS = ("acceptable", "warning", "blocker")
 
-_ALLOW_GENERATION_FALLBACK = False
-
 
 class P3ContractError(ContractValidationError):
     """Raised when route-matrix confirmation artifacts violate the frozen contract."""
@@ -59,12 +57,17 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def run_route_matrix_confirmation(run_dir: Path | str, force_confirm: bool = False, allow_generation: bool | None = None) -> dict[str, Path]:
+def run_route_matrix_confirmation(run_dir: Path | str, force_confirm: bool = False) -> dict[str, Path]:
+    """Validate an Agent-authored route matrix and update P3 progress.
+
+    Stage 5 route selection is an AI/operator decision.  This script may derive
+    deterministic completeness checks, but it must not invent route strategy or
+    select routes on behalf of the main Agent.
+    """
     run_path = Path(run_dir).expanduser().resolve()
     if not run_path.exists():
         raise P3ContractError(f"run_dir not found: {run_path}")
 
-    gen = allow_generation if allow_generation is not None else _ALLOW_GENERATION_FALLBACK
     progress_path = run_path / "progress.json"
     candidate_pool_path = run_path / "candidate_pool.json"
     route_matrix_path = run_path / ROUTE_MATRIX_OUTPUT_NAME
@@ -81,42 +84,38 @@ def run_route_matrix_confirmation(run_dir: Path | str, force_confirm: bool = Fal
         quick_packets = _load_quick_packets(run_path)
         quick_gate, quick_gate_present = _load_quick_gate(run_path)
 
-        if gen:
-            route_packet, completeness, progress = build_route_matrix_confirmation_bundle(
-                run_path,
-                workflow_state,
-                candidate_pool,
-                quick_packets,
-                quick_gate,
-                quick_gate_present,
-                progress,
-                force_confirm=force_confirm,
+        if not route_matrix_path.exists() or route_matrix_path.stat().st_size == 0:
+            raise P3ContractError(
+                "route_matrix_confirm.json 应由主 Agent 生成，脚本仅负责校验。"
+                "请先运行 Stage 5 Agent 产出路线矩阵确认。"
             )
-            _write_json(route_matrix_path, route_packet)
-            _write_json(data_completeness_path, completeness)
-        else:
-            if not route_matrix_path.exists() or route_matrix_path.stat().st_size == 0:
-                raise P3ContractError(
-                    "route_matrix_confirm.json 应由主 Agent 生成，脚本仅负责校验。"
-                    "请先运行 Stage 5 Agent 产出路线矩阵确认。"
-                )
-            route_packet = load_json(route_matrix_path)
-            completeness = _build_data_completeness_check(
-                run_path,
-                workflow_state,
-                candidate_pool,
-                quick_packets,
-                quick_gate,
-                quick_gate_present,
-                route_packet.get("route_checks", route_packet.get("route_options", [])),
-            )
-            _write_json(data_completeness_path, completeness)
-            route_packet.setdefault("generation_provenance", {})
-            if isinstance(route_packet.get("generation_provenance"), dict):
-                route_packet["generation_provenance"]["build_strategy"] = "agent_generated_script_validated"
+        route_packet = load_json(route_matrix_path)
+        completeness = _build_data_completeness_check(
+            run_path,
+            workflow_state,
+            candidate_pool,
+            quick_packets,
+            quick_gate,
+            quick_gate_present,
+            route_packet.get("route_checks", route_packet.get("route_options", [])),
+        )
+        _write_json(data_completeness_path, completeness)
+        route_packet.setdefault("generation_provenance", {})
+        if isinstance(route_packet.get("generation_provenance"), dict):
+            route_packet["generation_provenance"]["build_strategy"] = "agent_generated_script_validated"
 
         validate_route_matrix_confirm(route_packet)
         validate_data_completeness_check(completeness)
+        _update_progress(
+            progress,
+            workflow_state,
+            candidate_pool,
+            completeness,
+            route_packet.get("decision", ""),
+            route_packet,
+            quick_gate,
+            _now_iso(),
+        )
         validate_progress(progress)
 
         _write_json(progress_path, progress)
@@ -132,7 +131,12 @@ def run_route_matrix_confirmation(run_dir: Path | str, force_confirm: bool = Fal
 
 
 def build_route_matrix_confirm(run_dir: Path | str) -> dict[str, Any]:
-    """Return the P3 route-matrix packet from candidate_pool.json."""
+    """Build a deterministic route-matrix fixture from candidate_pool.json.
+
+    This helper is retained for tests and local fixture generation.  Production
+    Stage 5 must validate a main-Agent-authored ``route_matrix_confirm.json``
+    via ``run_route_matrix_confirmation``.
+    """
     run_path = Path(run_dir).expanduser().resolve()
     candidate_pool_path = run_path / "candidate_pool.json"
     if not candidate_pool_path.exists():
@@ -454,7 +458,7 @@ def _assess_route_completeness(
 
     if source_count < 2:
         gap_level = "blocker"
-        gap_reasons.append("缺少 SellerSprite 或 Sorftime 快验证据。")
+        gap_reasons.append("缺少任一侧快验证据。")
     if not evidence_refs:
         gap_level = "blocker"
         gap_reasons.append("candidate_pool.evidence_refs 为空。")
@@ -466,7 +470,7 @@ def _assess_route_completeness(
         gap_reasons.append("缺少 quick gate 输入。")
     if source_support_count < 2:
         gap_level = "warning" if gap_level != "blocker" else gap_level
-        gap_reasons.append("当前候选路线尚未被 SellerSprite 与 Sorftime 两源同时支撑。")
+        gap_reasons.append("当前候选路线尚未被两侧快验证据同时支撑。")
     if _contains_blocking_gap(data_gaps) or _contains_blocking_gap(quick_packet_gaps) or _contains_blocking_gap(_flatten_list(quick_gate.get("blocking_gaps"))) or _contains_blocking_gap(_flatten_list(quick_gate.get("data_gaps"))):
         gap_level = "blocker"
         gap_reasons.append("存在阻塞级数据缺口。")
@@ -801,7 +805,7 @@ def _required_next_actions(
 ) -> list[str]:
     if decision == "confirm":
         return [
-            "进入双 MCP 深挖前，按已确认路线继续补强正式证据包。",
+            "进入正式深挖前，按已确认路线继续补强正式证据包。",
             "VOC 仅做轻量准备，不在本阶段生成正式 VOC 产物。",
         ]
     if decision == "revise_candidate_pool":
@@ -809,11 +813,11 @@ def _required_next_actions(
         if blockers:
             return [
                 "先回补缺失的快验或证据引用，再重新生成候选池。",
-                "阻塞未清除前，不进入双 MCP 深挖。",
+                "阻塞未清除前，不进入正式深挖。",
             ]
         return [
             "回退候选池，调整路线边界后再重新确认。",
-            "未确认路线不能进入双 MCP 深挖。",
+            "未确认路线不能进入正式深挖。",
         ]
     return [
         "暂停该方向，保留 route_matrix_confirm / data_completeness_check 供复盘。",
@@ -1092,7 +1096,7 @@ def _next_action(decision: str, route_packet: dict[str, Any]) -> dict[str, str]:
         return {
             "type": "ready_for_p4",
             "stage_id": "stage_6_deep_dive",
-            "description": "路线矩阵已确认，可进入双 MCP 深挖。",
+            "description": "路线矩阵已确认，可进入正式深挖。",
         }
     if decision == "revise_candidate_pool":
         return {

@@ -3,7 +3,7 @@
 
 两个校验模式（可组合使用）：
 
-  --check-placeholders  Stage 10a 后运行：检查 10 个深度分析字段无 __ai_judgment__ 占位
+  --check-placeholders  Stage 10a 后运行：检查 9 个深度分析字段无 __ai_judgment__ 占位
   --check-verdict       Stage 10b 后运行：检查 final_verdict 有效性、治理规则合规、
                         Stage 9 评分与 Stage 10 裁决交叉一致性
 
@@ -30,7 +30,7 @@ from packages.research_core.pipeline._utils import load_json
 JUDGMENT_PATH = "analysis/integrated_operator_judgment.json"
 EVALUATION_SUMMARY_PATH = "evaluations/evaluation_summary.json"
 
-# 10 deep analysis fields (Stage 10a agents fill these)
+# 9 deep analysis fields (Stage 10a agents fill these)
 ROUTE_STRATEGY_FIELDS = [
     "route_recommendation",
     "route_tradeoff",
@@ -78,7 +78,7 @@ def _deep_scan_placeholders(value: Any, path: str = "$") -> list[str]:
 
 
 def check_placeholders(judgment: dict[str, Any]) -> tuple[bool, list[str]]:
-    """检查 10 个深度分析字段是否仍有 __ai_judgment__ 占位符。
+    """检查 9 个深度分析字段是否仍有 __ai_judgment__ 占位符。
 
     返回 (pass, errors)。pass=True 表示全部字段已由 Agent 填充。
     """
@@ -162,7 +162,10 @@ def check_verdict(
             f"[SKIP] {EVALUATION_SUMMARY_PATH} 不存在，跳过 Stage 9 交叉一致性检查"
         )
 
-    # 6. Governance rules
+    # 6. Decision fields must be filled by Lead Operator
+    errors.extend(_check_decision_placeholders(judgment))
+
+    # 7. Governance rules
     errors.extend(_check_governance_rules(judgment, run_dir))
 
     return len(errors) == 0, errors
@@ -256,6 +259,18 @@ def _check_governance_rules(
     return errors
 
 
+def _check_decision_placeholders(judgment: dict[str, Any]) -> list[str]:
+    """Check Stage 10b decision-summary fields are not skeleton placeholders."""
+    errors: list[str] = []
+    for field in DECISION_FIELDS:
+        hits = _deep_scan_placeholders(judgment.get(field), f"$.{field}")
+        if hits:
+            errors.append(
+                f"{field} 仍含 __ai_judgment__——Lead Operator Agent 未完成最终判断"
+            )
+    return errors
+
+
 def validate_judgment(
     run_dir: Path,
     check_placeholders_flag: bool = False,
@@ -299,7 +314,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--check-placeholders",
         action="store_true",
-        help="检查 10 个深度分析字段无 __ai_judgment__ 占位 (Stage 10a)",
+        help="检查 9 个深度分析字段无 __ai_judgment__ 占位 (Stage 10a)",
     )
     parser.add_argument(
         "--check-verdict",

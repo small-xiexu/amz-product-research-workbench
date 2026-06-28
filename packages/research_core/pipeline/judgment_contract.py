@@ -113,13 +113,18 @@ def validate_judgment_structure(judgment: dict[str, Any]) -> dict[str, Any]:
             issues.append(f"confidence 值无效: '{judgment['confidence']}'，允许: {ALLOWED_CONFIDENCE}")
 
     # ── schema_version ──────────────────────────────────────────
-    if judgment.get("schema_version") not in ("judgment-v2", "judgment-v1"):
+    if judgment.get("schema_version") not in ("p7-judgment-v2", "judgment-v2", "judgment-v1"):
         issues.append(f"schema_version 非预期: '{judgment.get('schema_version')}'")
 
     # ── required_next_actions ───────────────────────────────────
     actions = judgment.get("required_next_actions")
     if not isinstance(actions, list) or len(actions) < 1:
         issues.append("required_next_actions 为空或非列表——至少应有一条下一步建议")
+
+    for field in ("biggest_opportunity", "biggest_risk"):
+        hits = _find_placeholders(judgment.get(field), field)
+        if hits:
+            issues.append(f"{field} 仍有占位符，Lead Operator Agent 未完成最终判断: {', '.join(hits[:5])}")
 
     # ── operator_constraints ────────────────────────────────────
     constraints = judgment.get("operator_constraints")
@@ -131,7 +136,7 @@ def validate_judgment_structure(judgment: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(refs, list) or len(refs) < 1:
         issues.append("evidence_refs 为空——必须包含至少一个证据引用")
 
-    # ── 10 deep analysis fields ─────────────────────────────────
+    # ── 9 deep analysis fields ─────────────────────────────────
     for field_name, spec in DEEP_ANALYSIS_FIELDS.items():
         if field_name not in judgment:
             missing_deep.append(field_name)
@@ -205,6 +210,19 @@ def _is_placeholder(val: Any) -> bool:
     if isinstance(val, (list, dict)) and len(val) == 0:
         return True
     return False
+
+
+def _find_placeholders(value: Any, path: str) -> list[str]:
+    hits: list[str] = []
+    if _is_placeholder(value):
+        hits.append(path)
+    elif isinstance(value, dict):
+        for key, val in value.items():
+            hits.extend(_find_placeholders(val, f"{path}.{key}"))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            hits.extend(_find_placeholders(item, f"{path}[{index}]"))
+    return hits
 
 
 def validate_judgment_file(judgment_path: Path) -> dict[str, Any]:

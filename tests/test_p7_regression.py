@@ -42,6 +42,7 @@ from packages.research_core.pipeline.build_sorftime_deep_dive import (
 )
 from packages.research_core.pipeline.build_voc_gate import run_voc_gate
 from packages.research_core.pipeline.quick_market_check import run_quick_market_check
+from tests.agent_output_fixtures import write_agent_candidate_pool, write_agent_route_matrix
 
 ROOT = Path(__file__).resolve().parents[1]
 P1_FIXTURES = ROOT / "tests" / "fixtures" / "p1_quick_check"
@@ -74,7 +75,9 @@ class P7EndToEndTests(unittest.TestCase):
             json.dumps(_workflow_state(), ensure_ascii=False, indent=2), encoding="utf-8"
         )
         run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+        write_agent_candidate_pool(run_dir)
         run_candidate_pool(run_dir)
+        write_agent_route_matrix(run_dir)
         run_route_matrix_confirmation(run_dir)
         run_sellersprite_deep_dive(run_dir, snapshot_source=self._write_sellersprite_snapshot())
         run_sorftime_deep_dive(run_dir, snapshot_source=self._write_sorftime_snapshot())
@@ -117,11 +120,22 @@ class P7EndToEndTests(unittest.TestCase):
         judgment = build_integrated_judgment(run_dir)
         validate_integrated_judgment(judgment)
 
-    def test_judgment_has_valid_verdict(self) -> None:
-        """final_verdict is one of go/watch/no_go/blocked."""
+    def test_skeleton_fails_final_judgment_contract(self) -> None:
+        """Delivery judgment contract rejects unfilled skeleton fields."""
+        from packages.research_core.pipeline.judgment_contract import validate_judgment_structure
+
         run_dir = self._seed_p6_done()
         judgment = build_integrated_judgment(run_dir)
-        self.assertIn(judgment["final_verdict"], {"go", "watch", "no_go", "blocked"})
+        result = validate_judgment_structure(judgment)
+        self.assertFalse(result["pass"])
+        self.assertTrue(any("Lead Operator Agent 未完成最终判断" in issue for issue in result["issues"]))
+
+    def test_skeleton_blocks_until_lead_operator_runs(self) -> None:
+        """Script skeleton keeps final_verdict blocked until Lead Operator fills it."""
+        run_dir = self._seed_p6_done()
+        judgment = build_integrated_judgment(run_dir)
+        self.assertEqual(judgment["final_verdict"], "blocked")
+        self.assertEqual(judgment["execution_provenance"]["execution_mode"], "script_generated_skeleton")
 
     def test_judgment_has_valid_confidence(self) -> None:
         """confidence is high/medium/low."""
@@ -173,37 +187,33 @@ class P7EndToEndTests(unittest.TestCase):
 
     # ── Verdict rules ─────────────────────────────────────────────────
 
-    def test_verdict_respects_evaluation_summary_range(self) -> None:
-        """final_verdict must be within the recommended range."""
+    def test_script_does_not_apply_evaluation_summary_verdict_range(self) -> None:
+        """Skeleton does not turn P6 verdict range into final decision."""
         run_dir = self._seed_p6_done()
         judgment = build_integrated_judgment(run_dir)
-        with open(run_dir / "evaluations" / "evaluation_summary.json", encoding="utf-8") as f:
-            summary = json.load(f)
-        verdict_range = summary.get("recommended_final_verdict_range", [])
-        if verdict_range:
-            self.assertIn(judgment["final_verdict"], verdict_range,
-                         f"Verdict {judgment['final_verdict']} not in range {verdict_range}")
+        self.assertEqual(judgment["final_verdict"], "blocked")
+        self.assertIn("Lead Operator Agent", judgment["verdict_reason"])
 
-    def test_biggest_opportunity_from_highest_scoring_dim(self) -> None:
-        """biggest_opportunity reflects the highest scoring dimension."""
+    def test_biggest_opportunity_waits_for_lead_operator(self) -> None:
+        """Script does not identify biggest opportunity."""
         run_dir = self._seed_p6_done()
         judgment = build_integrated_judgment(run_dir)
         opp = judgment["biggest_opportunity"]
-        self.assertTrue(isinstance(opp, dict))
-        self.assertIn("dimension", opp)
+        self.assertEqual(opp.get("dimension"), "__ai_judgment__")
+        self.assertEqual(opp.get("detail"), "__ai_judgment__")
 
-    def test_biggest_risk_from_lowest_scoring_or_blocked_dim(self) -> None:
-        """biggest_risk reflects the lowest scoring or blocked dimension."""
+    def test_biggest_risk_waits_for_lead_operator(self) -> None:
+        """Script does not identify biggest risk."""
         run_dir = self._seed_p6_done()
         judgment = build_integrated_judgment(run_dir)
         risk = judgment["biggest_risk"]
-        self.assertTrue(isinstance(risk, dict))
-        self.assertIn("dimension", risk)
+        self.assertEqual(risk.get("dimension"), "__ai_judgment__")
+        self.assertEqual(risk.get("detail"), "__ai_judgment__")
 
     # ── Progress flow ─────────────────────────────────────────────────
 
-    def test_progress_stage_9_set_to_done(self) -> None:
-        """stage_9_report.status = done after P7."""
+    def test_progress_stage_9_waits_for_agents(self) -> None:
+        """stage_9_report.status stays running after skeleton generation."""
         run_dir = self._seed_p6_done()
         judgment = build_integrated_judgment(run_dir)
         update_progress(run_dir, judgment)
@@ -211,10 +221,10 @@ class P7EndToEndTests(unittest.TestCase):
         with open(run_dir / "progress.json", encoding="utf-8") as f:
             progress = json.load(f)
         stage_9 = progress["stages"].get(P7_STAGE_ID, {})
-        self.assertEqual(stage_9.get("status"), "done")
+        self.assertEqual(stage_9.get("status"), "running")
 
-    def test_progress_completed_artifacts_includes_judgment(self) -> None:
-        """completed_artifacts includes integrated_operator_judgment.json."""
+    def test_progress_completed_artifacts_excludes_skeleton_judgment(self) -> None:
+        """completed_artifacts does not treat skeleton as final judgment."""
         run_dir = self._seed_p6_done()
         judgment = build_integrated_judgment(run_dir)
         update_progress(run_dir, judgment)
@@ -222,7 +232,7 @@ class P7EndToEndTests(unittest.TestCase):
         with open(run_dir / "progress.json", encoding="utf-8") as f:
             progress = json.load(f)
         completed = progress.get("completed_artifacts", [])
-        self.assertIn("analysis/integrated_operator_judgment.json", completed)
+        self.assertNotIn("analysis/integrated_operator_judgment.json", completed)
 
     def test_progress_next_action_mentions_ai_step(self) -> None:
         """next_action guides AI to enhance report_data."""
@@ -244,8 +254,8 @@ class P7EndToEndTests(unittest.TestCase):
         shutil.rmtree(run_dir / "evaluations")
         judgment = build_integrated_judgment(run_dir)
         # Should still produce a valid judgment structure (graceful degradation)
-        self.assertIn(judgment["final_verdict"], {"go", "watch", "no_go", "blocked"})
-        # Without evaluations, verdict defaults to watch
+        self.assertEqual(judgment["final_verdict"], "blocked")
+        # Without evaluations, skeleton confidence remains low.
         self.assertEqual(judgment["confidence"], "low")
 
     def test_missing_route_matrix_handled(self) -> None:
@@ -315,6 +325,25 @@ class P7EndToEndTests(unittest.TestCase):
         self.assertTrue(
             (run_dir / "analysis" / "integrated_operator_judgment.json").exists()
         )
+        self.assertIn("skeleton only", result.stdout)
+
+    def test_validate_verdict_rejects_script_skeleton(self) -> None:
+        """Final verdict validation blocks skeleton output before Lead Operator."""
+        run_dir = self._seed_p6_done()
+        run_integrated_judgment(run_dir)
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "validate_judgment.py"),
+                str(run_dir),
+                "--check-verdict",
+            ],
+            capture_output=True,
+            text=True,
+            env=_cli_env(),
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Lead Operator Agent 未完成最终判断", result.stdout)
 
     def test_cli_no_evaluations_dir_returns_error(self) -> None:
         """CLI returns error when evaluations/ is missing."""
@@ -338,7 +367,9 @@ class P7EndToEndTests(unittest.TestCase):
             json.dumps(_workflow_state(), ensure_ascii=False, indent=2), encoding="utf-8"
         )
         run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+        write_agent_candidate_pool(run_dir)
         run_candidate_pool(run_dir)
+        write_agent_route_matrix(run_dir)
         run_route_matrix_confirmation(run_dir)
         run_sellersprite_deep_dive(run_dir, snapshot_source=self._write_sellersprite_snapshot())
         run_sorftime_deep_dive(run_dir, snapshot_source=self._write_sorftime_snapshot())
@@ -422,7 +453,9 @@ class P7FullChainTests(unittest.TestCase):
             json.dumps(_workflow_state(), ensure_ascii=False, indent=2), encoding="utf-8"
         )
         run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+        write_agent_candidate_pool(run_dir)
         run_candidate_pool(run_dir)
+        write_agent_route_matrix(run_dir)
         run_route_matrix_confirmation(run_dir)
         run_sellersprite_deep_dive(run_dir, snapshot_source=self._write_ss(run_dir))
         run_sorftime_deep_dive(run_dir, snapshot_source=self._write_sf(run_dir))

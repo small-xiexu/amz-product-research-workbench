@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Build integrated_operator_judgment skeleton from P6 evaluations and evidence packets.
 
-Generates the full judgment skeleton with all 10 deep analysis fields marked as
+Generates the full judgment skeleton with all 9 deep analysis fields marked as
 ``__ai_judgment__`` placeholders. The skeleton is then filled in two stages:
 
-- Stage 10a: Route Strategy Agent + Growth & Risk Agent (parallel) fill the 10
-  deep analysis fields (5 each).
-- Stage 10b: Lead Operator Agent validates the 10 fields, writes decision summary
+- Stage 10a: Route Strategy Agent + Growth & Risk Agent (parallel) fill the 9
+  deep analysis fields (5 route/competition fields + 4 growth/risk fields).
+- Stage 10b: Lead Operator Agent validates the 9 fields, writes decision summary
   (final_verdict, confidence, etc.), and merges everything into the final judgment.
 
 This script only produces the skeleton; it does NOT make operational judgments.
@@ -19,23 +19,23 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from packages.research_core.contracts.p6_contracts import (
-    P6_CORE_DIMENSIONS,
-    P6_EVALUATION_DIMENSIONS,
-)
+from packages.research_core.contracts.p6_contracts import P6_EVALUATION_DIMENSIONS
 from packages.research_core.contracts.p7_contracts import (
     P7_SCHEMA_VERSION,
     P7_STAGE_ID,
-    P7_ALLOWED_VERDICTS,
 )
 from packages.research_core.pipeline._utils import load_json
 from packages.research_core.pipeline.constants import VOC_MIN_REVIEW_THRESHOLD
 from packages.research_core.pipeline.public_language import public_text
-from packages.research_core.pipeline.public_language import public_label
 
 
 def build_integrated_judgment(run_dir: Path) -> dict[str, Any]:
-    """Generate integrated_operator_judgment from P6 evaluation outputs."""
+    """Generate a handoff skeleton for downstream judgment Agents.
+
+    The script prepares structure and lineage only.  It deliberately does not
+    decide final_verdict, opportunity, risk, or next-step strategy; those fields
+    belong to Route Strategy / Growth & Risk / Lead Operator Agents.
+    """
     run_id = run_dir.name
     now = datetime.now().isoformat(timespec="seconds")
 
@@ -43,16 +43,10 @@ def build_integrated_judgment(run_dir: Path) -> dict[str, Any]:
     summary = load_json(run_dir / "evaluations" / "evaluation_summary.json", required=False)
     route_matrix = load_json(run_dir / "route_matrix_confirm.json", required=False)
 
-    final_verdict = _determine_verdict(summary, evaluations)
-    verdict_reason = _build_verdict_reason(final_verdict, evaluations, summary)
     recommended_route = _extract_recommended_route(route_matrix)
     rejected_routes = _extract_rejected_routes(route_matrix)
-    biggest_opportunity = _find_biggest_opportunity(evaluations)
-    biggest_risk = _find_biggest_risk(evaluations, summary)
-    required_next_actions = _build_next_actions(final_verdict, evaluations, summary)
     constraints_applied = _build_constraints_applied(summary)
     evidence_refs = _collect_evidence_refs(evaluations, summary)
-    confidence = _determine_confidence(evaluations, summary)
 
     # v2 深度运营分析字段（脚本生成骨架，Agent 填充内容）
     route_recommendation = _build_route_recommendation(route_matrix)
@@ -70,16 +64,32 @@ def build_integrated_judgment(run_dir: Path) -> dict[str, Any]:
         "packet_id": "integrated_operator_judgment",
         "stage": P7_STAGE_ID,
         "run_id": run_id,
-        "final_verdict": final_verdict,
-        "verdict_reason": verdict_reason,
+        "final_verdict": "blocked",
+        "verdict_reason": (
+            "脚本仅生成集成判断骨架，当前不满足交付条件；必须先完成 "
+            "Route Strategy Agent、Growth & Risk Agent 与 Lead Operator Agent 的最终判断。"
+        ),
         "recommended_route": recommended_route,
         "rejected_routes": rejected_routes,
-        "biggest_opportunity": biggest_opportunity,
-        "biggest_risk": biggest_risk,
-        "required_next_actions": required_next_actions,
+        "biggest_opportunity": {
+            "dimension": "__ai_judgment__",
+            "detail": "__ai_judgment__",
+        },
+        "biggest_risk": {
+            "dimension": "__ai_judgment__",
+            "detail": "__ai_judgment__",
+        },
+        "required_next_actions": [
+            "并行启动 Route Strategy Agent 与 Growth & Risk Agent，填充 9 个深度分析字段。",
+            "深度分析校验通过后，启动 Lead Operator Agent 写入最终判断。",
+        ],
+        "operator_constraints": {
+            "source_path": "evaluations/evaluation_summary.json",
+            "constraints": summary.get("operator_judgment_constraints") or [],
+        },
         "constraints_applied": constraints_applied,
         "evidence_refs": evidence_refs,
-        "confidence": confidence,
+        "confidence": "low",
         "route_recommendation": route_recommendation,
         "route_tradeoff": route_tradeoff,
         "competitor_benchmark": competitor_benchmark,
@@ -96,9 +106,10 @@ def build_integrated_judgment(run_dir: Path) -> dict[str, Any]:
             "execution_mode": "script_generated_skeleton",
             "subagent_id": "",
             "note": (
-                "Script generated judgment skeleton with '__ai_judgment__' placeholders for all 9 deep analysis fields. "
-                "Stage 10a: Route Strategy Agent + Growth & Risk Agent (parallel spawn) fill the 10 deep fields. "
-                "Stage 10b: Lead Operator Agent validates the 10 fields, writes decision summary, and merges into final judgment. "
+                "Script generated judgment skeleton with '__ai_judgment__' placeholders for 9 deep analysis fields "
+                "and decision-summary fields. Stage 10a: Route Strategy Agent + Growth & Risk Agent "
+                "(parallel spawn) fill the 9 deep fields. Stage 10b: Lead Operator Agent validates those fields, "
+                "writes decision summary, and merges into final judgment. "
                 "Report Generation Agent must transcribe only filled fields; '__ai_judgment__' placeholders in report_data.json mean 'analysis pending'."
             ),
         },
@@ -113,117 +124,6 @@ def _load_evaluations(run_dir: Path) -> dict[str, Any]:
         if path.exists():
             evals[dim] = load_json(path)
     return evals
-
-
-def _determine_verdict(
-    summary: dict[str, Any],
-    evaluations: dict[str, Any],
-) -> str:
-    verdict_range = summary.get("recommended_final_verdict_range", [])
-
-    if "blocked" in verdict_range:
-        return "blocked"
-
-    blocked = set(summary.get("blocked_dimensions") or [])
-    core_blocked = blocked & P6_CORE_DIMENSIONS
-
-    # Count strong/watch dimensions
-    strong_count = 0
-    watch_count = 0
-    for dim, ev in evaluations.items():
-        rating = ev.get("rating", "")
-        if rating == "strong":
-            strong_count += 1
-        elif rating == "watch":
-            watch_count += 1
-
-    if "go" in verdict_range:
-        if core_blocked:
-            return "watch"
-        if strong_count >= 4:
-            return "go"
-        if strong_count + watch_count >= 4:
-            return "watch"
-        return "watch"
-
-    # verdict_range is ["watch", "no_go"]
-    if strong_count + watch_count >= 3:
-        return "watch"
-    return "no_go"
-
-
-def _build_verdict_reason(
-    verdict: str,
-    evaluations: dict[str, Any],
-    summary: dict[str, Any],
-) -> str:
-    blocked = summary.get("blocked_dimensions") or []
-    low_conf = summary.get("low_confidence_dimensions") or []
-    tensions = summary.get("cross_dimension_tensions") or []
-
-    parts: list[str] = []
-
-    if verdict == "blocked":
-        parts.append("数据质量不达标")
-        if tensions:
-            parts.append("；".join(public_text(t) for t in tensions[:2]))
-        return "，".join(parts) + "，必须先补数再推进。"
-
-    if verdict == "go":
-        parts.append("6 项评价维度整体信号偏正面")
-        strong_dims = [
-            d for d, ev in evaluations.items() if ev.get("rating") == "strong"
-        ]
-        if strong_dims:
-            dim_names = {
-                "market_demand": "市场需求",
-                "competition": "竞争格局",
-                "price_profit": "价格带机会",
-                "voc_opportunity": "VOC机会",
-                "risk": "风险",
-                "data_quality": "数据质量",
-            }
-            strong_labels = [dim_names.get(d, d) for d in strong_dims[:4]]
-            parts.append(f"{'、'.join(strong_labels)}均为正向信号")
-        if low_conf:
-            parts.append(f"{len(low_conf)} 项置信度偏低，需在后续验证中跟踪，但暂不阻断")
-        return "，".join(parts) + "。"
-
-    if verdict == "watch":
-        if blocked:
-            core_blocked = [d for d in blocked if d in P6_CORE_DIMENSIONS]
-            if core_blocked:
-                parts.append(f"核心维度当前不满足放行条件: {', '.join(core_blocked)}")
-                parts.append("不能直接放行，需补充信息后重新评估")
-                return "，".join(parts) + "。"
-            else:
-                parts.append(f"辅助维度当前不满足放行条件: {', '.join(blocked)}")
-                parts.append("核心维度无阻塞，但需关注辅助维度风险后谨慎推进")
-                return "，".join(parts) + "。"
-        weak_dims = [
-            d for d, ev in evaluations.items() if ev.get("rating") in ("weak", "blocked")
-        ]
-        if weak_dims:
-            dim_names = {
-                "market_demand": "市场需求",
-                "competition": "竞争格局",
-                "price_profit": "价格带机会",
-                "voc_opportunity": "VOC机会",
-                "risk": "风险",
-                "data_quality": "数据质量",
-            }
-            weak_labels = [dim_names.get(d, d) for d in weak_dims]
-            parts.append(f"{'、'.join(weak_labels)}信号偏弱")
-        if low_conf:
-            parts.append(f"{len(low_conf)} 项置信度偏低")
-        parts.append("建议补充数据后再做最终判断")
-        return "，".join(parts) + "。"
-
-    # no_go
-    if blocked:
-        parts.append(f"关键维度当前不满足放行条件: {', '.join(blocked[:3])}")
-    parts.append("核心条件不满足，建议暂缓推进")
-    return "，".join(parts) + "。"
 
 
 def _extract_recommended_route(route_matrix: dict[str, Any]) -> dict[str, Any]:
@@ -258,102 +158,6 @@ def _extract_rejected_routes(route_matrix: dict[str, Any]) -> list[dict[str, Any
     return result
 
 
-def _find_biggest_opportunity(evaluations: dict[str, Any]) -> dict[str, Any]:
-    best_dim = ""
-    best_score = -1
-    for dim, ev in evaluations.items():
-        score = ev.get("score", 0)
-        if isinstance(score, (int, float)) and score > best_score:
-            best_score = float(score)
-            best_dim = dim
-
-    if best_dim and best_dim in evaluations:
-        ev = evaluations[best_dim]
-        return {
-            "dimension": best_dim,
-            "score": ev.get("score", 0),
-            "rating": ev.get("rating", ""),
-            "top_reason": (ev.get("key_reasons") or [""])[0],
-        }
-    return {"dimension": "", "score": 0, "rating": "", "top_reason": "无足够数据识别机会"}
-
-
-def _find_biggest_risk(
-    evaluations: dict[str, Any],
-    summary: dict[str, Any],
-) -> dict[str, Any]:
-    blocked = set(summary.get("blocked_dimensions") or [])
-    if blocked:
-        blk = next(iter(blocked))
-        if blk in evaluations:
-            ev = evaluations[blk]
-            return {
-                "dimension": blk,
-                "score": ev.get("score", 0),
-                "rating": "blocked",
-                "top_risk": (ev.get("risks") or ["数据阻塞"])[0] if ev.get("risks") else "数据阻塞",
-            }
-
-    worst_dim = ""
-    worst_score = 999
-    for dim, ev in evaluations.items():
-        score = ev.get("score", 0)
-        if isinstance(score, (int, float)) and score < worst_score:
-            worst_score = float(score)
-            worst_dim = dim
-
-    if worst_dim and worst_dim in evaluations:
-        ev = evaluations[worst_dim]
-        return {
-            "dimension": worst_dim,
-            "score": ev.get("score", 0),
-            "rating": ev.get("rating", ""),
-            "top_risk": (ev.get("risks") or ["信号偏弱"])[0] if ev.get("risks") else "信号偏弱",
-        }
-    return {"dimension": "", "score": 0, "rating": "", "top_risk": "无法评估"}
-
-
-def _build_next_actions(
-    verdict: str,
-    evaluations: dict[str, Any],
-    summary: dict[str, Any],
-) -> list[str]:
-    actions: list[str] = []
-
-    if verdict == "blocked":
-        actions.append("补齐阻塞数据：检查数据质量评价中列出的补充项")
-        actions.append("解决阻断性数据缺口后重新完成评价流程")
-
-    for dim, ev in evaluations.items():
-        rating = ev.get("rating", "")
-        if rating in ("weak", "blocked"):
-            followups = ev.get("required_followups") or []
-            for fu in followups[:2]:
-                if fu and str(fu).strip():
-                    actions.append(str(fu).strip())
-
-    low_conf = summary.get("low_confidence_dimensions") or []
-    if low_conf:
-        actions.append(f"跟踪低置信度维度: {', '.join(low_conf[:3])}，下次迭代优先验证")
-
-    if verdict == "go":
-        actions.append("进入供应商阶段：基于推荐路线和价格带联系供应商打样")
-        actions.append("根据 VOC 痛点制定品质验收标准")
-    elif verdict == "watch":
-        actions.append("补齐关键缺口后重新评估，重点关注阻断或偏弱维度")
-    elif verdict == "no_go":
-        # Look for alternative routes that weren't selected
-        actions.append("不建议当前路线推进，可考虑评估路线矩阵中的备选路线")
-
-    seen: set[str] = set()
-    result: list[str] = []
-    for action in actions:
-        if action and action not in seen:
-            seen.add(action)
-            result.append(action)
-    return result
-
-
 def _build_constraints_applied(summary: dict[str, Any]) -> list[str]:
     constraints = summary.get("operator_judgment_constraints") or []
     result: list[str] = []
@@ -377,34 +181,6 @@ def _collect_evidence_refs(
     # Add reference to evaluation_summary itself
     refs.append("evaluations/evaluation_summary.json")
     return refs
-
-
-def _determine_confidence(
-    evaluations: dict[str, Any],
-    summary: dict[str, Any],
-) -> str:
-    low_conf_dims = set(summary.get("low_confidence_dimensions") or [])
-    blocked_dims = set(summary.get("blocked_dimensions") or [])
-
-    # More than half dimensions low confidence = overall low
-    if len(low_conf_dims) >= 3:
-        return "low"
-
-    # Any core dimension blocked or low = medium at best
-    if (low_conf_dims | blocked_dims) & P6_CORE_DIMENSIONS:
-        return "medium"
-
-    # Check how many dimensions are high confidence
-    high_count = 0
-    for dim, ev in evaluations.items():
-        if ev.get("confidence") == "high" and dim not in blocked_dims:
-            high_count += 1
-
-    if high_count >= 4:
-        return "high"
-    if high_count >= 2:
-        return "medium"
-    return "low"
 
 
 P7_OUTPUT_ARTIFACTS = [
@@ -703,32 +479,46 @@ def update_progress(run_dir: Path, judgment: dict[str, Any]) -> None:
 
     stages = progress.setdefault("stages", {})
     stages[P7_STAGE_ID] = {
-        "status": "done",
+        "status": "running",
+        "attempts": 1,
         "started_at": judgment.get("generated_at", ""),
+        "input_artifacts": [
+            "evaluations/evaluation_summary.json",
+            "route_matrix_confirm.json",
+        ],
         "output_artifacts": [
             "analysis/integrated_operator_judgment.json",
         ],
-        "validation_checks": [],
-        "resume_policy": {"reuse_existing_artifacts": True},
+        "validation_checks": [
+            {
+                "name": "judgment_skeleton_generated",
+                "pass": True,
+                "detail": "脚本只生成骨架，等待 Stage 10a/10b Agent 填写最终判断。",
+            }
+        ],
+        "resume_policy": {
+            "reuse_existing_artifacts": True,
+            "allow_repeat_mcp_call": False,
+        },
         "notes": (
-            f"最终判断: {public_label(judgment.get('final_verdict', ''), context='verdict')}, "
-            f"{public_label(judgment.get('confidence', ''), context='confidence')}"
+            "集成判断骨架已生成；最终判断需由 Lead Operator Agent 写入。"
         ),
     }
 
-    completed = progress.setdefault("completed_artifacts", [])
     artifact = "analysis/integrated_operator_judgment.json"
-    if artifact not in completed:
-        completed.append(artifact)
+    progress["completed_artifacts"] = [
+        item for item in (progress.get("completed_artifacts") or []) if item != artifact
+    ]
 
     progress["current_stage"] = P7_STAGE_ID
     progress["updated_at"] = judgment.get("generated_at", "")
     progress["next_action"] = {
         "type": "ai_step",
+        "stage_id": P7_STAGE_ID,
         "description": (
             "脚本阶段完成，集成判断骨架已生成。下一步："
             "深度分析阶段 — 强制并行启动 Route Strategy Agent + Growth & Risk Agent，"
-            "各自填充 5 个深度分析字段（共 10 字段）。"
+            "填充 9 个深度分析字段；随后启动 Lead Operator Agent 写入最终判断。"
         ),
     }
 

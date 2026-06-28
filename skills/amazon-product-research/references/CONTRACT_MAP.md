@@ -132,7 +132,7 @@
 
 | 产出文件 | 产出方 | 消费方 | 关键契约字段 |
 |----------|--------|--------|------------|
-| `integrated_operator_judgment.json` (skeleton) | `build_integrated_judgment.py` | Route Strategy Agent, Growth & Risk Agent | 10 个 `__ai_judgment__` 占位字段 |
+| `integrated_operator_judgment.json` (skeleton) | `build_integrated_judgment.py` | Route Strategy Agent, Growth & Risk Agent | 9 个深度分析占位字段 + 决策摘要待 Lead Operator 填写 |
 | `integrated_operator_judgment.json` (filled) | Route Strategy Agent + Growth & Risk Agent（并行） → Lead Operator Agent 合成 | Stage 11-12 | `route_recommendation.routes[]/primary_recommendation`, `route_tradeoff[]`, `competitor_benchmark[]`, `competitor_weakness_map[]`, `price_band_analysis[]`, `voc_to_spec[]`, `keyword_strategy.primary_attack[]/testable[]/negative[]`, `risk_mitigation[]`, `validation_roadmap[]`, `final_verdict` ∈ {go,watch,no_go,blocked}, `confidence` |
 
 **硬约束**: 任何字段仍含 `__ai_judgment__` → verdict 强制为 `blocked`，Stage 10a 必须重试

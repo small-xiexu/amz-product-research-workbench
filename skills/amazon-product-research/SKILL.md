@@ -116,7 +116,7 @@
 | 7 (冲突复核) | `build_conflict_review.py` | 双源冲突分级 + 路线 lineage 追溯 |
 | 8 (VOC) | `validate_voc_packet.py` | 痛点结构 + evidence_refs 带 review_id/quote + execution_provenance + 路线覆盖 ≥ 2 ASIN |
 | 9 (六维评价) | `validate_evaluation.py` | 评分 0-100 + route_breakdown + tier 合规 + 跨维度冲突 |
-| 10a (深度分析) | `validate_judgment.py --check-placeholders` | 10 字段无 __ai_judgment__ 占位 |
+| 10a (深度分析) | `validate_judgment.py --check-placeholders` | 9 字段无 __ai_judgment__ 占位 |
 | 10b (决策) | `validate_judgment.py --check-verdict` | final_verdict 内部枚举有效 + 治理规则 + Stage 9 交叉一致性 |
 | 12 (报告) | `run_delivery_qa.py` + Delivery QA Agent | 脚本 QA + Agent QA 双层门禁 |
 
@@ -493,18 +493,18 @@ python3 scripts/build_integrated_judgment.py <run_dir>
 python3 scripts/validate_judgment.py <run_dir> --check-placeholders
 ```
 
-检查 10 个深度分析字段是否仍有 `__ai_judgment__` 占位。有占位 → 打回对应 Agent 修复。
+检查 9 个深度分析字段是否仍有 `__ai_judgment__` 占位。有占位 → 打回对应 Agent 修复。
 
 ---
 
 ### Stage 10b · 决策合成
 
-Lead Operator Agent 读取 Stage 10a 产出的 10 个深度分析字段，做交叉一致性检查，给出最终放行判断。
+Lead Operator Agent 读取 Stage 10a 产出的 9 个深度分析字段，做交叉一致性检查，给出最终放行判断。
 
 **本 Agent 不再重做深度分析**，只做三件事：
-1. 交叉验证：检查 10a 产出的 10 个字段是否与评价的 `route_breakdown`、证据包原始数据自洽
+1. 交叉验证：检查 10a 产出的 9 个字段是否与评价的 `route_breakdown`、证据包原始数据自洽
 2. 决策拍板：基于治理规则和维度间张力，给出 `final_verdict`、`confidence`、`biggest_opportunity`、`biggest_risk`
-3. 合并写入：将决策摘要字段 + 10a 的 10 个深度分析字段合并写入 `integrated_operator_judgment.json`
+3. 合并写入：将决策摘要字段 + 10a 的 9 个深度分析字段合并写入 `integrated_operator_judgment.json`
 
 **决策摘要**（本 Agent 产出）：
 
@@ -522,7 +522,7 @@ Lead Operator Agent 读取 Stage 10a 产出的 10 个深度分析字段，做交
 - `data_quality`**目标路线** `rating=blocked` → 只能"补数后再判断"
 - 合规/知产 `blocked` → 所有路线不能直接放行
 - blocking conflict 未解决 → 最终不能直接放行
-- Stage 10a 10 字段任一为 `__ai_judgment__` 占位 → 当前不满足放行条件，打回 Stage 10a
+- Stage 10a 9 字段任一为 `__ai_judgment__` 占位 → 当前不满足放行条件，打回 Stage 10a
 
 **本阶段执行顺序**：
 1. 确认 Stage 10a 两个 Agent 均已完成
@@ -591,9 +591,7 @@ HTML 报告结构（运营必备板块）：
 - **Hero 指标必须运营可理解**：每个 Hero 指标的 label 必须完整说明指标含义，不依赖内部编码或缩写。例如"训练长绳供需比 2.47（品类最优）"而非"最优供需比 (C05) 2.47"，"品类均价 $13.14（同比+15%）"而非"品类均价 YoY $13.14"
 - **价格带 bar 最小可见高度**：`.price-bar .bar` 的 height 取 max(实际比例高度, 28px)，确保占比最小的价格段 bar 仍清晰可见
 
-```bash
-python3 scripts/run_report_agent.py <run_dir>
-```
+本地开发可用 `python3 scripts/run_report_agent.py <run_dir>` 生成调试版 `report_data.json` + HTML，但正式链路不得把该脚本产物当作最终报告；正式报告必须由 Report Generation Agent 写入。
 
 Agent 完成后，运行 `build_report_xlsx.py` 生成 XLSX 决策工具包：
 

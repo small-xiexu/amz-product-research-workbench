@@ -63,8 +63,8 @@
 
 | 文件 | 说明 |
 |---|---|
-| `packages/research_core/pipeline/report_agent.py` | Report Generation Agent 核心实现（serial_fallback 模式） |
-| `scripts/run_report_agent.py` | Agent CLI 入口 |
+| `packages/research_core/pipeline/report_agent.py` | 本地开发/回归用 serial fallback，不是正式交付入口 |
+| `scripts/run_report_agent.py` | 本地开发辅助 CLI |
 
 ### Agent 核心功能
 
@@ -92,7 +92,7 @@
 1. build_analysis_report.py → report_data.seed.json + analysis_packet.json
    （缺少 report_data.json → 输出 "REPORT DATA MISSING" 并停止）
 
-2. run_report_agent.py → report_data.json + <品名>_分析报告.html
+2. Report Generation Agent → report_data.json + <品名>_分析报告.html（`run_report_agent.py` 仅可作本地开发辅助）
    （Agent 读取 seed/judgment/证据包，增强并生成 HTML）
 
 3. build_analysis_report.py → XLSX + QA + qa_notes + audit

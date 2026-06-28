@@ -69,8 +69,8 @@ Web 页面暂不作为主线。等 Codex 版闭环稳定后，再把 Web 作为�
 | 补齐 Deep Evidence Packet 契约 | `python3 scripts/build_deep_evidence_packet.py <agent_output.json> --source sellersprite\|sorftime` |
 | 深挖 + 冲突复核 | `python3 scripts/build_conflict_review.py <run_dir>` |
 | ASIN 批次 + VOC Gate | `python3 scripts/build_review_asin_batch.py <run_dir> && python3 scripts/build_voc_gate.py <run_dir>` |
-| 运行报告 Agent | `python3 scripts/run_report_agent.py <run_dir>` |
-| 全量报告 + QA | `python3 -m packages.research_core.pipeline.build_report_seed <run_dir> && python3 -m packages.research_core.pipeline.build_report_xlsx <run_dir>` |
+| 报告 Agent 开发辅助 | `python3 scripts/run_report_agent.py <run_dir>`（非正式交付入口） |
+| 报告 seed + XLSX/QA | `python3 -m packages.research_core.pipeline.build_report_seed <run_dir> && python3 -m packages.research_core.pipeline.build_report_xlsx <run_dir>`；中间需 Report Generation Agent 写 `report_data.json` + HTML |
 | 运行 Delivery QA | `python3 scripts/run_delivery_qa.py <run_dir>` |
 
 ## 推荐运行目录

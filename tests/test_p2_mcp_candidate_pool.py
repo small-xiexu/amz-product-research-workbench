@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import json
-import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
 from packages.research_core.contracts import validate_candidate_pool
-from packages.research_core.pipeline import build_mcp_candidate_pool
 from packages.research_core.pipeline.build_mcp_candidate_pool import P2ContractError, run_candidate_pool
 from packages.research_core.pipeline.quick_market_check import run_quick_market_check
+from tests.agent_output_fixtures import write_agent_candidate_pool
 
-build_mcp_candidate_pool._ALLOW_GENERATION_FALLBACK = True
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +21,7 @@ class P2McpCandidatePoolTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             run_dir = _seed_run(Path(tmpdir))
             run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+            write_agent_candidate_pool(run_dir)
 
             outputs = run_candidate_pool(run_dir)
 
@@ -52,6 +51,7 @@ class P2McpCandidatePoolTests(unittest.TestCase):
             gate["gate_reasons"] = ["边界仍需复核"]
             gate["next_action"] = {"type": "needs_user", "description": "review boundary"}
             gate_path.write_text(json.dumps(gate, ensure_ascii=False, indent=2), encoding="utf-8")
+            write_agent_candidate_pool(run_dir)
 
             outputs = run_candidate_pool(run_dir)
             candidate_pool = _load_json(outputs["candidate_pool"])
@@ -72,6 +72,7 @@ class P2McpCandidatePoolTests(unittest.TestCase):
             gate["gate_reasons"] = ["阻塞级缺口"]
             gate["next_action"] = {"type": "stop", "description": "stop here"}
             gate_path.write_text(json.dumps(gate, ensure_ascii=False, indent=2), encoding="utf-8")
+            write_agent_candidate_pool(run_dir)
 
             outputs = run_candidate_pool(run_dir)
             candidate_pool = _load_json(outputs["candidate_pool"])
@@ -92,6 +93,7 @@ class P2McpCandidatePoolTests(unittest.TestCase):
             workflow = _load_json(workflow_path)
             workflow.pop("stage", None)
             workflow_path.write_text(json.dumps(workflow, ensure_ascii=False, indent=2), encoding="utf-8")
+            write_agent_candidate_pool(run_dir)
 
             with self.assertRaises(P2ContractError):
                 run_candidate_pool(run_dir)
@@ -108,6 +110,20 @@ class P2McpCandidatePoolTests(unittest.TestCase):
 
         self.assertNotIn("build_fused_candidate_pool", module_text)
         self.assertNotIn("build_fused_candidate_pool", script_text)
+
+    def test_missing_agent_candidate_pool_fails_without_generation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = _seed_run(Path(tmpdir))
+            run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+
+            with self.assertRaises(P2ContractError):
+                run_candidate_pool(run_dir)
+
+            progress = _load_json(run_dir / "progress.json")
+
+        self.assertEqual(progress["stages"]["stage_4_candidate_pool"]["status"], "failed")
+        self.assertIn("candidate_pool.json 应由主 Agent 生成", progress["stages"]["stage_4_candidate_pool"]["last_error"])
+        self.assertFalse((run_dir / "candidate_pool.json").exists())
 
 
 def _seed_run(root: Path) -> Path:

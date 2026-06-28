@@ -24,7 +24,7 @@
 | Workflow 应用层 | `packages/research_core/workflows/` | 交互式状态推进 + 批量报告编排 |
 | Contracts 契约层 | `packages/research_core/contracts/` | 在关键节点校验 `import_manifest`、`candidate_pool`、`research_package` 等数据包结构 |
 | Core 规则层 | `packages/research_core/` | Adapter、统一 Schema、字段合并、市场结构等可复用规则 |
-| Renderer 输出层 | `packages/report_renderer/` | 生成 HTML 报告、Excel 数据底表；`xlsx_writer.py` + `constants.py` |
+| 报告交付层 | `packages/research_core/pipeline/build_report_seed.py` / `build_report_xlsx.py` | 脚本生成 seed、XLSX 和 QA；Report Generation Agent 写正式 `report_data.json` 与 HTML |
 | Skills 分析层 | `skills/` | 约束 Claude 如何基于结构化数据做市场/VOC/深挖判断 |
 
 主体验优先调用 `packages.research_core.workflows.create_initial_state()` / `plan_next_action()` / `advance_stage()` 维护交互状态。新增第三方数据源优先落在 `packages/research_core/adapters/` 和 `merge_strategy.py`。
@@ -39,7 +39,7 @@
 | `packages/research_core/workflows/` | 交互式状态推进和批量报告编排，可被 CLI/网页/API 复用 |
 | `packages/research_core/contracts/` | 核心数据包结构校验 |
 | `packages/research_core/` | 统一数据结构、Adapter、状态规则 |
-| `packages/report_renderer/` | Markdown、HTML 正式报告和 Excel 底表渲染 |
+| `packages/research_core/pipeline/build_report_seed.py` / `build_report_xlsx.py` | 正式报告 seed、XLSX 和 QA 入口 |
 | `scripts/` | 本地 CLI 入口和兼容工具脚本 |
 | `examples/` | 最小输入样例和 mock 数据包 |
 | `requirements.txt` | 本地脚本依赖，当前主要用于读取 Excel |
@@ -93,16 +93,20 @@ python3 scripts/plan_interactive_workflow.py \
 - AI 应该问运营的问题
 - 下一步动作卡
 
-交互推进到 Stage 7 后，AI 以资深运营专家身份手写 `<中文品名>_分析报告.html`，脚本生成 `<中文品名>_决策工具包.xlsx` 运营决策工具包。
+交互推进到 Stage 10b 后，Lead Operator Agent 写最终综合判断；Stage 11 生成 seed；Stage 12 由 Report Generation Agent 写 `report_data.json` 和 `<中文品名>_分析报告.html`；脚本只生成 `<中文品名>_决策工具包.xlsx` 和 QA。
 
-## Stage 7 交付
+## 报告交付
 
-AI 完成 7 阶段分析后，运行脚本生成决策工具包和 QA：
+正式交付是三段式：脚本 seed → Report Generation Agent 写报告 → 脚本 XLSX/QA。
 
 ```bash
 # Stage 11: 生成 seed
 python3 -m packages.research_core.pipeline.build_report_seed runs/<yyyymmdd_中文品类方向>
-# Stage 12: 生成 XLSX + QA
+
+# Stage 12: Report Generation Agent 写 analysis/report_data.json 和 HTML
+# 本地开发可用 scripts/run_report_agent.py 调试，但正式链路以 Agent 产物为准
+
+# Stage 12/13: 基于 Agent 产物生成 XLSX + QA
 python3 -m packages.research_core.pipeline.build_report_xlsx runs/<yyyymmdd_中文品类方向>
 ```
 

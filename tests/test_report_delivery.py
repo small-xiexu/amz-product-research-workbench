@@ -59,6 +59,7 @@ from packages.research_core.pipeline.seed_report_data import (
     seed_report_data_from_analysis,
 )
 from packages.research_core.pipeline.quick_market_check import run_quick_market_check
+from tests.agent_output_fixtures import write_agent_candidate_pool, write_agent_route_matrix
 from packages.report_renderer.xlsx_writer import write_xlsx
 
 
@@ -111,7 +112,9 @@ class ReportSeedHandoffTests(unittest.TestCase):
             json.dumps(_workflow_state(), ensure_ascii=False, indent=2), encoding="utf-8"
         )
         run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+        write_agent_candidate_pool(run_dir)
         run_candidate_pool(run_dir)
+        write_agent_route_matrix(run_dir)
         run_route_matrix_confirmation(run_dir)
         run_sellersprite_deep_dive(run_dir, snapshot_source=self._write_ss())
         run_sorftime_deep_dive(run_dir, snapshot_source=self._write_sf())
@@ -252,7 +255,9 @@ class XLSXBackTableTests(unittest.TestCase):
             json.dumps(_workflow_state(), ensure_ascii=False, indent=2), encoding="utf-8"
         )
         run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+        write_agent_candidate_pool(run_dir)
         run_candidate_pool(run_dir)
+        write_agent_route_matrix(run_dir)
         run_route_matrix_confirmation(run_dir)
         ss = self._tmp / "ss.json"
         ss.write_text(json.dumps(_valid_sellersprite_snapshot(), ensure_ascii=False, indent=2), encoding="utf-8")
@@ -417,7 +422,9 @@ class FullChainCLITests(unittest.TestCase):
             json.dumps(_workflow_state(), ensure_ascii=False, indent=2), encoding="utf-8"
         )
         run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+        write_agent_candidate_pool(run_dir)
         run_candidate_pool(run_dir)
+        write_agent_route_matrix(run_dir)
         run_route_matrix_confirmation(run_dir)
         ss = self._tmp / "ss.json"
         ss.write_text(json.dumps(_valid_sellersprite_snapshot(), ensure_ascii=False, indent=2), encoding="utf-8")
@@ -918,7 +925,9 @@ class ReportAgentCLITests(unittest.TestCase):
         _write_review_xlsx_file(rx, _sample_reviews(35))
 
         run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+        write_agent_candidate_pool(run_dir)
         run_candidate_pool(run_dir)
+        write_agent_route_matrix(run_dir)
         run_route_matrix_confirmation(run_dir)
         run_sellersprite_deep_dive(run_dir, snapshot_source=ss)
         run_sorftime_deep_dive(run_dir, snapshot_source=sf)
@@ -1003,17 +1012,26 @@ def _write_agent_report_outputs(run_dir: Path) -> None:
     else:
         j = {}
     j.update({
-        "schema_version": "judgment-v2",
+        "schema_version": "p7-judgment-v2",
+        "packet_id": "integrated_operator_judgment",
+        "stage": "stage_9_report",
+        "generated_at": j.get("generated_at", "2026-06-25T00:00:00"),
         "final_verdict": "watch",
         "confidence": "medium",
         "verdict_reason": "基于六维评价的综合判断。",
-        "biggest_opportunity": {"dimension": "market_demand", "score": 72, "reason": "类目容量适中"},
-        "biggest_risk": {"dimension": "competition", "score": 45, "reason": "头部集中度较高"},
+        "biggest_opportunity": {"dimension": "market_demand", "score": 72, "detail": "类目容量适中"},
+        "biggest_risk": {"dimension": "competition", "score": 45, "detail": "头部集中度较高"},
         "required_next_actions": ["验证打样品质", "对比竞品材质"],
         "operator_constraints": {},
         "constraints_applied": [],
         "evidence_refs": ["market_structure.market_size", "search_demand.keyword_pool"],
-        "execution_provenance": {"mode": "real_subagent_spawn"},
+        "execution_provenance": {
+            "executed_by_agent": True,
+            "agent_role": "Lead Operator Agent",
+            "execution_mode": "real_subagent_spawn",
+            "subagent_id": "agent-lead-operator-test",
+            "note": "Test fixture simulates Lead Operator final judgment.",
+        },
         "route_recommendation": {"routes": [], "primary_recommendation": "建议主线款优先进入"},
         "route_tradeoff": [{"route_name": "主线", "gain": "流量大", "lose": "竞争激烈", "best_for": "有成本优势", "worst_for": "新手"}],
         "competitor_benchmark": [{"asin": "B001", "differentiation_direction": "材质升级", "pricing_anchor": "$19.99", "why_benchmark": "类目销量TOP"}],
@@ -1025,6 +1043,7 @@ def _write_agent_report_outputs(run_dir: Path) -> None:
         "validation_roadmap": [{"phase": "打样验证", "actions": ["找工厂"], "exit_criteria": "通过", "if_fail": "换供应商"}],
     })
     judgment_path.write_text(json.dumps(j, ensure_ascii=False, indent=2), encoding="utf-8")
+    _mark_lead_operator_done(run_dir)
 
     seed_path = analysis_dir / "report_data.seed.json"
     report_data = json.loads(seed_path.read_text(encoding="utf-8"))
@@ -1032,6 +1051,48 @@ def _write_agent_report_outputs(run_dir: Path) -> None:
     report_data_path.write_text(json.dumps(report_data, ensure_ascii=False, indent=2), encoding="utf-8")
     html_path = analysis_dir / f"{_extract_product_name(run_dir)}_分析报告.html"
     html_path.write_text(_agent_report_html(), encoding="utf-8")
+
+
+def _mark_lead_operator_done(run_dir: Path) -> None:
+    """Simulate Lead Operator Agent completing Stage 10b."""
+    progress_path = run_dir / "progress.json"
+    if not progress_path.exists():
+        return
+    progress = json.loads(progress_path.read_text(encoding="utf-8"))
+    stages = progress.setdefault("stages", {})
+    stage = stages.setdefault("stage_9_report", {})
+    stage.update({
+        "status": "done",
+        "attempts": max(1, int(stage.get("attempts", 0) or 0)),
+        "input_artifacts": stage.get("input_artifacts") or [
+            "evaluations/evaluation_summary.json",
+            "analysis/integrated_operator_judgment.json",
+        ],
+        "output_artifacts": ["analysis/integrated_operator_judgment.json"],
+        "validation_checks": [
+            {
+                "name": "lead_operator_final_judgment",
+                "pass": True,
+                "detail": "Lead Operator Agent filled final judgment.",
+            }
+        ],
+        "resume_policy": {
+            "reuse_existing_artifacts": True,
+            "allow_repeat_mcp_call": False,
+        },
+        "last_error": "",
+    })
+    progress["current_stage"] = "stage_9_report"
+    progress["next_action"] = {
+        "type": "ready_for_report",
+        "stage_id": "stage_11_report_seed",
+        "description": "Lead Operator Agent 已完成最终判断，可进入报告 seed 和报告生成阶段。",
+    }
+    completed = progress.setdefault("completed_artifacts", [])
+    artifact = "analysis/integrated_operator_judgment.json"
+    if artifact not in completed:
+        completed.append(artifact)
+    progress_path.write_text(json.dumps(progress, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _extract_all_source_paths(obj: Any) -> list[str]:

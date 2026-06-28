@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Run Report Generation Agent to produce report_data.json and HTML.
+"""Run the local Report Generation serial fallback for development.
 
 Usage:
   python3 scripts/run_report_agent.py <run_dir>
 
-This runs the agent in serial_fallback mode. After the agent completes,
-run build_report_seed.py then build_report_xlsx.py to generate XLSX and QA artifacts.
+Formal delivery should use Report Generation Agent-authored report_data.json
+and HTML. This CLI is a local helper for regression and fallback testing.
+After this helper runs, build_report_xlsx.py can generate XLSX and QA artifacts.
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from packages.research_core.pipeline.report_agent import run_report_agent
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run Report Generation Agent (serial_fallback mode)."
+        description="Run local Report Generation serial fallback (development helper)."
     )
     parser.add_argument(
         "run_dir",

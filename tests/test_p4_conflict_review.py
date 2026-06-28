@@ -20,6 +20,7 @@ from packages.research_core.pipeline.build_route_matrix_confirmation import run_
 from packages.research_core.pipeline.build_sellersprite_deep_dive import run_sellersprite_deep_dive
 from packages.research_core.pipeline.build_sorftime_deep_dive import run_sorftime_deep_dive
 from packages.research_core.pipeline.quick_market_check import run_quick_market_check
+from tests.agent_output_fixtures import write_agent_candidate_pool, write_agent_route_matrix
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -272,7 +273,9 @@ def _seed_p3_confirmed_run(root: Path) -> Path:
         encoding="utf-8",
     )
     run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+    write_agent_candidate_pool(run_dir)
     run_candidate_pool(run_dir)
+    write_agent_route_matrix(run_dir)
     run_route_matrix_confirmation(run_dir)
     return run_dir
 

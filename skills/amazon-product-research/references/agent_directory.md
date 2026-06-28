@@ -279,7 +279,7 @@
 ### Agent 14: Lead Operator Agent（Stage 10b）
 - **定义文件**: `agents/lead-operator-agent.md`
 - **角色**: 资深亚马逊运营专家——唯一有权输出最终 Go/No-Go 的 Agent
-- **职责**: 读取 6 份 Evaluation + Stage 10a 的 10 个深度字段 + 全部证据包，做跨维度权衡
+- **职责**: 读取 6 份 Evaluation + Stage 10a 的 9 个深度字段 + 全部证据包，做跨维度权衡
 - **输入**: 6 份 `evaluations/*.json` + evaluation_summary + 10a 输出 + 全部证据包
 - **输出**: `analysis/integrated_operator_judgment.json` 的**决策摘要字段** + 合并 10a 深度分析：
   - `final_verdict`: `go` / `watch` / `no_go` / `blocked`
@@ -291,7 +291,7 @@
   - 任一核心维度目标路线 `blocked` → 该路线不能 Go
   - `data_quality` 目标路线 `blocked` → 只能"补数后再判断"
   - 合规/知产 `blocked` → 所有路线不能 Go
-  - Stage 10a 10 字段任一为 `__ai_judgment__` → `blocked`，打回 10a
+  - Stage 10a 9 字段任一为 `__ai_judgment__` → `blocked`，打回 10a
 - **不可以**: 不做 Go/No-Go 以外的深度分析、不机械加分、不省略 10a 字段
 
 ---
@@ -329,7 +329,7 @@
 | Stage 9 | 6 Evaluation Agents | **推荐并行 spawn** | 是 |
 | Stage 10a | Route Strategy + Growth & Risk | **并行 spawn** | 是 |
 | Stage 10b | Lead Operator | 推荐 spawn | 是 |
-| Stage 12 | Report Generation | 主 Agent 串行（不 spawn） | N/A |
+| Stage 12 | Report Generation | 推荐独立 spawn | 开发辅助可串行，但正式交付需标明并经 QA |
 | Stage 13 | Delivery QA | **强制 spawn** | **否**（不可降级） |
 
 ---

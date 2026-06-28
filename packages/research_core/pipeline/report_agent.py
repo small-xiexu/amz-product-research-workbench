@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""Report Generation Agent — serial_fallback implementation.
+"""Report Generation Agent local serial fallback.
 
 Reads report_data.seed.json, integrated_operator_judgment.json, and evidence
-packets, then enhances the seed into a formal report_data.json and generates
-an operator-facing HTML report.
+packets, then enhances the seed into report_data.json and generates an
+operator-facing HTML report.
 
-This is NOT a script that auto-generates HTML. It implements the Report
-Generation Agent specification from skills/amazon-product-research/agents/
-report-generation-agent.md in serial_fallback mode, with honest provenance
-marking.
+This module is for local development and regression tests. Formal delivery
+requires Report Generation Agent-authored report_data.json and HTML; script
+outputs must not be treated as final without the normal QA gate.
 
 Architecture:
   report_data.seed.json

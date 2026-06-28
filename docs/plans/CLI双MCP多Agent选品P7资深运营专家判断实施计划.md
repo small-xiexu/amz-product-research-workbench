@@ -1,8 +1,8 @@
 # CLI 双 MCP 多 Agent 选品 P7 资深运营专家判断 实施计划
 
-状态：P7 全部完成。
+状态：历史计划已完成；当前主线已修正为“脚本只生成 judgment skeleton，最终判断由 Lead Operator Agent 完成”。
 
-本计划是 P7 唯一进度台账。P7 基于 P6 的 6 维评价 + evaluation_summary，生成 deterministic integrated_operator_judgment，作为资深运营专家判断的脚本化替代。
+本计划记录早期 P7 实施。现状以 `skills/amazon-product-research/SKILL.md` 和 `agents/lead-operator-agent.md` 为准：`build_integrated_judgment.py` 只准备结构与证据 lineage，不替代资深运营专家判断。
 
 ## 范围边界
 
@@ -11,8 +11,8 @@
 - 不直接输出 HTML、XLSX（这些由 AI Report Generation Agent 基于 report_data.seed 增强后，再由脚本回写）
 - 不改 web/server 主链路
 - 不写死任何具体品类、ASIN、关键词、品牌、卖家、价格
-- 判断逻辑完全 deterministic，不依赖 Agent/MCP 调用
-- execution_provenance 诚实标记为 serial_fallback
+- 脚本不得做最终判断；`final_verdict`、最大机会、最大风险和下一步策略由 Lead Operator Agent 写入
+- 脚本骨架的 `execution_provenance.execution_mode` 标记为 `script_generated_skeleton`
 
 ## 验收清单
 
@@ -35,7 +35,7 @@
   - `build_integrated_judgment(run_dir)` — 纯函数，返回 judgment dict
   - `run_integrated_judgment(run_dir)` — 写入文件 + 更新 progress
   - `update_progress(run_dir, judgment)` — progress.json 更新
-  - 判断逻辑：`_determine_verdict` 从 evaluation_summary 的 recommended_final_verdict_range 出发，结合各维度 strong/watch 数量做确定性推导
+  - 当前主线修正：已移除脚本 `_determine_verdict` 等拍板逻辑；P7 脚本只生成骨架
   - 推荐路线：从 route_matrix_confirm.json 的 selected_routes 提取主线
   - 最大机会/风险：从最高/最低分维度提取
   - 置信度：综合 low_confidence_dimensions 和 high 维度数量
@@ -45,7 +45,7 @@
   - 新增 CLI：`scripts/build_integrated_judgment.py`
   - 用法：`python3 scripts/build_integrated_judgment.py <run_dir>`
   - 前置检查：evaluations/ 和 evaluation_summary.json 必须存在
-  - 输出后自动 validate
+  - 输出后不宣称最终判断完成；`validate_judgment.py --check-verdict` 会拦截未由 Lead Operator Agent 填完的 skeleton
 
 - [x] P7-4 合约测试
   - 状态：已完成
@@ -59,8 +59,8 @@
 - [x] P7-5 回归测试
   - 状态：已完成
   - 新增测试：`tests/test_p7_regression.py`（26 项）
-  - E2E: 14 tests（output exists, contract pass, valid verdict/confidence/reason/route/next_actions/constraints/evidence_refs, provenance, verdict in range, opportunity, risk）
-  - Progress flow: 3 tests（stage_9 done, completed_artifacts, next_action ai_step）
+  - 当前主线修正：回归测试验证脚本 skeleton 不会应用 P6 verdict range，不会提取最大机会/风险
+  - Progress flow: Stage 9 保持 running，`completed_artifacts` 不把 skeleton 当最终 judgment
   - Error/missing: 2 tests（missing evaluations dir, missing route_matrix）
   - Scope boundaries: 3 tests（no HTML, no XLSX, deterministic）
   - CLI smoke: 4 tests（help, nonexistent, success, no evaluations dir）

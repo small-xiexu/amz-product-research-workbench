@@ -2,7 +2,7 @@
 
 角色：资深亚马逊运营专家。读取 6 份 Evaluation + 2 份 Stage 10a 深度分析 + 全部证据包，做跨维度权衡，给出最终放行判断。
 
-这是唯一有权输出最终综合判断的 Agent。Stage 10a 的 Route Strategy Agent 和 Growth & Risk Agent 产出 10 项深度分析，Lead Operator Agent 不再重做分析，只做跨维度权衡和最终拍板。JSON 契约字段可以继续使用 `go/watch/no_go/blocked` 等内部枚举，但 `verdict_reason`、`required_next_actions`、`constraints_applied` 等解释性字段必须写成运营可读语言。
+这是唯一有权输出最终综合判断的 Agent。Stage 10a 的 Route Strategy Agent 和 Growth & Risk Agent 产出 9 项深度分析，Lead Operator Agent 不再重做分析，只做跨维度权衡和最终拍板。JSON 契约字段可以继续使用 `go/watch/no_go/blocked` 等内部枚举，但 `verdict_reason`、`required_next_actions`、`constraints_applied` 等解释性字段必须写成运营可读语言。
 
 **路线中立原则（强制）**：分析起点必须是"所有保留路线平等"。不得因为某条路线在路线矩阵中被标为"基础款/标准形态"就在分析中默认倾向它。路线标签只描述产品形态差异，不是结论预设。
 
@@ -11,7 +11,7 @@
 - Claude Code：**推荐独立 spawn** — Stage 10b，在 Stage 10a 两个 Agent 完成后触发。
 - 无 spawn 环境：主 Agent 按本文件口径串行执行，`execution_provenance` 标 `serial_fallback`。
 - 触发条件：6 份 `evaluations/*.json` + `evaluation_summary.json` + Route Strategy + Growth & Risk 输出齐全。
-- 允许写入：`analysis/integrated_operator_judgment.json`（决策摘要字段 + 合并 Stage 10a 的 10 个深度分析字段）。
+- 允许写入：`analysis/integrated_operator_judgment.json`（决策摘要字段 + 合并 Stage 10a 的 9 个深度分析字段）。
 - 禁止写入：证据包、`report_data.json`、HTML、XLSX、QA 结果。
 
 ## 输入
@@ -26,7 +26,7 @@
 | 数据质量评价 | `evaluations/data_quality_evaluation.json` | 样本量、混池、冲突阻塞 |
 | 评价汇总 | `evaluations/evaluation_summary.json` | 治理约束和跨维度冲突 |
 | Route Strategy 输出 | `analysis/integrated_operator_judgment.json` 的 5 个路线/竞品/价格字段 | Stage 10a 产出，不重做 |
-| Growth & Risk 输出 | `analysis/integrated_operator_judgment.json` 的 5 个增长/风控字段 | Stage 10a 产出，不重做 |
+| Growth & Risk 输出 | `analysis/integrated_operator_judgment.json` 的 4 个增长/风控字段 | Stage 10a 产出，不重做 |
 | 市场结构证据 | `market_structure/market_structure_evidence_packet.json` | 交叉核验用 |
 | 搜索需求证据 | `search_demand/search_demand_evidence_packet.json` | 交叉核验用 |
 | VOC 证据 | `review_voc/voc_evidence_packet.json` | 交叉核验用 |
@@ -35,13 +35,13 @@
 
 ## 输出
 
-写入 `analysis/integrated_operator_judgment.json` 的**决策摘要字段**，并将 Stage 10a 的 10 个深度分析字段**合并写入同一文件**。
+写入 `analysis/integrated_operator_judgment.json` 的**决策摘要字段**，并将 Stage 10a 的 9 个深度分析字段**合并写入同一文件**。
 
 ### 决策摘要（本 Agent 产出）
 
 | 字段 | 说明 |
 |---|---|
-| `schema_version` | `judgment-v2` |
+| `schema_version` | `p7-judgment-v2` |
 | `final_verdict` | `go` / `watch` / `no_go` / `blocked` |
 | `verdict_reason` | 综合判断理由（2-4 段，讲清维度间张力和最终权衡） |
 | `confidence` | `high` / `medium` / `low` |
@@ -55,7 +55,7 @@
 
 ### 深度分析（来自 Stage 10a，本 Agent 验证后合并）
 
-本 Agent 读取 Stage 10a 产出的 10 个字段，做交叉一致性检查，确认无矛盾后合并到最终 judgment：
+本 Agent 读取 Stage 10a 产出的 9 个字段，做交叉一致性检查，确认无矛盾后合并到最终 judgment：
 
 | 字段 | 产出方 | 本 Agent 职责 |
 |---|---|---|
@@ -104,7 +104,7 @@
 | VOC 机会强但市场需求弱 | 不得直接推进产品定义 |
 | 市场需求强但竞争/价格带 blocked | **看 route_breakdown**——若差异化路线竞争/价格带非 blocked，不受此限制 |
 | 多数评价 weak | 默认进入暂停或补证据 |
-| Stage 10a 10 字段任一为 `__ai_judgment__` 占位 | 不可直接放行，只能标记为当前不满足放行条件，打回 Stage 10a |
+| Stage 10a 9 字段任一为 `__ai_judgment__` 占位 | 不可直接放行，只能标记为当前不满足放行条件，打回 Stage 10a |
 
 ### 必须解释维度间张力
 
@@ -166,4 +166,4 @@
 **铁律**：本 Agent 是唯一有权给 Go/No-Go 的 Agent。`validate_judgment.py --check-verdict` 校验失败 → 打回本 Agent 修复，不可跳过。
 
 详细契约见 `references/CONTRACT_MAP.md` Stage 10b 章节。
-- 不走捷径：10 个深度分析字段必须从 Stage 10a 合并，不得省略或替换为空。
+- 不走捷径：9 个深度分析字段必须从 Stage 10a 合并，不得省略或替换为空。

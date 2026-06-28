@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate integrated_operator_judgment from P6 evaluation outputs.
+"""Generate integrated_operator_judgment skeleton from P6 evaluation outputs.
 
 Usage:
   python3 scripts/build_integrated_judgment.py <run_dir>
@@ -19,15 +19,9 @@ if str(ROOT) not in sys.path:
 from packages.research_core.pipeline.build_integrated_judgment import (
     run_integrated_judgment,
 )
-from packages.research_core.contracts.p7_contracts import (
-    P7ContractError,
-    validate_integrated_judgment,
-)
-
-
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Build integrated operator judgment from P6 evaluations."
+        description="Build integrated operator judgment skeleton from P6 evaluations."
     )
     parser.add_argument(
         "run_dir", type=Path,
@@ -65,21 +59,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: judgment generation failed: {e}", file=sys.stderr)
         return 5
 
-    try:
-        validate_integrated_judgment(judgment)
-    except P7ContractError as e:
-        print(f"ERROR: judgment validation failed: {e}", file=sys.stderr)
-        return 5
-
     output_path = run_dir / "analysis" / "integrated_operator_judgment.json"
     print(f"Wrote {output_path}")
     print(f"Updated {run_dir / 'progress.json'}")
-
-    print(
-        f"P7 judgment: verdict={judgment['final_verdict']}, "
-        f"confidence={judgment['confidence']}, "
-        f"route={judgment['recommended_route'].get('name', 'N/A') if isinstance(judgment['recommended_route'], dict) else judgment.get('recommended_route', 'N/A')}"
-    )
+    print("P7 skeleton only: final verdict must be written by Lead Operator Agent.")
+    print("Next: spawn Route Strategy Agent + Growth & Risk Agent, then run Lead Operator Agent.")
     return 0
 
 

@@ -9,13 +9,10 @@ from packages.research_core.pipeline.build_route_matrix_confirmation import (
     P3ContractError,
     run_route_matrix_confirmation,
 )
-from packages.research_core.pipeline import build_mcp_candidate_pool
-from packages.research_core.pipeline import build_route_matrix_confirmation
 from packages.research_core.pipeline.build_mcp_candidate_pool import run_candidate_pool
 from packages.research_core.pipeline.quick_market_check import run_quick_market_check
+from tests.agent_output_fixtures import write_agent_candidate_pool, write_agent_route_matrix
 
-build_mcp_candidate_pool._ALLOW_GENERATION_FALLBACK = True
-build_route_matrix_confirmation._ALLOW_GENERATION_FALLBACK = True
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,7 +24,9 @@ class P3RouteMatrixConfirmationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             run_dir = _seed_run(Path(tmpdir))
             run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+            write_agent_candidate_pool(run_dir)
             run_candidate_pool(run_dir)
+            write_agent_route_matrix(run_dir)
 
             outputs = run_route_matrix_confirmation(run_dir)
             route_packet = _load_json(outputs["route_matrix_confirm"])
@@ -49,6 +48,7 @@ class P3RouteMatrixConfirmationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             run_dir = _seed_run(Path(tmpdir))
             run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+            write_agent_candidate_pool(run_dir)
             run_candidate_pool(run_dir)
             candidate_pool_path = run_dir / "candidate_pool.json"
             candidate_pool = _load_json(candidate_pool_path)
@@ -57,6 +57,7 @@ class P3RouteMatrixConfirmationTests(unittest.TestCase):
                 candidate["status"] = "观察"
             candidate_pool["pool_status"] = "needs_user_review"
             candidate_pool_path.write_text(json.dumps(candidate_pool, ensure_ascii=False, indent=2), encoding="utf-8")
+            write_agent_route_matrix(run_dir)
 
             outputs = run_route_matrix_confirmation(run_dir)
             route_packet = _load_json(outputs["route_matrix_confirm"])
@@ -73,6 +74,7 @@ class P3RouteMatrixConfirmationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             run_dir = _seed_run(Path(tmpdir))
             run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+            write_agent_candidate_pool(run_dir)
             run_candidate_pool(run_dir)
             candidate_pool_path = run_dir / "candidate_pool.json"
             candidate_pool = _load_json(candidate_pool_path)
@@ -82,6 +84,7 @@ class P3RouteMatrixConfirmationTests(unittest.TestCase):
                 candidate["status"] = "先放弃"
                 candidate["support_level"] = "negative"
             candidate_pool_path.write_text(json.dumps(candidate_pool, ensure_ascii=False, indent=2), encoding="utf-8")
+            write_agent_route_matrix(run_dir)
 
             outputs = run_route_matrix_confirmation(run_dir)
             route_packet = _load_json(outputs["route_matrix_confirm"])
@@ -96,11 +99,13 @@ class P3RouteMatrixConfirmationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             run_dir = _seed_run(Path(tmpdir))
             run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+            write_agent_candidate_pool(run_dir)
             run_candidate_pool(run_dir)
             quick_path = run_dir / "quick_check" / "sellersprite_quick_evidence_packet.json"
             quick = _load_json(quick_path)
             quick["blocking_gaps"] = [{"type": "missing_required_quick_call", "severity": "blocking"}]
             quick_path.write_text(json.dumps(quick, ensure_ascii=False, indent=2), encoding="utf-8")
+            write_agent_route_matrix(run_dir)
 
             outputs = run_route_matrix_confirmation(run_dir)
             route_packet = _load_json(outputs["route_matrix_confirm"])
@@ -114,6 +119,7 @@ class P3RouteMatrixConfirmationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             run_dir = _seed_run(Path(tmpdir))
             run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+            write_agent_candidate_pool(run_dir)
             run_candidate_pool(run_dir)
             candidate_pool_path = run_dir / "candidate_pool.json"
             candidate_pool = _load_json(candidate_pool_path)

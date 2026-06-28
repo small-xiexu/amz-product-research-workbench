@@ -13,6 +13,7 @@ from packages.research_core.contracts import (
     validate_review_asin_batch,
 )
 from packages.research_core.pipeline.quick_market_check import run_quick_market_check
+from tests.agent_output_fixtures import write_agent_candidate_pool, write_agent_route_matrix
 from packages.research_core.pipeline.build_conflict_review import run_conflict_review
 from packages.research_core.pipeline.build_mcp_candidate_pool import run_candidate_pool
 from packages.research_core.pipeline.build_review_asin_batch import (
@@ -75,7 +76,9 @@ class AsinBatchHappyPathTests(unittest.TestCase):
             encoding="utf-8",
         )
         run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+        write_agent_candidate_pool(run_dir)
         run_candidate_pool(run_dir)
+        write_agent_route_matrix(run_dir)
         run_route_matrix_confirmation(run_dir)
         run_sellersprite_deep_dive(run_dir, snapshot_source=self._write_sellersprite_snapshot())
         run_sorftime_deep_dive(run_dir, snapshot_source=self._write_sorftime_snapshot())
@@ -234,7 +237,9 @@ class AsinBatchErrorTests(unittest.TestCase):
             encoding="utf-8",
         )
         run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+        write_agent_candidate_pool(run_dir)
         run_candidate_pool(run_dir)
+        write_agent_route_matrix(run_dir)
         run_route_matrix_confirmation(run_dir)
         run_sellersprite_deep_dive(run_dir, snapshot_source=self._write_sellersprite_snapshot())
         run_sorftime_deep_dive(run_dir, snapshot_source=self._write_sorftime_snapshot())
@@ -409,7 +414,9 @@ class AsinBatchProgressTests(unittest.TestCase):
             encoding="utf-8",
         )
         run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+        write_agent_candidate_pool(run_dir)
         run_candidate_pool(run_dir)
+        write_agent_route_matrix(run_dir)
         run_route_matrix_confirmation(run_dir)
         run_sellersprite_deep_dive(run_dir, snapshot_source=self._write_sellersprite_snapshot())
         run_sorftime_deep_dive(run_dir, snapshot_source=self._write_sorftime_snapshot())

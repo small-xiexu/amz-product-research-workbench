@@ -35,6 +35,7 @@ from packages.research_core.pipeline.build_voc_gate import (
     run_voc_gate,
 )
 from packages.research_core.pipeline.quick_market_check import run_quick_market_check
+from tests.agent_output_fixtures import write_agent_candidate_pool, write_agent_route_matrix
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,7 +61,9 @@ class VocGateHappyPathTests(unittest.TestCase):
             json.dumps(_workflow_state(), ensure_ascii=False, indent=2), encoding="utf-8"
         )
         run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+        write_agent_candidate_pool(run_dir)
         run_candidate_pool(run_dir)
+        write_agent_route_matrix(run_dir)
         run_route_matrix_confirmation(run_dir)
         run_sellersprite_deep_dive(run_dir, snapshot_source=self._write_sellersprite_snapshot())
         run_sorftime_deep_dive(run_dir, snapshot_source=self._write_sorftime_snapshot())
@@ -188,7 +191,9 @@ class VocGateDecisionTests(unittest.TestCase):
             json.dumps(_workflow_state(), ensure_ascii=False, indent=2), encoding="utf-8"
         )
         run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+        write_agent_candidate_pool(run_dir)
         run_candidate_pool(run_dir)
+        write_agent_route_matrix(run_dir)
         run_route_matrix_confirmation(run_dir)
         run_sellersprite_deep_dive(run_dir, snapshot_source=self._write_sellersprite_snapshot())
         run_sorftime_deep_dive(run_dir, snapshot_source=self._write_sorftime_snapshot())
@@ -362,7 +367,9 @@ class VocGateScopeTests(unittest.TestCase):
             json.dumps(_workflow_state(), ensure_ascii=False, indent=2), encoding="utf-8"
         )
         run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+        write_agent_candidate_pool(run_dir)
         run_candidate_pool(run_dir)
+        write_agent_route_matrix(run_dir)
         run_route_matrix_confirmation(run_dir)
         run_sellersprite_deep_dive(run_dir, snapshot_source=self._write_sellersprite_snapshot())
         run_sorftime_deep_dive(run_dir, snapshot_source=self._write_sorftime_snapshot())
@@ -424,7 +431,9 @@ class VocGateMissingInputTests(unittest.TestCase):
             json.dumps(_workflow_state(), ensure_ascii=False, indent=2), encoding="utf-8"
         )
         run_quick_market_check(run_dir, snapshot_source_dir=P1_FIXTURES)
+        write_agent_candidate_pool(run_dir)
         run_candidate_pool(run_dir)
+        write_agent_route_matrix(run_dir)
         run_route_matrix_confirmation(run_dir)
         run_sellersprite_deep_dive(run_dir, snapshot_source=self._write_sellersprite_snapshot())
         run_sorftime_deep_dive(run_dir, snapshot_source=self._write_sorftime_snapshot())
