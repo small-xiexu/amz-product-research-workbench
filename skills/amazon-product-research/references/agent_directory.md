@@ -12,7 +12,7 @@
                     │  SellerSprite Quick (1)   │
                     │  Sorftime Quick     (2)   │  ← 并行
                     └────────────┬─────────────┘
-                                 │ gate=continue
+                                 │ gate=continue/watch
                     ┌────────────▼─────────────┐
                     │    Stage 4-5 候选+路线     │
                     │  主 Agent 产出（非 spawn）  │
@@ -101,6 +101,7 @@
 | # | Agent | 阶段 | 职责范围 |
 |---|---|---|---|
 | 12 | Route Strategy Agent | 10a | 路线竞争分析：路线推荐、路线取舍、竞品对标、竞品弱点、价格带解读 |
+| 13 | Growth & Risk Agent | 10a | VOC→规格、关键词策略、风险缓解、验证路线图 |
 | 14 | Lead Operator Agent | 10b | 跨维度权衡 + 最终 Go/No-Go 决策 + 合并 10a 深度分析 |
 
 ### 报告与质检 Agent（2 个）
@@ -265,11 +266,11 @@
 - **角色**: 资深亚马逊运营增长与风控分析师
 - **职责**: 聚焦需求端和风控端分析。必须回查原始证据
 - **输入**: VOC Opportunity / Risk / Data Quality 评价 + Search Demand + Market Structure + VOC 证据包
-- **输出**: `analysis/integrated_operator_judgment.json` 的 5 个字段：
+- **输出**: `analysis/integrated_operator_judgment.json` 的 4 个字段：
   1. `voc_to_spec` — VOC 痛点 → 产品规格推导
   2. `keyword_strategy` — 关键词策略（主攻/可测/否定）
   3. `risk_mitigation` — 风险缓解路径
-  5. `validation_roadmap` — 下一步验证路线图
+  4. `validation_roadmap` — 下一步验证路线图
 - **调度**: 与 Route Strategy Agent 并行 spawn
 - **VOC 降级规则**: 有效评论 < 30 条 → 自动标注 `data_note`，不强推规格结论
 - **不可以**: 不做 final_verdict、不涉及路线推荐/竞品对标
@@ -302,7 +303,7 @@
 - **职责**: 读取 seed + judgment + 证据包 → 增强 `report_data.json`（转录判断，不新增数字） → 手写 `<中文品名>_分析报告.html`
 - **HTML 报告结构**: Hero → 类目全景 → 核心竞品 → 用户痛点→产品规格 → 价格带分布 → 关键词与流量策略 → 风险与下一步
 - **反捏造红线**: 禁止凭空编造数字、禁止篡改来源数据、禁止模糊溯源、禁止跨源混淆、禁止以偏概全
-- **视觉规范**: 绿色 Hero、卡片分区、4 种标签、1100px 宽。遵循 `references/report_design_spec.md`
+- **视觉规范**: 蓝色 Hero、卡片分区、5 种标签、1100px 宽。遵循 `references/report_design_spec.md`
 - **不可以**: 不新增证据包外数字、不把推断当事实、不出现内部术语（Agent/MCP/tool/spawn/packet）
 
 ---

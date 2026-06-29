@@ -1,6 +1,15 @@
 # 全流程优化计划 — 基于宠物牵引绳 Run 复盘
 
-**日期**：2026-06-26 | **来源**：pet-leash-us 全 13 Stage 实战 | **状态**：待认领
+**日期**：2026-06-26 | **来源**：pet-leash-us 全 13 Stage 实战 | **状态**：已吸收，保留为历史复盘
+
+## 本次低风险文档收口（2026-06-29）
+
+- [x] 统一调度、进度、Agent 目录文档口径
+  - 验收：已修正 gate=watch 触发、progress 状态枚举、Agent 目录字段/视觉口径，并通过 `scripts/dev_verify.sh`。
+- [x] 更新本计划状态，关闭已由当前实现吸收的旧待办
+  - 验收：已把旧 P0/P1/P2 优化项改为当前实现状态对照，并通过 `scripts/dev_verify.sh`。
+- [x] 运行文档相关校验和通用红线扫描
+  - 验收：`scripts/dev_verify.sh` 通过，447 个测试通过、2 个跳过，`generic_redline: OK`。
 
 ---
 
@@ -14,11 +23,25 @@
 
 | 维度 | 状态 |
 |------|------|
-| 全流程可跑通 | 是——pet-leash-us 已走完 13 Stage，交付物通过 QA |
-| 脚本自动化率 | ~40%——Stage 9-12 脚本全链路断裂，依赖 Agent 手工构建 |
-| 契约一致性 | 差——judgment / report_data / QA 三套字段名体系，Stage 13 才发现 |
-| MCP 溯源性 | 不可用——快照空壳，只能溯源到 evidence packet 层 |
-| 问题记录 | 9 个 issue 已写入 `docs/issue_log/2026-06-26_pet-leash-run-issues.md` |
+| 全流程可跑通 | 当前测试链路已覆盖核心阶段，历史首轮 run 问题已被后续 P0-P8 修复吸收 |
+| 脚本自动化率 | 已从历史 40% 状态提升；Stage 9-12 断裂问题已由 P6/P7/P8 测试覆盖 |
+| 契约一致性 | 已建立 `CONTRACT_MAP.md`、阶段校验脚本和 Agent 边界文档 |
+| MCP 溯源性 | 已要求 Evidence Packet + snapshot + source_path 三级溯源；缺快照时按数据质量规则处理 |
+| 本计划用途 | 历史复盘与优化来源，不再作为活跃执行计划 |
+
+## 旧优化项状态
+
+| 优化项 | 当前状态 | 依据 |
+|---|---|---|
+| OPT-01 类型守卫 | 已吸收 | `safe_get` 已存在，回归测试覆盖裸 string / source_path 场景 |
+| OPT-02 评价汇总纯汇总 | 已吸收 | `build_evaluation_summary.py` 只聚合 Agent 评价，不再自行生成评价 |
+| OPT-03 字段名统一 | 已吸收 | P7/P8 报告交付测试覆盖 `report_data`、judgment、QA 字段契约 |
+| OPT-04 Stage 6 契约校验前置 | 已吸收 | `validate_evidence_packet.py` 已进入主 Skill 的 Stage 6 阻断校验 |
+| OPT-05 VOC Evidence Agent 执行 | 已吸收为流程规则 | Stage 8 明确强制 spawn VOC Evidence Agent；真实执行仍依赖当前运行环境 |
+| OPT-06 Agent 工程约束 | 已吸收 | `multi_agent_dispatch.md` 已统一禁止 heredoc/内联大脚本写文件 |
+| OPT-07 轻量路线 | 已吸收 | `data_completeness_check.json` tier + P6 `tier_light_skipped` 已实现 |
+| OPT-08 简化快照 | 部分吸收 | 当前主路径要求完整 snapshot；缺失时通过数据质量和 QA 降级暴露，不再按原方案新增简化格式 |
+| OPT-09 HTML QA 刚性 | 已调整 | QA 允许 CSS 变体和未知 class warning，但保留关键结构阻断 |
 
 ---
 
