@@ -109,6 +109,8 @@ PUBLIC_TEXT_REPLACEMENTS: tuple[tuple[str, str], ...] = (
     ("Stage 10a validation roadmap", "验证路线图"),
     ("Stage 10a", "深度分析阶段"),
     ("validation roadmap", "验证路线图"),
+    ("low_review_sample_count", "低评论可验证样本"),
+    ("known_monthly_sales_asin_count", "有明确月销证据的样本"),
 )
 
 
@@ -121,6 +123,7 @@ PUBLIC_TEXT_REGEX_REPLACEMENTS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"置信度\s*(High|Medium|Low|high|medium|low)"), "判断置信度\\1"),
     (re.compile(r"\bfinal_verdict\s*=\s*(go|watch|no_go|blocked)\b"), "最终判断为\\1"),
     (re.compile(r"\brating\s*=\s*(strong|watch|weak|blocked)\b"), "维度评级为\\1"),
+    (re.compile(r"\b(\d{1,3})/(strong|watch|weak|blocked)\b"), "\\1（维度评级为\\2）"),
     (re.compile(r"\bdata_quality\s+blocked\b"), "数据质量当前不满足放行条件"),
     (re.compile(r"\bblocked/weak\b"), "阻断或偏弱"),
     (re.compile(r"\bStage\s*\d+[a-z]?\b", re.IGNORECASE), "业务分析阶段"),

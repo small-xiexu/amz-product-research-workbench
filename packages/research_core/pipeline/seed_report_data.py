@@ -73,6 +73,70 @@ def _recommended_price_from_routes(route_judgment: list[dict[str, Any]]) -> str:
     return "待补"
 
 
+def _append_unique(target: list[str], value: Any) -> None:
+    for item in as_list(value):
+        text = str(item).strip()
+        if text and text not in target:
+            target.append(text)
+
+
+def _months_from_trend_points(trend_points: Any, *, highest: bool) -> list[str]:
+    if not isinstance(trend_points, dict):
+        return []
+    ranked: list[tuple[str, float]] = []
+    for month, value in trend_points.items():
+        number = numeric_value(value)
+        if number is not None:
+            ranked.append((str(month), number))
+    ranked.sort(key=lambda row: row[1], reverse=highest)
+    return [month for month, _ in ranked[:3]]
+
+
+def _seasonality_summary(raw: Any) -> dict[str, Any]:
+    if isinstance(raw, dict):
+        return raw
+
+    peak_months: list[str] = []
+    trough_months: list[str] = []
+    peak_trough_ratio = ""
+    max_value: float | None = None
+    min_value: float | None = None
+
+    for item in as_list(raw):
+        if not isinstance(item, dict):
+            continue
+        _append_unique(peak_months, item.get("peak_months"))
+        _append_unique(trough_months, item.get("trough_months"))
+        if not peak_months:
+            for month in _months_from_trend_points(item.get("trend_points"), highest=True):
+                _append_unique(peak_months, month)
+        if not trough_months:
+            for month in _months_from_trend_points(item.get("trend_points"), highest=False):
+                _append_unique(trough_months, month)
+        if not peak_trough_ratio:
+            peak_trough_ratio = str(item.get("peak_trough_ratio") or "").strip()
+
+        trend_points = item.get("trend_points")
+        if isinstance(trend_points, dict):
+            values = [numeric_value(value) for value in trend_points.values()]
+            values = [value for value in values if value is not None]
+            if values:
+                item_max = max(values)
+                item_min = min(values)
+                max_value = item_max if max_value is None else max(max_value, item_max)
+                if item_min > 0:
+                    min_value = item_min if min_value is None else min(min_value, item_min)
+
+    if not peak_trough_ratio and max_value is not None and min_value:
+        peak_trough_ratio = f"{max_value / min_value:.1f}:1"
+
+    return {
+        "peak_months": peak_months,
+        "trough_months": trough_months,
+        "peak_trough_ratio": peak_trough_ratio or "待补",
+    }
+
+
 
 def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
     """从脚本分析 dict 生成初始 report_data.json，供 AI 增强。"""
@@ -82,7 +146,7 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
     one_sentence = analysis.get("one_sentence_conclusion", "")
     market = analysis.get("seller_sprite_validation") or {}
     cat_opp = analysis.get("category_opportunity") or {}
-    cat_seasonality = cat_opp.get("category_seasonality") or {}
+    cat_seasonality = _seasonality_summary(cat_opp.get("category_seasonality") or {})
     voc_spec = analysis.get("voc_spec_translation") or {}
     kw_pool = analysis.get("keyword_pool") or {}
     synthesis = analysis.get("market_synthesis") or {}
@@ -110,7 +174,7 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
             "opportunity_level": {"value": pb.get("opportunity_level", ""), "source_path": f"{source_base}.opportunity_level"},
             "bar_height": {
                 "value": pb.get("bar_height", 0),
-                "source_path": f"{source_base}.bar_height",
+                "source_path": source_base,
             },
             "judgment": pb.get("reason", ""),
             "source_path": source_base,
@@ -125,10 +189,10 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
         competitors.append({
             "asin": {"value": asin.get("asin", ""), "source_path": f"{source_base}.asin"},
             "route": {"value": asin.get("route_ref", ""), "source_path": f"{source_base}.route_ref"},
-            "brand": {"value": brand_val, "source_path": f"{source_base}.brand"},
+            "brand": {"value": brand_val, "source_path": f"{source_base}.brand" if brand_val else source_base},
             "price": {"value": asin.get("price", ""), "source_path": f"{source_base}.price"},
             "monthly_sales": {"value": asin.get("monthly_sales", ""), "source_path": f"{source_base}.monthly_sales"},
-            "rating": {"value": rating_val, "source_path": f"{source_base}.rating"},
+            "rating": {"value": rating_val, "source_path": f"{source_base}.rating" if rating_val else source_base},
             "rating_count": {"value": asin.get("rating_count", ""), "source_path": f"{source_base}.rating_count"},
             "asin_role": {"value": asin.get("asin_role", ""), "source_path": f"{source_base}.asin_role"},
             "judgment": asin.get("similarity_reason", ""),
@@ -159,7 +223,7 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
                     source_base = f"analysis.keyword_pool.roles.{role}[{index}]"
                     ms_vol = item.get("monthly_search_volume", "")
                     cpc_val = item.get("cpc", "")
-                    comp_cnt = item.get("competitor_count", "")
+                    comp_cnt = item.get("competitor_count", item.get("competition_count", ""))
                     keywords.append({
                         "role": role,
                         "keyword": {"value": item.get("keyword", item.get("term", "")), "source_path": f"{source_base}.keyword"},
@@ -173,7 +237,7 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
                         },
                         "competitor_count": {
                             "value": comp_cnt,
-                            "source_path": f"{source_base}.competitor_count",
+                            "source_path": f"{source_base}.competitor_count" if "competitor_count" in item else f"{source_base}.competition_count",
                         },
                         "strategy": item.get("reason", item.get("recommended_action", "")),
                         "source_path": source_base,
@@ -329,4 +393,3 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
         "gonogo_conditions": gonogo,
         "next_steps": next_steps,
     }
-

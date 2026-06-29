@@ -28,6 +28,7 @@ def xlsx_sheets_from_report_data(
     judgment = None
     if judgment_path and judgment_path.exists():
         judgment = json.loads(judgment_path.read_text(encoding="utf-8"))
+    route_name_map = _load_route_name_map(report_data_path)
 
     def _rv(val: Any) -> Any:
         return public_value(_report_value(val))
@@ -38,7 +39,7 @@ def xlsx_sheets_from_report_data(
     sheets.append(("路线计分卡", _route_scorecard(rd, judgment, _rv)))
 
     # ── Sheet 2: 竞品拆解 ───────────────────────────────────────────────
-    sheets.append(("竞品拆解", _competitor_breakdown(rd, judgment, _rv)))
+    sheets.append(("竞品拆解", _competitor_breakdown(rd, judgment, _rv, route_name_map)))
 
     # ── Sheet 3: 关键词矩阵 ─────────────────────────────────────────────
     sheets.append(("关键词矩阵", _keyword_matrix(rd, _rv)))
@@ -59,6 +60,27 @@ def _clean_sheets(
     ]
 
 
+def _load_route_name_map(report_data_path: Path) -> dict[str, str]:
+    run_dir = report_data_path.parent.parent
+    route_matrix_path = run_dir / "route_matrix_confirm.json"
+    if not route_matrix_path.exists():
+        return {}
+    try:
+        route_matrix = json.loads(route_matrix_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, ValueError):
+        return {}
+
+    mapping: dict[str, str] = {}
+    for route in as_list(route_matrix.get("selected_routes")) + as_list(route_matrix.get("rejected_routes")):
+        if not isinstance(route, dict):
+            continue
+        route_id = str(route.get("route_id") or "").strip()
+        route_name = str(route.get("route_name") or "").strip()
+        if route_id and route_name:
+            mapping[route_id] = route_name
+    return mapping
+
+
 def _route_scorecard(rd: dict, judgment: dict | None, _rv) -> list[list[object]]:
     """路线计分卡：每条路线 × 6 维度评分 + 一句话判断。运营可改权重重新排序。"""
     header = [
@@ -68,12 +90,13 @@ def _route_scorecard(rd: dict, judgment: dict | None, _rv) -> list[list[object]]
     ]
     rows = [header]
 
-    # Try to get route breakdowns from judgment first, then fall back to evaluation summary
-    route_recs = []
-    if judgment:
-        route_recs = judgment.get("route_recommendation") or []
-        if isinstance(route_recs, dict):
-            route_recs = list(route_recs.values())
+    route_recs = rd.get("product_routes") or []
+    if not route_recs and judgment:
+        recommendation = judgment.get("route_recommendation") or []
+        if isinstance(recommendation, dict):
+            route_recs = recommendation.get("routes") or []
+        else:
+            route_recs = recommendation
 
     tradeoffs = {}
     if judgment:
@@ -109,15 +132,17 @@ def _route_scorecard(rd: dict, judgment: dict | None, _rv) -> list[list[object]]
             _rv(rec.get("risk", rec.get("risk_score", ""))),
             _rv(rec.get("data_quality", rec.get("data_score", ""))),
             _rv(rec.get("judgment", rec.get("one_line_judgment", rec.get("verdict", "")))),
-            _rv(to.get("gain", "")),
-            _rv(to.get("lose", "")),
-            _rv(to.get("best_for", "")),
-            _rv(to.get("worst_for", "")),
+            _rv(rec.get("gain", to.get("gain", ""))),
+            _rv(rec.get("lose", to.get("lose", ""))),
+            _rv(rec.get("best_for", to.get("best_for", ""))),
+            _rv(rec.get("worst_for", to.get("worst_for", ""))),
         ])
     return rows
 
 
-def _competitor_breakdown(rd: dict, judgment: dict | None, _rv) -> list[list[object]]:
+def _competitor_breakdown(
+    rd: dict, judgment: dict | None, _rv, route_name_map: dict[str, str] | None = None
+) -> list[list[object]]:
     """竞品拆解：每个核心竞品的完整画像，含主要差评点和反击方案。"""
     header = [
         "ASIN", "品牌", "月销", "价格", "评分", "评论数", "上架时间",
@@ -153,6 +178,9 @@ def _competitor_breakdown(rd: dict, judgment: dict | None, _rv) -> list[list[obj
         asin = _rv(c.get("asin", ""))
         w = weakness_map.get(asin, {})
         b = benchmark.get(asin, {})
+        route_value = _rv(c.get("route", c.get("route_ref", "")))
+        if route_name_map:
+            route_value = route_name_map.get(str(route_value), str(route_value))
         rows.append([
             asin,
             _rv(c.get("brand", "")),
@@ -161,7 +189,7 @@ def _competitor_breakdown(rd: dict, judgment: dict | None, _rv) -> list[list[obj
             _rv(c.get("rating", "")),
             _rv(c.get("rating_count", c.get("reviews", ""))),
             _rv(c.get("available_date", c.get("date_listed", ""))),
-            _rv(c.get("route", c.get("route_ref", ""))),
+            route_value,
             _rv(w.get("voc_evidence", w.get("fatal_weakness", ""))),
             _rv(b.get("strength", b.get("advantage", ""))),
             _rv(w.get("my_counter", "")),
