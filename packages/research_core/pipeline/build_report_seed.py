@@ -49,7 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     analysis = build_analysis_packet(run_dir, packets)
 
     # Step 1: Generate seed
-    seed = seed_report_data_from_analysis(analysis)
+    seed = seed_report_data_from_analysis(analysis, packets)
     report_seed_path = analysis_dir / "report_data.seed.json"
     report_seed_path.write_text(
         json.dumps(seed, ensure_ascii=False, indent=2), encoding="utf-8"

@@ -31,7 +31,60 @@ def _data_sources_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _core_search_volume_estimate(kw_pool: dict[str, Any]) -> str:
+def _brand_concentration_from_evidence(
+    market_structure: dict[str, Any], node_id: str
+) -> dict[str, Any] | None:
+    """从 market_structure evidence packet 按 node_id 提取品牌集中度。"""
+    if not market_structure or not node_id:
+        return None
+    for item in as_list(market_structure.get("evidence_items")):
+        raw = item.get("facts", {}).get("raw_value", {})
+        if isinstance(raw, dict) and raw.get("nodeIdPath") == node_id:
+            brands = raw.get("topBrands") or []
+            top3 = raw.get("top3_concentration", "")
+            if brands:
+                return {
+                    "brands": [
+                        f"{b.get('brand','')} ({b.get('unitsShare','')})"
+                        for b in brands[:8]
+                        if b.get("brand")
+                    ],
+                    "top3_concentration": top3,
+                    "brand_count": len(brands),
+                    "source_path": "market_structure.evidence_items[*].facts.raw_value.topBrands",
+                }
+    return None
+
+
+def _per_category_asins(
+    route_matrix: dict[str, Any], node_id: str
+) -> list[dict[str, Any]]:
+    """从 route_matrix 中提取属于指定 node_id 类目的参考 ASIN。"""
+    if not route_matrix or not node_id:
+        return []
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for route in as_list(route_matrix.get("route_options") or route_matrix.get("selected_routes")):
+        # 检查该类目是否在此路线的 candidate_categories 中
+        cats = as_list(route.get("candidate_categories"))
+        in_route = any(
+            (isinstance(c, dict) and str(c.get("nodeIdPath", "")).endswith(node_id))
+            or (isinstance(c, dict) and str(c.get("path", "")).find(node_id) != -1)
+            for c in cats
+        )
+        if not in_route:
+            continue
+        for asin in as_list(route.get("reference_asins")):
+            aid = asin.get("asin", "") if isinstance(asin, dict) else str(asin)
+            if aid and aid not in seen:
+                seen.add(aid)
+                result.append({
+                    "asin": aid,
+                    "brand": asin.get("brand", "") if isinstance(asin, dict) else "",
+                    "monthly_sales": asin.get("monthly_sales", "") if isinstance(asin, dict) else "",
+                    "role": asin.get("role", "") if isinstance(asin, dict) else "",
+                })
+    return result
     """从关键词池聚合估计核心词月搜索量。"""
     roles = kw_pool.get("roles") if isinstance(kw_pool.get("roles"), dict) else {}
     # 优先取 main_traffic 角色的关键词月搜总和
@@ -138,8 +191,12 @@ def _seasonality_summary(raw: Any) -> dict[str, Any]:
 
 
 
-def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
-    """从脚本分析 dict 生成初始 report_data.json，供 AI 增强。"""
+def seed_report_data_from_analysis(analysis: dict[str, Any], packets: dict[str, Any] | None = None) -> dict[str, Any]:
+    """从脚本分析 dict 生成初始 report_data.json，供 AI 增强。
+
+    packets 为可选的证据包 dict（同 load_packets 返回值），用于直接抽取品牌集中度、
+    按类目拆分参考 ASIN 等分析 dict 未携带的细粒度字段。
+    """
     run_id = analysis.get("run_id", "")
     verdict_raw = analysis.get("verdict", "")
     confidence = analysis.get("confidence", "")
@@ -286,13 +343,9 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
         "avg_rating": {"label": "类目均分", "value": primary.get("avg_rating", "待补"), "source_path": "analysis.seller_sprite_validation.primary_market.avg_rating"},
     }
 
-    representative_asins = []
-    for index, asin in enumerate((analysis.get("reference_asin_pool") or [])[:5]):
-        representative_asins.append({
-            "asin": asin.get("asin", ""),
-            "monthly_sales": asin.get("monthly_sales", ""),
-            "source_path": f"analysis.reference_asin_pool[{index}]",
-        })
+    # Per-category ASINs and brand concentration from evidence packets
+    route_matrix = (packets or {}).get("route_matrix") or {}
+    market_structure = (packets or {}).get("market_structure") or {}
 
     categories = []
     category_rows = cat_candidates or [top_cat]
@@ -300,14 +353,30 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
         source_base = f"analysis.category_opportunity.category_candidates[{index}]"
         has_candidate = bool(cat_candidates)
         category_name = category.get("category_name") or primary.get("label", "")
+        node_id = str(category.get("node_id", ""))
+
+        # Brand concentration from evidence
+        brand_concentration = _brand_concentration_from_evidence(market_structure, node_id)
+
+        # Per-category ASINs (fall back to generic pool if packets not available)
+        per_asins = _per_category_asins(route_matrix, node_id) if packets else []
+        if not per_asins:
+            for asin_index, asin in enumerate((analysis.get("reference_asin_pool") or [])[:5]):
+                per_asins.append({
+                    "asin": asin.get("asin", ""),
+                    "brand": asin.get("brand", ""),
+                    "monthly_sales": str(asin.get("monthly_sales", "")),
+                    "role": asin.get("asin_role", ""),
+                })
+
         categories.append({
             "category_name": {
                 "value": category_name,
                 "source_path": f"{source_base}.category_name" if has_candidate and category.get("category_name") else "analysis.seller_sprite_validation.primary_market.label",
             },
             "node_id": {
-                "value": category.get("node_id", ""),
-                "source_path": f"{source_base}.node_id" if has_candidate and category.get("node_id") else "analysis.seller_sprite_validation.primary_market.label",
+                "value": node_id,
+                "source_path": f"{source_base}.node_id" if has_candidate and node_id else "analysis.seller_sprite_validation.primary_market.label",
             },
             "category_path": {
                 "value": category.get("category_path", ""),
@@ -325,7 +394,13 @@ def seed_report_data_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
                 "value": category.get("product_count_in_category", category.get("matched_asin_count", primary.get("sample_count", ""))),
                 "source_path": f"{source_base}.matched_asin_count" if has_candidate and category.get("matched_asin_count") else "analysis.seller_sprite_validation.primary_market.sample_count",
             },
-            "representative_asins": representative_asins,
+            "brand_concentration": brand_concentration or {
+                "brands": [],
+                "top3_concentration": "",
+                "brand_count": 0,
+                "source_path": "__ai_judgment__",
+            },
+            "representative_asins": per_asins,
             "avg_price": {
                 "value": category.get("avg_price", category.get("average_price", primary.get("avg_price_usd", ""))),
                 "source_path": f"{source_base}.avg_price" if has_candidate and category.get("avg_price") else "analysis.seller_sprite_validation.primary_market.avg_price_usd",
