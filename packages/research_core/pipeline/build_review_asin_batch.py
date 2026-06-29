@@ -443,6 +443,47 @@ def _assign_roles(
         route_ref = selected_routes[0] if selected_routes else "<unknown_route>"
         items.append(_make_item(asin, info, _infer_role(info), route_ref, _infer_reason(info, route_ref)))
 
+    # Third pass: ensure each selected route has critical VOC roles covered.
+    # primary_reference and painpoint_reference are the most important for
+    # VOC analysis — if missing, promote the best available ASIN on that route.
+    CRITICAL_ROLES = ("primary_reference", "painpoint_reference")
+    for route_ref in selected_routes:
+        route_items = [it for it in items if it.get("route_ref") == route_ref
+                       and it.get("asin_role") != "excluded_reference"]
+        if not route_items:
+            continue
+        covered_roles = {it.get("asin_role") for it in route_items}
+        for role in CRITICAL_ROLES:
+            if role in covered_roles:
+                continue
+            # primary_reference: pick highest rating + most reviews among non-painpoint candidates
+            # painpoint_reference: pick lowest rating
+            if role == "primary_reference":
+                candidates = sorted(
+                    [it for it in route_items if it.get("asin_role") != "painpoint_reference"],
+                    key=lambda it: (
+                        -(it.get("metrics", {}).get("rating") or 0),
+                        -(it.get("metrics", {}).get("ratings_count") or 0),
+                    ),
+                )
+            else:
+                candidates = sorted(
+                    route_items,
+                    key=lambda it: (it.get("metrics", {}).get("rating") if it.get("metrics", {}).get("rating") is not None else float('inf')),
+                )
+            if candidates:
+                promoted = candidates[0]
+                old_role = promoted["asin_role"]
+                # Update the item in-place in items list
+                for idx, it in enumerate(items):
+                    if it.get("asin") == promoted["asin"] and it.get("route_ref") == route_ref:
+                        info = all_asins.get(promoted["asin"], {})
+                        items[idx] = _make_item(
+                            promoted["asin"], info, role, route_ref,
+                            f"promoted from {old_role} to ensure {role} coverage on route '{route_ref}'",
+                        )
+                        break
+
     # Sort by priority
     role_rank = {role: i for i, role in enumerate(PRIORITY_ORDER)}
     items.sort(key=lambda item: (role_rank.get(item.get("asin_role", ""), 99), first_text(item.get("asin"))))

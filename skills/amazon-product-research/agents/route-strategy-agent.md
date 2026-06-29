@@ -144,7 +144,9 @@
 ## 禁止
 
 - 不输出 final_verdict、Go/No-Go 判断
-- 不涉及关键词策略、风险缓解、验证路线图
+- **不涉及关键词策略、搜索量分层、CPC 分析**（属于 Growth & Risk Agent）
+- **不涉及 VOC→规格推导、痛点优先级排序**（属于 Growth & Risk Agent）
+- **不涉及风险缓解方案、验证路线图**（属于 Growth & Risk Agent）
 - 不生成 HTML 或 report_data.json
 - 不新增证据包外的数字
 

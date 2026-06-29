@@ -99,6 +99,7 @@
 | `hot_product_features` | 入围路线热销品共同特征 |
 | `seller_sprite_conflicts` | 与卖家精灵数据不一致的地方 |
 | `data_gaps` | 尚未调用或数据不足的关键词/ASIN |
+| `data_unavailable` | **（强制）** 已尝试调用 MCP 工具但返回 null/空/无数据的指标清单。每条注明：尝试的工具名、目标 ASIN 或关键词、缺失的具体字段。下游 Agent 看到此字段后不得再重复尝试获取同一数据 |
 
 `keyword_pool_by_role` 必须按固定角色输出：
 

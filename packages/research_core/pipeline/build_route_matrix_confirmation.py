@@ -292,6 +292,12 @@ def validate_route_matrix_confirm(route_packet: dict[str, Any]) -> None:
         raise P3ContractError("route_matrix_confirm.decision is invalid")
     if not isinstance(route_packet.get("route_options"), list) or not route_packet["route_options"]:
         raise P3ContractError("route_matrix_confirm.route_options must not be empty")
+    if not isinstance(route_packet.get("route_matrix"), list):
+        raise P3ContractError(
+            "route_matrix_confirm.route_matrix must be an array, not a string. "
+            "Agent should leave it as [] or copy route_options. "
+            f"Got type: {type(route_packet.get('route_matrix')).__name__}"
+        )
     if not isinstance(route_packet.get("evidence_refs"), list) or not route_packet["evidence_refs"]:
         raise P3ContractError("route_matrix_confirm.evidence_refs must not be empty")
     if not isinstance(route_packet.get("voc_readiness"), dict):

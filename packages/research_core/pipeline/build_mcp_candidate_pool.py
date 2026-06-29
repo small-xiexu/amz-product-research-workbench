@@ -30,6 +30,7 @@ QUICK_CHECK_DIR = "quick_check"
 
 _TECHNICAL_KEY_PATTERNS = (
     "source_name", "source_agent", "source_ref", "source_refs",
+    "source", "data_source", "source_type", "source_id",
     "evidence_ref", "evidence_refs", "source_packet_path",
     "schema_version", "packet_id", "packet_version",
     "pool_id", "data_sources", "generation_provenance", "metadata",
@@ -50,6 +51,7 @@ _TECHNICAL_KEY_PATTERNS = (
     "decision_reason", "selection_reason",
     "verdict_reason", "biggest_opportunity", "biggest_risk",
     "recommendation",
+    "handoff_notes",
 )
 
 _PLACEHOLDER_PATTERN = re.compile(

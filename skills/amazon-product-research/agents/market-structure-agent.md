@@ -105,6 +105,7 @@
 | `route_market_fit` | 各路线在卖家精灵数据中的价格、销量、评论门槛和新品机会 |
 | `top100_quality` | Top100 完整性、缺失字段、重复 ASIN、异常值 |
 | `data_gaps` | 卖家精灵侧仍缺的字段和影响 |
+| `data_unavailable` | **（强制）** 已尝试调用 MCP 工具但返回 null/空/无数据的指标清单。每条注明：尝试的工具名、目标 ASIN 或类目、缺失的具体字段。下游 Agent 看到此字段后不得再重复尝试获取同一数据 |
 
 **快照输出（必须）**：完成 evidence packet 写入后，同步生成完整快照到 `mcp_snapshots/sellersprite_deep_snapshot.json`。每个 MCP 工具调用必须输出完整 `tool_calls` + `tool_results` 结构（非简化 `tool_summaries`）：
 

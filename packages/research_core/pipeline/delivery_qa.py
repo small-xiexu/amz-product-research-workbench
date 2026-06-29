@@ -1053,8 +1053,23 @@ def _values_match(reported: Any, resolved: Any) -> bool:
         if rpt_parts[-min_len:] == rsl_parts[-min_len:]:
             return True
 
+    def _strip_annotation(s: str) -> str:
+        """Remove parenthetical annotations added for readability enhancement.
+
+        Examples:
+          "16,236 units（含混池品，纯 filter 约 12K）" → "16,236 units"
+          "~1.2M (includes variants)" → "~1.2M"
+        """
+        import re
+        # Chinese full-width parentheses
+        s = re.sub(r'（[^）]*）', '', s)
+        # ASCII parentheses — only when preceded by a space (avoids stripping legit data)
+        s = re.sub(r'\s*\([^)]*\)', '', s)
+        return s.strip()
+
     def _normalize(v: Any) -> str:
         s = str(v).strip().lower()
+        s = _strip_annotation(s)
         s = s.replace("$", "").replace(",", "").replace(" ", "")
         for suffix in ("units", "unit", "%", "usd", "cny"):
             if s.endswith(suffix):

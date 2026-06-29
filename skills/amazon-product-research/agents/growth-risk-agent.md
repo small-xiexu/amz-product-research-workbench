@@ -168,7 +168,9 @@ P0/P1 痛点 → 具体产品规格要求 → 竞品对标差距 → 差异化�
 ## 禁止
 
 - 不输出 final_verdict、Go/No-Go 判断
-- 不涉及路线推荐、竞品对标、价格带解读
+- **不涉及路线推荐、路线取舍、路线优先级排序**（属于 Route Strategy Agent）
+- **不涉及竞品对标 ASIN 选择、竞品弱点地图**（属于 Route Strategy Agent）
+- **不涉及价格带竞争密度、价格段切入建议**（属于 Route Strategy Agent）
 - 不生成 HTML 或 report_data.json
 - 不新增证据包外的数字（估算必须标注假设前提）
 
