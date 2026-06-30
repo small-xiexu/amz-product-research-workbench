@@ -371,6 +371,7 @@ tbody tr:last-child td { border-bottom: 0; }
   border-radius: var(--radius-full);
   background: #F0EDEA;
   color: #57534E;
+  white-space: nowrap;
 }
 
 /* ============ Tags: 5 variants ============ */

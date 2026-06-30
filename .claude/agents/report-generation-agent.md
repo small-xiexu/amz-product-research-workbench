@@ -308,7 +308,7 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 
 | 表格 | 列数 | 表总宽 | 各列像素宽 |
 |---|---|---|---|
-| 路线对比表 | 6 | 1480px | 路线 245 / 优先级 90 / 判罚 100 / 核心机会 315 / 核心风险 320 / Tradeoff 410 |
+| 路线对比表 | 6 | 详见说明 | **路线列宽 ≥ 280px**（需容纳英文路线名不溢出，最长英文名约 40 字符），优先级 90 / 判罚 100 / 核心机会 315 / 核心风险 320 / Tradeoff 410；表格总宽 = 路线 + 1515px |
 | 类目全景表 | 8 | 1480px | 类目 160 / Node ID 105 / 竞争密度 120 / 供需比 130 / 价格区间 105 / 品牌集中度 370 / 代表 ASIN 370 / 定位 120 |
 | 核心竞品表 | 8 | 1450px | ASIN 130 / 品牌 170 / 月销 70 / 价格 75 / 评分评论 95 / 主要差评点 450 / 我的反击 380 / 难度 80 |
 | 痛点-规格表 | 5 | 1240px | 优先级 90 / 痛点维度 160 / 竞品问题 340 / 规格要求 330 / 竞品差距 320 |
@@ -317,7 +317,7 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 | 验证路线图表 | 4 | 980px | 阶段 160 / 动作 400 / 通过标准 240 / 不通过则 180 |
 
 通用原则：
-- 短值列（价格、评分、评论数、优先级、判罚等）用 `class="tc"` 居中。所有表头默认居中；长文本列正文保持左对齐但垂直居中，禁止为了“居中”牺牲可读性。
+- 短值列（价格、评分、评论数、优先级、判罚等）用 `class=”tc nowrap”` 居中且禁止换行。所有表头默认居中；长文本列正文保持左对齐但垂直居中，禁止为了”居中”牺牲可读性。
 - 表格一律居中嵌入视口：`.table-scroll table` 必须至少 `min-width:100%` 且左右自动外边距居中。若手写表宽小于容器，允许横向滚动但不能缩成半张表。
 - ASIN、Node ID、关键词等标识型短文本必须禁止断行：ASIN 用 `class="asin-cell"`，关键词/Node ID 等用 `class="keyword-cell"` 或 `class="tc nowrap"`。
 - 类目全景表已拆为两列：**品牌集中度（前4名）** 和 **代表 ASIN 及月销**，分别用 `class=”brand-list-cell”`。每列只放一行数据，`·` 分隔。
@@ -325,7 +325,7 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 - **代表 ASIN 及月销列**：格式 `BrandA (9,151月销) · BrandB (2,532月销) · BrandC (1,838月销)`。数据来自 `category_panorama.categories[*].representative_asins`。如该类目有特殊说明（如”主力为拉链/遥控器/开关”），在 ASIN 列表后以 `— 说明` 追加。
 - **铁律**：两个列的数据维度不同（品牌份额 vs ASIN 月销），禁止合并、互换或在一个列里放另一个维度的数据。
 - 长文本列（核心机会、核心风险、主要差评点、我的反击等）列宽 ≥ 260px
-- **路线列（路线对比表）**：路线中文名和英文括号名允许上下两行，但英文括号整体禁止拆行。格式：`<td class="route-cell"><div class="route-name">中文路线名<span class="route-en">(English Route Name)</span></div></td>`。路线列宽 ≥ 245px；`.route-en` 已设置 `white-space:nowrap`。既然表格有 `.table-scroll`，禁止为了塞进视口把路线名/英文名挤成多行。
+- **路线列（路线对比表）**：路线中文名和英文括号名允许上下两行，但英文括号整体禁止拆行。格式：`<td class="route-cell"><div class="route-name">中文路线名<span class="route-en">(English Route Name)</span></div></td>`。路线列宽 ≥ 280px（需容纳最长英文路线名，如 40 字符不换行）；`.route-en` 已设置 `white-space:nowrap`。既然表格有 `.table-scroll`，禁止为了塞进视口把路线名/英文名挤成多行。
 - **关键词策略表**：主攻/可测词表固定 980px，4 列分别为 260 / 100 / 80 / 540；明确否定词表也按 980px 处理，2 列分别为 260 / 720。关键词、月搜索量、CPC 等标识/短值列用 `.keyword-cell` 或 `.tc`；策略说明/理由是长文本列，保持默认左对齐但垂直居中，禁止加 `.tc`。
 - 优先级值用 `<span class="pill">P1</span>`，不裸写数字
 - **品牌列（核心竞品表）**：品牌名在上、角色标签在下，并在单元格内水平/垂直居中，禁止横排挤在一行。格式：`<td class="brand-cell"><div class="brand-stack"><strong>品牌名</strong><span class="tag ...">角色标签</span></div></td>`。列宽 ≥ 170px。CSS 已提供 `.brand-cell { text-align:center; vertical-align:middle }`、`.brand-stack { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px }`、`.brand-cell strong { display:block }` 与 `.brand-cell .tag { display:inline-block }`
