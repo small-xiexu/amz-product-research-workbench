@@ -22,7 +22,7 @@ max_retries: `2`
 执行前先读取这些事实源：
 - `skills/amazon-product-research/references/runtime_rules.md`
 - `skills/amazon-product-research/SKILL.md`
-- `skills/amazon-product-research/references/CONTRACT_MAP.md`
+- `skills/amazon-product-research/references/contracts/evaluation.md`
 - `skills/amazon-product-research/references/multi_agent_dispatch.md`
 
 允许产出：
@@ -152,5 +152,5 @@ max_retries: `2`
 | `route_breakdown` | 校验覆盖每条保留路线 | 只写大盘分数不写 route_breakdown |
 | `route_breakdown[].rating` | 校验为路线级评级 | 全部路线用相同 rating，未做独立判断 |
 
-详细契约见 `references/CONTRACT_MAP.md` Stage 9 章节。
+详细契约见 `references/contracts/evaluation.md` Stage 9 章节。
 

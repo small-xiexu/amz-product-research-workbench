@@ -629,7 +629,43 @@ def normalize_price_band_opportunity(market: dict[str, Any], run_dir: Path | Non
         if product_path:
             products = _parse_product_top100(product_path)
             normalized = _compute_price_bands(products)
+    if not normalized and run_dir is not None:
+        # 最后降级：从 candidate_pool.json 的 top_products 价格做估算
+        cp_prices = _prices_from_candidate_pool(run_dir)
+        if cp_prices:
+            normalized = _compute_price_bands(cp_prices)
     return normalized
+
+
+def _prices_from_candidate_pool(run_dir: Path) -> list[dict[str, Any]]:
+    """从 candidate_pool.json 提取 top_products 的价格列表，作为价格带估算的降级数据源。"""
+    cp_path = run_dir / "candidate_pool.json"
+    if not cp_path.exists():
+        return []
+    try:
+        with open(cp_path, encoding="utf-8") as f:
+            cp = json.load(f)
+    except Exception:
+        return []
+    products: list[dict[str, Any]] = []
+    seen = set()
+    for c in as_list(cp.get("candidates", [])):
+        if not isinstance(c, dict):
+            continue
+        for p in as_list(c.get("top_products", [])):
+            if not isinstance(p, dict):
+                continue
+            asin = p.get("asin", "")
+            if not asin or asin in seen:
+                continue
+            seen.add(asin)
+            price = p.get("price")
+            if price is not None:
+                try:
+                    products.append({"asin": asin, "price": float(price)})
+                except (TypeError, ValueError):
+                    pass
+    return products
 
 
 def score_new_release_opportunities(rows: list[Any]) -> list[dict[str, Any]]:

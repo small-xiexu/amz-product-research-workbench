@@ -107,7 +107,15 @@
 | `data_gaps` | 卖家精灵侧仍缺的字段和影响 |
 | `data_unavailable` | **（强制）** 已尝试调用 MCP 工具但返回 null/空/无数据的指标清单。每条注明：尝试的工具名、目标 ASIN 或类目、缺失的具体字段。下游 Agent 看到此字段后不得再重复尝试获取同一数据 |
 
-**快照输出（必须）**：完成 evidence packet 写入后，同步生成完整快照到 `mcp_snapshots/sellersprite_deep_snapshot.json`。每个 MCP 工具调用必须输出完整 `tool_calls` + `tool_results` 结构（非简化 `tool_summaries`）：
+**快照输出（必须 — 用 Write 工具显式写入）**：
+
+完成 evidence packet 写入后，**必须使用 Write 工具**将完整快照写入 `mcp_snapshots/sellersprite_deep_snapshot.json`。
+
+**为什么必须用 Write 工具**：你在子 Agent 模式下运行，MCP tool_calls 无法被主线程自动捕获序列化。唯一可靠的方式是：每调用一个 MCP 工具后，立即将 call 元信息（call_id、tool_name、params、status、started_at、finished_at）和 result（raw_result 或 normalized_preview）记录到内存中，全部调用完成后用 Write 工具一次性写入快照 JSON。
+
+快照缺失 → Stage 13 QA 硬阻断。不可用 `snapshot_unavailable` 降级绕过。
+
+每个 MCP 工具调用必须输出完整 `tool_calls` + `tool_results` 结构（非简化 `tool_summaries`）：
 
 ```json
 {
@@ -246,4 +254,4 @@ Market Structure Agent 要给综合报告提供可读结论，而不是只给市
 | `selected_routes[]` | `build_conflict_review._route_lineage` 读 `route_id` | 用中文名代替 kebab-case `route_id` |
 | `route_refs[]` | `validate_evidence_packet._check_route_coverage` 按 `route_id` 比对 | 遗漏某条保留路线 |
 
-详细契约见 `references/CONTRACT_MAP.md` Stage 6 章节。
+详细契约见 `references/contracts/deep_evidence.md` Stage 6 章节。

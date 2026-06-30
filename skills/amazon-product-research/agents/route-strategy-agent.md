@@ -165,4 +165,4 @@
 
 **铁律**：5 个字段必须逐一填写。`validate_judgment.py --check-placeholders` 会递归扫描，任一字段含 `__ai_judgment__` → 直接 FAIL，打回本 Agent 修复。
 
-详细契约见 `references/CONTRACT_MAP.md` Stage 10a 章节。
+详细契约见 `references/contracts/integrated_judgment.md` Stage 10a 章节。

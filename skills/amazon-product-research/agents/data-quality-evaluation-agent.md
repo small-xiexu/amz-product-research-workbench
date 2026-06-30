@@ -135,4 +135,4 @@
 | `conflict_adjudication` | 下游 Agent 直接引用，不作二次解读 | 漏裁 material/blocking 冲突，或不给归因结论 |
 | `blocking_issues` | 下游 Stage 10 读取 | 已知阻塞性问题不写入 |
 
-详细契约见 `references/CONTRACT_MAP.md` Stage 9 章节。
+详细契约见 `references/contracts/evaluation.md` Stage 9 章节。

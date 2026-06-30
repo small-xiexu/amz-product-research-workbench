@@ -62,7 +62,7 @@
 
 本 Skill 采用多源专家 Agent + 资深运营主 Agent + QA Agent 的受控协作方式。调度规则见 `references/multi_agent_dispatch.md`。
 
-**契约对齐（铁律）**：每个 Agent 产出 JSON 前，必须对照 `references/CONTRACT_MAP.md` 中自己 Stage 的契约表，确认字段路径、命名约定、枚举值与下游脚本一致。主 Agent 在 spawn 任何 Agent 时，必须提醒该 Agent 先读 `references/CONTRACT_MAP.md` 中对应章节。
+**契约对齐（铁律）**：每个 Agent 产出 JSON 前，必须对照 `references/contracts/` 中自己 Stage 的合约文件，确认字段路径、命名约定、枚举值与下游脚本一致。主 Agent 在 spawn 任何 Agent 时，必须提醒该 Agent 先读 `references/contracts/` 中对应合约文件。各 Agent 与合约的对应关系见其 prompt 文件。
 
 | Agent | 阶段 | 角色 | 数据源 | 产出 |
 |---|---|---|---|---|
@@ -118,7 +118,7 @@
 | 9 (六维评价) | `validate_evaluation.py` | 评分 0-100 + route_breakdown + tier 合规 + 跨维度冲突 |
 | 10a (深度分析) | `validate_judgment.py --check-placeholders` | 9 字段无 __ai_judgment__ 占位 |
 | 10b (决策) | `validate_judgment.py --check-verdict` | final_verdict 内部枚举有效 + 治理规则 + Stage 9 交叉一致性 |
-| 12 (报告) | `run_delivery_qa.py` + Delivery QA Agent | 脚本 QA + Agent QA 双层门禁 |
+| 12 (报告) | `validate_report_data_completeness.py` + `run_delivery_qa.py` + Delivery QA Agent | 报告数据完整性 + 脚本 QA + Agent QA 双层门禁 |
 
 ### 校验流程模板
 
@@ -322,11 +322,14 @@ Market Structure Agent（卖家精灵）和 Search Demand Agent（Sorftime）**�
 
 **深挖快照规则（保证 Stage 13 QA 溯源）：**
 
-Agent 写入 evidence packet 的同时，必须将本 Agent 所有 MCP tool_calls 摘要写入快照文件：
+Agent 写入 evidence packet 的同时，**必须使用 Write 工具**将本 Agent 所有 MCP tool_calls + tool_results 完整写入快照文件：
 - Market Structure Agent → `mcp_snapshots/sellersprite_deep_snapshot.json`
 - Search Demand Agent → `mcp_snapshots/sorftime_deep_snapshot.json`
-- 格式：`{ "tool_calls": [{ "tool": "...", "params": {...}, "result_summary": "..." }], "collected_at": "..." }`
-- 若子 Agent 模式下快照不可用（JSONL 格式不兼容），在 evidence packet 中标注 `snapshot_unavailable: true`，不阻塞流程
+- 格式：`tool_calls[]` + `tool_results[]` 完整结构（含 call_id、tool_name、params、status、started_at/finished_at、raw_result），详见 `references/contracts/deep_evidence.md`
+
+**快照必须由 Agent 用 Write 工具显式写入，不能依赖 MCP tool_call 自动序列化**（子 Agent 模式下 tool_calls 无法被主线程捕获）。工作流：每次 MCP 调用后 Agent 立即记录 call 元信息和 result 摘要 → 全部调用完成后用 Write 工具写入快照 JSON。
+
+快照缺失 → Stage 13 QA 直接阻断，不得用 `snapshot_unavailable` 降级绕过。
 
 **本阶段执行顺序**：
 1. 检查保留路线数，> 8 条时按分片规则拆组
@@ -601,7 +604,12 @@ python3 -m packages.research_core.pipeline.build_report_xlsx <run_dir>
 
 **本阶段执行顺序**：
 1. Report Generation Agent — 从 judgment 转录判断文字 → 增强 `report_data.json` → 手写 HTML
-2. `build_report_xlsx.py` — 从 `report_data.json` + `integrated_operator_judgment.json` 生成 `<中文品名>_决策工具包.xlsx`（4 Sheet：路线计分卡、竞品拆解、关键词矩阵、样品检查表）+ `delivery_qa_result.json`
+2. **🔒 完整性校验（阻断）**：`validate_report_data_completeness.py` — 检查 `report_data.json` 中 XLSX 必需字段（competitors/keywords/product_routes/pain_points）的空值率。空值率 > 30% → 打回 Agent 补填 JSON。校验失败不得进入 build_report_xlsx
+3. `build_report_xlsx.py` — 从 `report_data.json` + `integrated_operator_judgment.json` 生成 `<中文品名>_决策工具包.xlsx`（4 Sheet：路线计分卡、竞品拆解、关键词矩阵、样品检查表）+ `delivery_qa_result.json`
+
+```bash
+python3 scripts/validate_report_data_completeness.py <run_dir>
+```
 
 ---
 

@@ -52,7 +52,7 @@ def _adapter_instruction_block(agent: dict[str, Any], source_text: str, source_h
         [
             "- `skills/amazon-product-research/references/runtime_rules.md`",
             "- `skills/amazon-product-research/SKILL.md`",
-            "- `skills/amazon-product-research/references/CONTRACT_MAP.md`",
+            "- `skills/amazon-product-research/references/contracts/`（对应 Stage 的合约文件）",
             "- `skills/amazon-product-research/references/multi_agent_dispatch.md`",
         ]
     )
@@ -139,7 +139,7 @@ This repository keeps the business workflow in one canonical location. When this
 1. Read `skills/amazon-product-research/references/runtime_rules.md` completely.
 2. Read `{canonical_skill}` completely.
 3. Read `skills/amazon-product-research/agent_manifest.json` for runtime routing metadata only.
-4. Read `skills/amazon-product-research/references/CONTRACT_MAP.md` before asking any Agent to write JSON.
+4. Read `skills/amazon-product-research/references/contracts/<stage>.md` (对应 Stage 的合约文件) before asking any Agent to write JSON.
 5. Read `skills/amazon-product-research/references/multi_agent_dispatch.md` before spawning or serializing Agents.
 
 Do not copy or reinterpret the workflow from this adapter. The canonical Skill file is the source of truth.

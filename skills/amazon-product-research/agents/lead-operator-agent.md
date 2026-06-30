@@ -158,5 +158,5 @@
 
 **铁律**：本 Agent 是唯一有权给 Go/No-Go 的 Agent。`validate_judgment.py --check-verdict` 校验失败 → 打回本 Agent 修复，不可跳过。
 
-详细契约见 `references/CONTRACT_MAP.md` Stage 10b 章节。
+详细契约见 `references/contracts/integrated_judgment.md` Stage 10b 章节。
 - 不走捷径：9 个深度分析字段必须从 Stage 10a 合并，不得省略或替换为空。

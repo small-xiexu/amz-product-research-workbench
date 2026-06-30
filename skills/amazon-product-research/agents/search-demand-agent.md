@@ -113,7 +113,15 @@
 
 每个关键词对象至少包含 `keyword`、`keyword_role`、`source_type`、`source_refs`、`route_refs`、`matched_asin_count`、`monthly_search_volume`、`cpc`、`competition_count`、`mix_pool_tags`、`recommended_action`、`reason`、`confidence` 和 `lineage`。
 
-**快照输出（必须）**：完成 evidence packet 写入后，同步生成完整快照到 `mcp_snapshots/sorftime_deep_snapshot.json`。每个 MCP 工具调用必须输出完整 `tool_calls` + `tool_results` 结构（非简化 `tool_summaries`）：
+**快照输出（必须 — 用 Write 工具显式写入）**：
+
+完成 evidence packet 写入后，**必须使用 Write 工具**将完整快照写入 `mcp_snapshots/sorftime_deep_snapshot.json`。
+
+**为什么必须用 Write 工具**：你在子 Agent 模式下运行，MCP tool_calls 无法被主线程自动捕获序列化。唯一可靠的方式是：每调用一个 MCP 工具后，立即将 call 元信息（call_id、tool_name、params、status、started_at、finished_at）和 result（raw_result 或 normalized_preview）记录到内存中，全部调用完成后用 Write 工具一次性写入快照 JSON。
+
+快照缺失 → Stage 13 QA 硬阻断。不可用 `snapshot_unavailable` 降级绕过。
+
+每个 MCP 工具调用必须输出完整 `tool_calls` + `tool_results` 结构（非简化 `tool_summaries`）：
 
 ```json
 {
@@ -222,4 +230,4 @@
 | `route_refs[]` | `validate_evidence_packet._check_route_coverage` 按 `route_id` 比对 | 遗漏某条保留路线 |
 | `keyword_pool_by_role` 关键词 | Stage 9/10 报告生成读 `keyword/route_refs/matched_asin_count` | 关键词不关联 `route_refs`、不写 `matched_asin_count` |
 
-详细契约见 `references/CONTRACT_MAP.md` Stage 6 章节。
+详细契约见 `references/contracts/deep_evidence.md` Stage 6 章节。

@@ -104,4 +104,4 @@
 | `route_breakdown` | 校验覆盖每条保留路线 | 只写大盘评分不写路线级 breakdown |
 | `blocking_risks` | 下游 Stage 10 读取，若含合规 blocked → 全部路线不能直接放行 | 漏标已知合规风险为 blocked |
 
-详细契约见 `references/CONTRACT_MAP.md` Stage 9 章节。
+详细契约见 `references/contracts/evaluation.md` Stage 9 章节。

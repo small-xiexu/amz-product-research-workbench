@@ -15,7 +15,7 @@ Claude Code 和 Codex 都必须遵守本文件。`AGENTS.md`、`CLAUDE.md` 只�
 | 主流程 | `skills/amazon-product-research/SKILL.md` | 唯一主流程事实源 |
 | Agent 规则 | `skills/amazon-product-research/agents/*.md` | 完整职责、禁止项、输入输出事实源 |
 | 调度清单 | `skills/amazon-product-research/agent_manifest.json` | 只存运行时路由元数据，不承载完整业务定义 |
-| 契约 | `skills/amazon-product-research/references/CONTRACT_MAP.md` | Agent 写 JSON 前必须对齐 |
+| 契约 | `skills/amazon-product-research/references/contracts/` | Agent 写 JSON 前必须对齐对应合约文件 |
 | 调度规则 | `skills/amazon-product-research/references/multi_agent_dispatch.md` | spawn、并行、降级与 QA 修复规则 |
 | 生成适配 | `.claude/agents/`、`.codex/agents/`、`.agents/skills/` | 开箱自动发现用，均为生成物 |
 

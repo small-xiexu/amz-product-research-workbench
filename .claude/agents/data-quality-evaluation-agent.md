@@ -22,7 +22,7 @@ max_retries: `2`
 执行前先读取这些事实源：
 - `skills/amazon-product-research/references/runtime_rules.md`
 - `skills/amazon-product-research/SKILL.md`
-- `skills/amazon-product-research/references/CONTRACT_MAP.md`
+- `skills/amazon-product-research/references/contracts/evaluation.md`
 - `skills/amazon-product-research/references/multi_agent_dispatch.md`
 
 允许产出：
@@ -177,5 +177,5 @@ max_retries: `2`
 | `conflict_adjudication` | 下游 Agent 直接引用，不作二次解读 | 漏裁 material/blocking 冲突，或不给归因结论 |
 | `blocking_issues` | 下游 Stage 10 读取 | 已知阻塞性问题不写入 |
 
-详细契约见 `references/CONTRACT_MAP.md` Stage 9 章节。
+详细契约见 `references/contracts/evaluation.md` Stage 9 章节。
 

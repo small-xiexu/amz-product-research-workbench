@@ -22,7 +22,7 @@ max_retries: `3`
 执行前先读取这些事实源：
 - `skills/amazon-product-research/references/runtime_rules.md`
 - `skills/amazon-product-research/SKILL.md`
-- `skills/amazon-product-research/references/CONTRACT_MAP.md`
+- `skills/amazon-product-research/references/contracts/report_data.md`
 - `skills/amazon-product-research/references/multi_agent_dispatch.md`
 
 允许产出：
@@ -583,5 +583,5 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 | 判断一致性 | QA Agent 检查 HTML Hero 与 judgment final_verdict 一致 | HTML 建议进入小批量验证，judgment 是建议暂停推进 |
 | 竞品判词合理性 | QA Agent 检查竞品弱点/反击是否有 VOC 原文支撑 | 发明不存在的竞品弱点 |
 
-详细契约见 `references/CONTRACT_MAP.md` Stage 12 章节。
+详细契约见 `references/contracts/report_data.md` Stage 12 章节。
 

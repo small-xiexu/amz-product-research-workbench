@@ -5,7 +5,7 @@
   "canonical_skill": "skills/amazon-product-research/SKILL.md",
   "canonical_references": [
     "skills/amazon-product-research/references/runtime_rules.md",
-    "skills/amazon-product-research/references/CONTRACT_MAP.md",
+    "skills/amazon-product-research/references/contracts/",
     "skills/amazon-product-research/references/multi_agent_dispatch.md",
     "skills/amazon-product-research/references/agent_directory.md"
   ],

@@ -362,9 +362,17 @@ def scan_file(path: Path, root: Path, term_groups: Mapping[str, Sequence[str]]) 
     return violations
 
 
+_SHORT_BRAND_RE_CACHE: dict[str, re.Pattern] = {}
+
+
 def token_matches_line(line: str, folded_line: str, token: str, group: str) -> bool:
     if group == "run_brands_sellers" and len(token) < 8:
-        return token in line
+        # 短品牌名用词边界匹配，避免 CONCENTRATION/CONTRACT 等通用词被误报
+        pattern = _SHORT_BRAND_RE_CACHE.get(token)
+        if pattern is None:
+            pattern = re.compile(r"\b" + re.escape(token) + r"\b")
+            _SHORT_BRAND_RE_CACHE[token] = pattern
+        return bool(pattern.search(line))
     return token.casefold() in folded_line
 
 

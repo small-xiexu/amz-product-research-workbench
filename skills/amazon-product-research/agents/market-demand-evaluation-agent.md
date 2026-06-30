@@ -110,4 +110,4 @@
 | `route_breakdown` | 校验覆盖每条保留路线 | 只写大盘分数不写 route_breakdown |
 | `route_breakdown[].rating` | 校验为路线级评级 | 全部路线用相同 rating，未做独立判断 |
 
-详细契约见 `references/CONTRACT_MAP.md` Stage 9 章节。
+详细契约见 `references/contracts/evaluation.md` Stage 9 章节。

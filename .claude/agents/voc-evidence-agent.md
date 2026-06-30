@@ -22,7 +22,7 @@ max_retries: `2`
 执行前先读取这些事实源：
 - `skills/amazon-product-research/references/runtime_rules.md`
 - `skills/amazon-product-research/SKILL.md`
-- `skills/amazon-product-research/references/CONTRACT_MAP.md`
+- `skills/amazon-product-research/references/contracts/voc_evidence.md`
 - `skills/amazon-product-research/references/multi_agent_dispatch.md`
 
 允许产出：
@@ -144,5 +144,5 @@ VOC Evidence Agent 要把“用户骂什么/夸什么”翻译成主 Agent 和�
 | `execution_provenance` | 校验 `executed_by_agent=true` + `execution_mode="agent"` | 标记为 serial_fallback 或漏写 subagent_id |
 | `route_coverage` | 校验每条保留路线 ≥1 ASIN（=1 时置信度 low） | 遗漏某条保留路线的覆盖信息 |
 
-详细契约见 `references/CONTRACT_MAP.md` Stage 8 章节。
+详细契约见 `references/contracts/voc_evidence.md` Stage 8 章节。
 

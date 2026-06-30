@@ -112,4 +112,4 @@
 | `route_breakdown` | 校验覆盖每条保留路线 | 只写大盘评分不写路线级 breakdown |
 | `target_price_range` | 下游 Stage 10 读取 | 写成裸数字而非结构化区间 |
 
-详细契约见 `references/CONTRACT_MAP.md` Stage 9 章节。
+详细契约见 `references/contracts/evaluation.md` Stage 9 章节。

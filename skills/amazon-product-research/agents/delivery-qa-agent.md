@@ -238,4 +238,4 @@ Round 3: QA Agent 最终检查 → 仍有阻断项 → BLOCKED，需人工介入
 | 运营判断质量 | 区分 blocker 和 error | 把运营判断质量问题标成 blocker 导致误阻断 |
 | 修复轮次 | 记录为 1/3、2/3、3/3 | 不记录轮次 → 主 Agent 不知道是否已达上限 |
 
-详细契约见 `references/CONTRACT_MAP.md` Stage 13 章节。
+详细契约见 `references/contracts/delivery_qa.md` Stage 13 章节。

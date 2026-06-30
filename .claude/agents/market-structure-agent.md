@@ -22,7 +22,7 @@ max_retries: `2`
 执行前先读取这些事实源：
 - `skills/amazon-product-research/references/runtime_rules.md`
 - `skills/amazon-product-research/SKILL.md`
-- `skills/amazon-product-research/references/CONTRACT_MAP.md`
+- `skills/amazon-product-research/references/contracts/deep_evidence.md`
 - `skills/amazon-product-research/references/multi_agent_dispatch.md`
 
 允许产出：
@@ -288,5 +288,5 @@ Market Structure Agent 要给综合报告提供可读结论，而不是只给市
 | `selected_routes[]` | `build_conflict_review._route_lineage` 读 `route_id` | 用中文名代替 kebab-case `route_id` |
 | `route_refs[]` | `validate_evidence_packet._check_route_coverage` 按 `route_id` 比对 | 遗漏某条保留路线 |
 
-详细契约见 `references/CONTRACT_MAP.md` Stage 6 章节。
+详细契约见 `references/contracts/deep_evidence.md` Stage 6 章节。
 

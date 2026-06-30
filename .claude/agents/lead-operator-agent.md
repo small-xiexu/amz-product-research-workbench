@@ -22,7 +22,7 @@ max_retries: `2`
 执行前先读取这些事实源：
 - `skills/amazon-product-research/references/runtime_rules.md`
 - `skills/amazon-product-research/SKILL.md`
-- `skills/amazon-product-research/references/CONTRACT_MAP.md`
+- `skills/amazon-product-research/references/contracts/integrated_judgment.md`
 - `skills/amazon-product-research/references/multi_agent_dispatch.md`
 
 允许产出：
@@ -207,6 +207,6 @@ max_retries: `2`
 
 **铁律**：本 Agent 是唯一有权给 Go/No-Go 的 Agent。`validate_judgment.py --check-verdict` 校验失败 → 打回本 Agent 修复，不可跳过。
 
-详细契约见 `references/CONTRACT_MAP.md` Stage 10b 章节。
+详细契约见 `references/contracts/integrated_judgment.md` Stage 10b 章节。
 - 不走捷径：9 个深度分析字段必须从 Stage 10a 合并，不得省略或替换为空。
 

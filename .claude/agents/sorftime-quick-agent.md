@@ -22,7 +22,7 @@ max_retries: `2`
 执行前先读取这些事实源：
 - `skills/amazon-product-research/references/runtime_rules.md`
 - `skills/amazon-product-research/SKILL.md`
-- `skills/amazon-product-research/references/CONTRACT_MAP.md`
+- `skills/amazon-product-research/references/contracts/quick_evidence.md`
 - `skills/amazon-product-research/references/multi_agent_dispatch.md`
 
 允许产出：
@@ -264,5 +264,5 @@ max_retries: `2`
 | `route_refs[]` | `validate_evidence_packet._check_route_coverage` 按 `route_id` 比对 | 遗漏某条保留路线 |
 | `keyword_pool_by_role` 关键词 | Stage 9/10 报告生成读 `keyword/route_refs/matched_asin_count` | 关键词不关联 `route_refs`、不写 `matched_asin_count` |
 
-详细契约见 `references/CONTRACT_MAP.md` Stage 6 章节。
+详细契约见 `references/contracts/quick_evidence.md` Stage 6 章节。
 

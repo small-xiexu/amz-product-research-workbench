@@ -55,10 +55,11 @@ Market Structure Agent 和 Search Demand Agent 必须同时启动，互不依赖
 - 全部分片完成后，由脚本 `build_deep_evidence_packet.py` 合并成完整 evidence packet
 - 路线 ≤ 8 条时仍可单 Agent 执行
 
-**快照规则**：Agent 写入 evidence packet 的同时，必须将本 Agent 所有 MCP tool_calls 摘要写入快照：
+**快照规则**：Agent 写入 evidence packet 的同时，**必须使用 Write 工具**将本 Agent 所有 MCP tool_calls + tool_results 完整写入快照：
 - Market Structure → `mcp_snapshots/sellersprite_deep_snapshot.json`
 - Search Demand → `mcp_snapshots/sorftime_deep_snapshot.json`
-- 若子 Agent 模式下快照不可用，标注 `snapshot_unavailable: true`，不阻塞流程
+- Agent 必须在每次 MCP 调用后立即记录 call 元信息和 result 摘要，全部完成后用 Write 工具一次性写入
+- 快照缺失 → Stage 13 QA 硬阻断，不得用 `snapshot_unavailable` 降级绕过
 
 ## Stage 9 六维评价并行规则
 

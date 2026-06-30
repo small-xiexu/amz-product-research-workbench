@@ -115,8 +115,9 @@ def build_evidence_packet(
     stats = voc_package.get("stats", {})
     batch_items = as_list(asin_batch.get("asin_items", []))
 
+    selected_route_ids = _selected_route_ids(asin_batch)
     review_scope = _build_review_scope(normalized, stats)
-    asin_coverage = _build_asin_coverage(normalized, batch_items)
+    asin_coverage = _build_asin_coverage(normalized, batch_items, selected_route_ids)
     route_refs = _collect_route_refs(asin_batch)
 
     mixed_signals = _build_mixed_signals(normalized, batch_items, run_id)
@@ -174,9 +175,22 @@ def _build_review_scope(normalized: list[dict[str, Any]], stats: dict[str, Any])
     }
 
 
+def _selected_route_ids(asin_batch: dict[str, Any]) -> set[str]:
+    """从 asin_batch 提取选中路线的 route_name 集合，用于过滤覆盖率检查。"""
+    selected = as_list(asin_batch.get("selected_routes", []))
+    ids: set[str] = set()
+    for r in selected:
+        if isinstance(r, dict):
+            rid = r.get("route_name") or r.get("route_id") or ""
+            if rid:
+                ids.add(rid)
+    return ids
+
+
 def _build_asin_coverage(
     normalized: list[dict[str, Any]],
     batch_items: list[dict[str, Any]],
+    selected_route_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     route_reviews: dict[str, list[dict[str, Any]]] = {}
     asin_to_role: dict[str, str] = {}
@@ -196,7 +210,12 @@ def _build_asin_coverage(
         if route:
             route_reviews.setdefault(route, []).append(r)
 
-    all_routes = sorted(set(item.get("route_ref", "") for item in batch_items if item.get("route_ref")))
+    all_routes_candidates = sorted(set(item.get("route_ref", "") for item in batch_items if item.get("route_ref")))
+    # Only include selected routes in coverage check to avoid false alarms on excluded routes
+    if selected_route_ids:
+        all_routes = [r for r in all_routes_candidates if r in selected_route_ids]
+    else:
+        all_routes = all_routes_candidates
     by_route = []
     for route in all_routes:
         route_revs = route_reviews.get(route, [])
