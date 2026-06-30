@@ -124,6 +124,7 @@
 - 不输出最终报告。
 - 不输出 COGS、FOB、采购价、供应商报价、毛利率、FBA 费用、1688 实际报价等后置落地变量。
 - 不把缺少采购/供应链/利润核算当作当前市场分析的阻塞项；这些只属于后续运营验证，不影响本阶段判断"市场能不能继续看"。
+- **推荐路线核心竞品数据完整性门控（强制）**：`final_verdict` 为 `go` 或 `watch` 时，必须检查推荐路线（`route_recommendation.primary_recommendation` 指向的路线）的核心竞品数据完整性。统计 `competitor_benchmark` 中该路线竞品的 `price/monthly_sales/rating/review_count` 的 `data_unavailable` 占比。若 > 30%，必须在 `biggest_risk` 中显式标注："推荐路线核心竞品中 X/Y 个关键数据缺失，路线天花板和差异化优势不可量化，建议在进入小批量验证前优先补齐"。此规则防止关键竞品数据大面积缺失时仍出 `go` 裁决。
 
 ## 面向运营的话术边界
 
