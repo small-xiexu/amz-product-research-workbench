@@ -273,11 +273,12 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 - 类目全景表的“代表品牌及月销”列必须使用 `class="brand-list-cell"`，同一行展示品牌/月销列表，禁止用 `<br>` 强制换行。表格有 `.table-scroll` 承载横向滚动，不能把品牌列表挤到第二行。
 - 长文本列（核心机会、核心风险、主要差评点、我的反击等）列宽 ≥ 260px
 - **路线列（路线对比表）**：路线中文名和英文括号名允许上下两行，但英文括号整体禁止拆行。格式：`<td class="route-cell"><div class="route-name">中文路线名<span class="route-en">(English Route Name)</span></div></td>`。路线列宽 ≥ 245px；`.route-en` 已设置 `white-space:nowrap`。既然表格有 `.table-scroll`，禁止为了塞进视口把路线名/英文名挤成多行。
-- **关键词策略表**：主攻/可测词表固定 980px，4 列分别为 260 / 100 / 80 / 540；明确否定词表也按 980px 处理，2 列分别为 260 / 720。关键词、月搜索量、CPC 等标识/短值列用 `.keyword-cell` 或 `.tc`；策略说明/理由是长文本列，保持默认左对齐但垂直居中，禁止加 `.tc`。
+- **关键词策略表**：主攻/可测词表固定 980px，4 列分别为 260 / 100 / 80 / 540；明确否定词表也按 980px 处理，2 列分别为 260 / 720。关键词、月搜索量、CPC 等标识/短值列用 `.keyword-cell` 或 `.tc`；策略说明是长文本列，保持默认左对齐但垂直居中；**排除理由列用 `.tc` 居中**。
 - 优先级值用 `<span class="pill">P1</span>`，不裸写数字
 - **品牌列（核心竞品表）**：品牌名在上、角色标签在下，并在单元格内水平/垂直居中，禁止横排挤在一行。格式：`<td class="brand-cell"><div class="brand-stack"><strong>品牌名</strong><span class="tag ...">角色标签</span></div></td>`。列宽 ≥ 170px。CSS 已提供 `.brand-cell { text-align:center; vertical-align:middle }`、`.brand-stack { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px }`、`.brand-cell strong { display:block }` 与 `.brand-cell .tag { display:inline-block }`
 - **核心竞品 ASIN 列**：表头写 `<th class="tc nowrap">ASIN</th>`，每个 ASIN 写 `<td class="asin-cell">...</td>`。禁止让 ASIN 在中间断成两行。
 - **痛点-规格表**：必须使用 `.table-scroll` 与 1240px 像素列宽。优先级、痛点维度用 `.tc`，其余 3 个长文本列左对齐但垂直居中。禁止使用无 `colgroup` 的普通表格，否则第一列会被平均分配出大空白。
+- **已评估暂不深挖路线表**：4 列表头（路线/决策/排除理由/重新评估条件）全部用 `class="tc"` 居中。路线名列用 `class="route-cell"` 或 `class="tc"`；决策列用 `class="tc"`；排除理由和重新评估条件的数据单元格用 `class="tc"` 居中。列宽示例：160 / 100 / 420 / 420。
 - **铁律：所有表格一律 `.table-scroll` 包裹 + 像素 `<colgroup>`。CSS 已全局 `table-layout:fixed`，不需再写在 inline style 中。**
 
 ## report_data.json 结构

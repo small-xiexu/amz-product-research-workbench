@@ -126,6 +126,28 @@ def _recommended_price_from_routes(route_judgment: list[dict[str, Any]]) -> str:
     return "待补"
 
 
+def _core_search_volume_estimate(kw_pool: dict[str, Any]) -> str:
+    """从关键词池估算核心词月搜索量。优先取 main_traffic 中最高搜索量。"""
+    if not isinstance(kw_pool, dict):
+        return "待补"
+    roles = kw_pool.get("roles", kw_pool)
+    if not isinstance(roles, dict):
+        return "待补"
+    best = 0
+    for role_name in ("main_traffic", "conversion_quality", "traffic"):
+        role_items = roles.get(role_name, [])
+        if isinstance(role_items, list):
+            for item in role_items:
+                vol = item.get("monthly_search_volume", 0) if isinstance(item, dict) else 0
+                try:
+                    vol = int(vol)
+                except (TypeError, ValueError):
+                    vol = 0
+                if vol > best:
+                    best = vol
+    return f"{best:,}" if best > 0 else "待补"
+
+
 def _append_unique(target: list[str], value: Any) -> None:
     for item in as_list(value):
         text = str(item).strip()
