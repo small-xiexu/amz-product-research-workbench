@@ -118,7 +118,7 @@
 | 9 (六维评价) | `validate_evaluation.py` | 评分 0-100 + route_breakdown + tier 合规 + 跨维度冲突 |
 | 10a (深度分析) | `validate_judgment.py --check-placeholders` | 9 字段无 __ai_judgment__ 占位 |
 | 10b (决策) | `validate_judgment.py --check-verdict` | final_verdict 内部枚举有效 + 治理规则 + Stage 9 交叉一致性 |
-| 12 (报告) | `validate_report_data_completeness.py` + `run_delivery_qa.py` + Delivery QA Agent | 报告数据完整性 + 脚本 QA + Agent QA 双层门禁 |
+| 12 (报告) | `fix_report_tables.py` + `validate_html_numbers.py` + `validate_report_data_completeness.py` + `run_delivery_qa.py` + Delivery QA Agent | 表格结构修正 + 数值溯源校验 + 报告数据完整性 + 脚本 QA + Agent QA 双层门禁 |
 
 ### 校验流程模板
 
@@ -604,10 +604,14 @@ python3 -m packages.research_core.pipeline.build_report_xlsx <run_dir>
 
 **本阶段执行顺序**：
 1. Report Generation Agent — 从 judgment 转录判断文字 → 增强 `report_data.json` → 手写 HTML
-2. **🔒 完整性校验（阻断）**：`validate_report_data_completeness.py` — 检查 `report_data.json` 中 XLSX 必需字段（competitors/keywords/product_routes/pain_points）的空值率。空值率 > 30% → 打回 Agent 补填 JSON。校验失败不得进入 build_report_xlsx
-3. `build_report_xlsx.py` — 从 `report_data.json` + `integrated_operator_judgment.json` 生成 `<中文品名>_决策工具包.xlsx`（4 Sheet：路线计分卡、竞品拆解、关键词矩阵、样品检查表）+ `delivery_qa_result.json`
+2. **`fix_report_tables.py`** — 自动修正 HTML 表格结构问题（缺 `.table-scroll` 包裹、缺 `table width`、缺 `<colgroup>`）。确定性脚本兜底，Agent 写错也能纠正。
+3. **`validate_html_numbers.py`** — 交叉校验 HTML 中的数值是否都能在 `report_data.json` 中找到来源。发现可疑数值（HTML 写了但 JSON 中没有的数字）→ 打印警告列表供人工核实。非阻断（`--strict` 模式下才阻断），但必须显式查看警告。
+4. **🔒 完整性校验（阻断）**：`validate_report_data_completeness.py` — 检查 `report_data.json` 中 XLSX 必需字段（competitors/keywords/product_routes/pain_points）的空值率。空值率 > 30% → 打回 Agent 补填 JSON。校验失败不得进入 build_report_xlsx
+5. `build_report_xlsx.py` — 从 `report_data.json` + `integrated_operator_judgment.json` 生成 `<中文品名>_决策工具包.xlsx`（4 Sheet：路线计分卡、竞品拆解、关键词矩阵、样品检查表）+ `delivery_qa_result.json`
 
 ```bash
+python3 scripts/fix_report_tables.py <run_dir>
+python3 scripts/validate_html_numbers.py <run_dir>
 python3 scripts/validate_report_data_completeness.py <run_dir>
 ```
 

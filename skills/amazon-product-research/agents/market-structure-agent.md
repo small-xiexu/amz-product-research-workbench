@@ -107,11 +107,50 @@
 | `data_gaps` | 卖家精灵侧仍缺的字段和影响 |
 | `data_unavailable` | **（强制）** 已尝试调用 MCP 工具但返回 null/空/无数据的指标清单。每条注明：尝试的工具名、目标 ASIN 或类目、缺失的具体字段。下游 Agent 看到此字段后不得再重复尝试获取同一数据 |
 
+## Stage 6 深扫最低要求
+
+以下 7 种工具类型对应下游 `build_sellersprite_deep_dive.py` 的 `EVIDENCE_SPECS`，**每条保留路线都必须执行**。未执行 → `raw_result` 缺失 → 下游脚本无法提取结构化数据 → 该路线深挖失败。
+
+| # | MCP 工具 | EVIDENCE_SPECS item_type | 用途 |
+|---|---|---|---|
+| 1 | `market_research` | `market_capacity` | 类目大盘容量、月销量/月销额、Top100 体量 |
+| 2 | `market_price_distribution` | `price_band` | 价格段销量/销售额/商品数分布、各段评论门槛 |
+| 3 | `market_seller_concentration` / `market_brand_concentration` / `market_product_concentration` | `seller_concentration` | 卖家/品牌/商品集中度 |
+| 4 | `market_rating_distribution` / `market_listing_date_distribution` / `market_ebc_distribution` | `competitor_structure` | 评分分布、上架时间分布、新品机会 |
+| 5 | `product_research` / `asin_detail` | `asin_operating_data` | 每条保留路线 ≥5 个参考 ASIN 的运营数据（价格/月销/评论/上架日期/品牌） |
+| 6 | `market_ratings_count_distribution` | `review_threshold` | 评论数分布、低评论有量样本 |
+| 7 | `product_node` | `category_boundary` | 类目边界、候选大类/小类/混池类目 nodeId |
+
+**硬约束**：
+- 以上 7 种工具类型**缺一不可**。未调用的工具类型必须写入 `data_gaps` 并标记为 `blocking`，说明对报告的影响和补数计划。
+- 每个 tool_result **必须**包含 `raw_result`（MCP 返回的完整结构化 dict/list），不得仅写 `normalized_preview` 文本摘要。
+- 未执行或仅有 `normalized_preview` 的工具类型 → `data_gaps` 中标记 `severity: blocking`。
+- **按类目逐调（铁律）**：#1–4 和 #6–7 这 6 种工具必须**对每个候选类目单独调用**。例如 `market_research` 要对候选类目 A、候选类目 B、候选类目 C 等逐一调用，每个类目产出一条 tool_result。只调主类目、其余类目缺数据 → 类目全景表格数据不完整 → `data_gaps` 标记 `blocking`。
+
+**数据完整性自检（强制 — 写入 evidence packet 前必须执行）**：
+
+所有 MCP 调用完成后，逐类目检查以下字段是否非空、非零：
+
+| 检查项 | 来源工具 | 判空标准 |
+|---|---|---|
+| Top100 月销量 | `market_research` → `top100Units` | `null`、`0`、字段缺失 |
+| Top100 月销额 | `market_research` → `top100Revenue` | `null`、`0`、字段缺失 |
+| 均价 | `market_research` → `avgPrice` | `null`、`0`、字段缺失 |
+| 产品总数 | `market_research` → `totalProducts` | `null`、字段缺失 |
+
+自检流程：
+1. 列出所有候选类目，逐条对上表字段
+2. 任一字段为空或为 0 → 对该类目**重试 1 次** `market_research`
+3. 重试后仍有空值 → 写入 `data_gaps`，`severity: blocking`，注明类目名、nodeId、缺失字段和重试次数
+4. 全部类目检查通过 → 继续写 evidence packet
+
+**如果所有类目都返回空数据**：不要强行写 evidence packet。标记为严重异常，在 evidence packet 中设 `confidence: "blocked"`，`data_gaps` 写清"所有候选类目 MCP 返回空，疑似 nodeId 错误或工具异常"。
+
 **快照输出（必须 — 用 Write 工具显式写入）**：
 
 完成 evidence packet 写入后，**必须使用 Write 工具**将完整快照写入 `mcp_snapshots/sellersprite_deep_snapshot.json`。
 
-**为什么必须用 Write 工具**：你在子 Agent 模式下运行，MCP tool_calls 无法被主线程自动捕获序列化。唯一可靠的方式是：每调用一个 MCP 工具后，立即将 call 元信息（call_id、tool_name、params、status、started_at、finished_at）和 result（raw_result 或 normalized_preview）记录到内存中，全部调用完成后用 Write 工具一次性写入快照 JSON。
+**为什么必须用 Write 工具**：你在子 Agent 模式下运行，MCP tool_calls 无法被主线程自动捕获序列化。唯一可靠的方式是：每调用一个 MCP 工具后，立即将 call 元信息（call_id、tool_name、params、status、started_at、finished_at）和 result（**必须**包含 `raw_result` 结构化数据；`normalized_preview` 仅作补充）记录到内存中，全部调用完成后用 Write 工具一次性写入快照 JSON。
 
 快照缺失 → Stage 13 QA 硬阻断。不可用 `snapshot_unavailable` 降级绕过。
 
@@ -160,7 +199,7 @@
 }
 ```
 
-`tool_calls[].status` 取 `success` / `empty` / `error`。`tool_results[].status` 同样取这三者之一。每个 result 必须包含 `raw_result`（MCP 返回数据）或 `normalized_preview`（摘要）。
+`tool_calls[].status` 取 `success` / `empty` / `error`。`tool_results[].status` 同样取这三者之一。每个 result **必须**包含 `raw_result`（MCP 返回的完整结构化数据，dict/list 格式）。`raw_result` 是下游 build 脚本提取结构化数据的唯一依据。`normalized_preview` 文本摘要**仅作补充说明，不得替代** `raw_result`。缺少 `raw_result` 的 tool_result 视为采集失败，Stage 13 QA 将直接阻断。
 
 `reference_asin_pool` 中每个 ASIN 至少包含：
 
@@ -249,7 +288,7 @@ Market Structure Agent 要给综合报告提供可读结论，而不是只给市
 | 你写什么 | 脚本怎么读 | 常见错误 |
 |----------|-----------|---------|
 | 快照 `tool_calls[]` | `p4_contracts.validate_deep_snapshot` 校验 `call_id/status/started_at/finished_at` | 用简化 `tool_summaries` 代替完整 `tool_calls` |
-| 快照 `tool_results[]` | 同上，校验 `result_id/call_id/status/raw_result` | 缺少 `raw_result` 或 `normalized_preview` |
+| 快照 `tool_results[]` | 同上，校验 `result_id/call_id/status/raw_result` | 缺少 `raw_result`（仅有 `normalized_preview` 视为缺失） |
 | Evidence `facts.normalized_value` | `build_conflict_review._find_normalized_value` 读 `field_values` / `numeric_values` | 展平到 facts 顶层，未包在 `normalized_value` 内 |
 | `selected_routes[]` | `build_conflict_review._route_lineage` 读 `route_id` | 用中文名代替 kebab-case `route_id` |
 | `route_refs[]` | `validate_evidence_packet._check_route_coverage` 按 `route_id` 比对 | 遗漏某条保留路线 |

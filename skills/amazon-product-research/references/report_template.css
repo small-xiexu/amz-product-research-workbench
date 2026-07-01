@@ -325,13 +325,12 @@ tbody tr:last-child td { border-bottom: 0; }
 .tc {
   text-align: center;
   vertical-align: middle;
+  white-space: nowrap;
 }
 .nowrap,
 .asin-cell,
 .keyword-cell {
   white-space: nowrap;
-  overflow-wrap: normal;
-  word-break: normal;
 }
 .asin-cell,
 .keyword-cell,
@@ -340,9 +339,9 @@ tbody tr:last-child td { border-bottom: 0; }
   vertical-align: middle;
 }
 .brand-list-cell {
-  white-space: normal;
+  white-space: nowrap;
   line-height: 1.6;
-  text-align: left;
+  text-align: center;
   vertical-align: middle;
 }
 .route-cell {
@@ -560,7 +559,10 @@ tbody tr:last-child td { border-bottom: 0; }
 .risk-list .severity { font-weight: 700; font-size: 12px; min-width: 32px; flex-shrink: 0; }
 
 /* ============ Go/No-Go Table ============ */
-.go-nogo td:first-child { font-weight: 600; color: var(--ink); }
+.go-nogo th { text-align: center; vertical-align: middle; }
+.go-nogo td:first-child { font-weight: 600; color: var(--ink); text-align: center; vertical-align: middle; }
+.go-nogo td:nth-child(3) { text-align: center; vertical-align: middle; }
+.go-nogo td:last-child { text-align: center; vertical-align: middle; }
 
 /* ============ Focus & Accessibility ============ */
 a:focus-visible,

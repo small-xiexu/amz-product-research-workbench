@@ -6,6 +6,14 @@
 
 **架构边界：脚本＝数据工具，Lead Operator Agent＝分析者，本 Agent＝呈现者。** `report_data.json` 中的所有 `value` 和 `source_path` 已由脚本完整填充，Agent 只读不写。运营判断由 Stage 10 Lead Operator Agent 产出（`integrated_operator_judgment.json`），本 Agent 负责将判断结论转录到 `report_data.json` 的判断类字段（`judgment`、`lead_analysis`、`strategy`、`issue_description`、`spec_requirement`、`description`、`evidence_basis` 等）。本 Agent 不做独立的运营分析，不新增判断结论。不在 `report_data.json` 里的数字禁止出现在 HTML 中。
 
+**数字引用铁律（最高优先级）**：`report_data.seed.json` 中的 `analysis_snippets` 包含了所有需要在分析段落中引用的预计算数字（类目合计、单个类目销量、加权均价、搜索趋势摘要等）。Agent 在写 Hero lead、运营评估、风险分析、搁置说明等包含数字的分析段落时，**必须从 `analysis_snippets` 中取数字，禁止手写数字或自行计算**。可以改写措辞和叙事顺序，但不得修改数字本身。如果需要的数字不在 `analysis_snippets` 中，写"待补"并记入 QA。
+
+**report_data.json 单一真相源（强制）**：HTML 中出现的每一个数字（金额、销量、价格、评分、搜索量、百分比、评论数等）**必须能在 `report_data.json` 中找到逐字相同的值**。这是硬边界，不可绕过。具体规则：
+1. **先写 JSON 再用数**：如果 Agent 发现 HTML 需要的数字在 `report_data.json` 中缺失或不完整（如类目全景表中某类目的均价为 `None`），必须先通过证据包查到该数字 → 写入 `report_data.json` 对应 `value` 字段 → 再从 JSON 取值写入 HTML。禁止跳过 JSON 直接从证据包取数写入 HTML。
+2. **类目全景表逐行对齐**：类目表的每一行（每个候选类目的产品数、月销、月销额、均价、代表品牌）必须与 `report_data.json` 中 `category_panorama.categories[]` 的对应条目完全一致。JSON 中某值为 `None` → HTML 中写"待补"，不得从证据包另行取值填入。
+3. **聚合值必须落地 JSON**：Hero 面板的月销合计、月销额合计、加权均价等聚合数字，必须在 `report_data.json` 中有明确条目（Hero metrics 或 insights body）。不在 JSON 中 → 不在 HTML 中。
+4. **自检步骤（写 HTML 前强制执行）**：写完 HTML 后，逐板块回溯每个数字在 `report_data.json` 中的位置。找不到 → 回写 JSON 或改为"待补"。
+
 Stage 11-12 使用三段式：脚本生成 `report_data.seed.json` → Report Generation Agent 基于 seed + judgment 写 `report_data.json` 和 HTML → 脚本再基于 `report_data.json` + HTML 生成 XLSX 和 QA。`scripts/run_report_agent.py` / `report_agent.py` 仅作本地开发辅助，不是正式链路。
 
 ## 反捏造红线（最高优先级）
@@ -35,7 +43,7 @@ Stage 11-12 使用三段式：脚本生成 `report_data.seed.json` → Report Ge
 
 | 输入 | 路径 | 用途 |
 |---|---|---|
-| 报告数据 seed | `analysis/report_data.seed.json` | 脚本生成的初始数据结构，待增强为正式 `report_data.json` |
+| 报告数据 seed | `analysis/report_data.seed.json` | 脚本生成的初始数据结构，含 `analysis_snippets`（预计算数字摘要，Agent 引用数字的唯一来源） |
 | 运营分析结论 | `analysis/integrated_operator_judgment.json` | **主输入**：所有运营判断的权威来源（路线推荐、竞品对标、价格带解读、VOC→规格推导、关键词策略、风险缓解） |
 | 路线配置 | `route_matrix_confirm.json` | Hero 路线名、竞品表路线分组 |
 | 市场结构证据 | `market_structure/market_structure_evidence_packet.json` | 类目数据、竞品池、价格带（仅用于核对数字，不做新分析） |
@@ -209,10 +217,12 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
       </ul>
     </div>
   </div>
-  <table class="go-nogo" style="margin-top:20px;">
+  <div class="table-scroll">
+  <table class="go-nogo">
     <thead><tr><th>决策条件</th><th>放行条件</th><th>暂停条件</th><th>当前状态</th></tr></thead>
     <tbody><!-- 放行前置条件 --></tbody>
   </table>
+  </div>
 </section>
 </div>
 </body>
@@ -245,8 +255,8 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 | 内容卡片 | `.section` → `h2` `.subtitle` | 每个内容板块 |
 | 洞察卡片行 | `.insight-row` → `.insight-card` `.good`/`.warn` → `h4` `p` | 2 列布局 |
 | 表格 | `table` `th` `td`（无额外类名） | 标准表格 |
-| 表格辅助 | `.tc` `.nowrap` `.asin-cell` `.keyword-cell` `.brand-list-cell` `.brand-cell` `.route-cell` `.route-name` `.route-en` | `.tc` 短值列居中；`.asin-cell`/`.keyword-cell` 禁止标识换行；`.brand-list-cell` 用于代表品牌/月销列表；`.brand-cell` 用于核心竞品品牌列；`.route-cell` 用于路线对比表路线列 |
-| 优先级标识 | `.pill` | 圆角小徽章，展示"必须验证/重点优化/建议优化"等运营标签 |
+| 表格辅助 | `.tc` `.nowrap` `.asin-cell` `.keyword-cell` `.brand-list-cell` `.brand-cell` `.route-cell` `.route-name` `.route-en` | `.tc` 短值列居中；`.asin-cell`/`.keyword-cell` 禁止标识换行；`.brand-list-cell` 用于代表品牌/月销列表；`.brand-cell` 用于核心竞品品牌列；`.route-cell` 用于路线对比表路线列 和 类目全景表类目名列 |
+| 优先级标识 | `.pill` | 圆角小徽章，展示"必须验证/重点优化/建议优化"等运营标签；路线对比表优先级列用圆圈数字 ①②③④⑤⑥⑦ |
 | 标签 | `.tag` `.tag-green` `.tag-amber` `.tag-red` `.tag-blue` `.tag-gray` | 只有 5 色 |
 | 价格柱状图 | `.price-band` → `.price-bar` → `.bar` + `.label` | 竖柱图。`.bar` 高度必须使用 `bar_height` 值（单位 px），颜色必须使用 `opportunity_level` 映射：strong→#059669, watch→#d97706, weak→#dc2626。柱体位于固定柱图区底部基线，说明文字放在 `.label`，禁止硬编码高度或颜色。 |
 | 风险列表 | `.risk-list` → `li` → `.severity` | 风险/优势列表 |
@@ -259,8 +269,8 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 
 | 表格 | 列数 | 表总宽 | 各列像素宽 |
 |---|---|---|---|
-| 路线对比表 | 6 | 详见说明 | **路线列宽 ≥ 280px**（需容纳英文路线名不溢出，最长英文名约 40 字符），优先级 90 / 判罚 100 / 核心机会 315 / 核心风险 320 / Tradeoff 410；表格总宽 = 路线 + 1515px |
-| 类目全景表 | 7 | 1185px | 类目 160 / Node ID 105 / 竞争密度 145 / 供需比 140 / 价格区间 110 / 代表品牌 425 / 定位 100 |
+| 路线对比表 | 6 | 详见说明 | **路线列宽 ≥ 280px**（需容纳英文路线名不溢出，最长英文名约 40 字符），优先级 90 / 判罚 150 / 核心机会 315 / 核心风险 320 / Tradeoff 360；表格总宽 = 路线 + 1515px |
+| 类目全景表 | 8 | 类目列宽+1280px | 类目列宽 = max(420, `最长的类目名中: ASCII字符数×8.5 + CJK字符数×15 + 28`)，Agent 在写 HTML 前先取所有类目名按此公式估算，不写死 420px / Node ID 120 / 产品数 100 / Top100月销 110 / 月销额 100 / 均价 110 / 代表品牌 540 / 定位 100 |
 | 核心竞品表 | 8 | 1450px | ASIN 130 / 品牌 170 / 月销 70 / 价格 75 / 评分评论 95 / 主要差评点 450 / 我的反击 380 / 难度 80 |
 | 痛点-规格表 | 5 | 1240px | 优先级 90 / 痛点维度 160 / 竞品问题 340 / 规格要求 330 / 竞品差距 320 |
 | 关键词策略表 | 5 | 980px | 类型 80 / 关键词 160 / 月搜量 80 / CPC 60 / 策略逻辑 600 |
@@ -268,14 +278,14 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 | 验证路线图表 | 4 | 980px | 阶段 160 / 动作 400 / 通过标准 240 / 不通过则 180 |
 
 通用原则：
-- 短值列（价格、评分、评论数、优先级、判罚等）用 `class=”tc nowrap”` 居中且禁止换行。所有表头默认居中；长文本列正文保持左对齐但垂直居中，禁止为了”居中”牺牲可读性。
+- 短值列（价格、评分、评论数、优先级、判罚等）用 `class=”tc nowrap”` 居中且禁止换行。类目全景表的类目名列（英文名在上、中文名在下）必须使用路线列同款格式，允许上下两行但整体居中：`<td class=”route-cell”><div class=”route-name”>English Category Name<span class=”route-en”>（中文类目名）</span></div></td>`。英文名禁止拆行，中文括号名整体禁止拆行。表格有横向滚动，无需为了塞进视口把名称挤成多行。所有表头默认居中；长文本列正文保持左对齐但垂直居中，禁止为了”居中”牺牲可读性。
 - 表格一律居中嵌入视口：`.table-scroll table` 必须至少 `min-width:100%` 且左右自动外边距居中。若手写表宽小于容器，允许横向滚动但不能缩成半张表。
 - ASIN、Node ID、关键词等标识型短文本必须禁止断行：ASIN 用 `class="asin-cell"`，关键词/Node ID 等用 `class="keyword-cell"` 或 `class="tc nowrap"`。
 - 类目全景表的“代表品牌及月销”列必须使用 `class="brand-list-cell"`，同一行展示品牌/月销列表，禁止用 `<br>` 强制换行。表格有 `.table-scroll` 承载横向滚动，不能把品牌列表挤到第二行。
 - 长文本列（核心机会、核心风险、主要差评点、我的反击等）列宽 ≥ 260px
 - **路线列（路线对比表）**：路线中文名和英文括号名允许上下两行，但英文括号整体禁止拆行。格式：`<td class="route-cell"><div class="route-name">中文路线名<span class="route-en">(English Route Name)</span></div></td>`。路线列宽 ≥ 280px（需容纳最长英文路线名，如 40 字符不换行）；`.route-en` 已设置 `white-space:nowrap`。既然表格有 `.table-scroll`，禁止为了塞进视口把路线名/英文名挤成多行。
 - **关键词策略表**：主攻/可测词表固定 980px，4 列分别为 260 / 100 / 80 / 540；明确否定词表也按 980px 处理，2 列分别为 260 / 720。关键词、月搜索量、CPC 等标识/短值列用 `.keyword-cell` 或 `.tc`；策略说明是长文本列，保持默认左对齐但垂直居中；**排除理由列用 `.tc` 居中**。
-- 优先级值用 `<span class="pill">P1</span>`，不裸写数字
+- 路线对比表优先级值用圆圈数字 `<span class="pill">①</span>` ~ `<span class="pill">⑦</span>`（P1→①, P2→②, ... , P7→⑦），禁止用 P1/P2 等内部标签裸露
 - **品牌列（核心竞品表）**：品牌名在上、角色标签在下，并在单元格内水平/垂直居中，禁止横排挤在一行。格式：`<td class="brand-cell"><div class="brand-stack"><strong>品牌名</strong><span class="tag ...">角色标签</span></div></td>`。列宽 ≥ 170px。CSS 已提供 `.brand-cell { text-align:center; vertical-align:middle }`、`.brand-stack { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px }`、`.brand-cell strong { display:block }` 与 `.brand-cell .tag { display:inline-block }`
 - **核心竞品 ASIN 列**：表头写 `<th class="tc nowrap">ASIN</th>`，每个 ASIN 写 `<td class="asin-cell">...</td>`。禁止让 ASIN 在中间断成两行。
 - **痛点-规格表**：必须使用 `.table-scroll` 与 1240px 像素列宽。优先级、痛点维度用 `.tc`，其余 3 个长文本列左对齐但垂直居中。禁止使用无 `colgroup` 的普通表格，否则第一列会被平均分配出大空白。
@@ -478,21 +488,26 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 ## 不可以做
 
 - **不修改数据字段。** `report_data.json` 中的所有 `value` 和 `source_path` 由脚本完整生成，Agent 只读不写。这是架构硬边界。
-- **不新增数字。** HTML 中的每一个数字、百分比、金额、计数必须在 `report_data.json` 中有对应后台 `source_path`，能在证据包中定位到具体字段。
+- **不新增数字。** HTML 中的每一个数字、百分比、金额、计数必须在 `report_data.json` 中有对应后台 `source_path`，能在证据包中定位到具体字段。如果发现需要的数字 JSON 中没有 → 先写回 JSON，再写入 HTML；禁止绕过 JSON 直接从证据包取数。
 - **不新增竞品信息。** 竞品的品牌名、子体数、产地、材质细节等如不在证据包中，不得写入 HTML。如果证据包中只有 ASIN 和品牌名，就只能写这两个。
 - **不发明痛点。** VOC 痛点只能来自 `voc_evidence_packet.json` 的 `pain_points_by_dimension`，不能根据"行业常识"补充未在证据中出现的痛点。
 - **不推测缺失数据。** 如果某个竞品的评分不在证据包中，写"待补"或不写，不能猜一个数字。
 - **不把推断当事实。** 价格带建议、差异点价值是推断，报告中使用"建议""可考虑""预估"等措辞区分。
 - **不写后置落地变量。** 本报告默认只判断市场能不能继续看，禁止输出 COGS、FOB、采购价、供应商报价、毛利率、FBA 费用、1688 实际报价等内容；也禁止把缺少这些数据写成"待补充"或放行阻塞项。只有用户明确开启利润/供应链复核模块时，才可单独展示。
 - **不复制粘贴 insight 原文。** `insights_for_handoff` 是给主 Agent 看的提示，不能直接抄进 HTML。HTML 里的分析应该基于原始数据重新撰写。
-- **不出现内部术语。** HTML 中不出现 Agent、MCP、tool、spawn、packet、pipeline、evidence_packet、source_path、冲突复核过程或内部数据来源分歧。
+- **不出现内部术语和数据来源。** HTML 中不出现 Agent、MCP、tool、spawn、packet、pipeline、evidence_packet、source_path、冲突复核过程或内部数据来源分歧。也禁止暴露数据来源工具名（卖家精灵、Sorftime、Keepa 等）或数据采集时间范围——报告是给运营看的决策书，不是数据审计页。
 - **不使用抽象路线标签。** 禁止在 HTML 中使用任何非业务描述词的路线标识——包括"路线A/B""路线1/2"等抽象代号，也包括 C01/C02 等内部序号（Stage 5 已从源头使用 kebab-case slug 作为 `route_id`，但即使上游 Agent 错引了 `route_id`，HTML 中也必须替换为中文业务名）。路线名必须使用业务描述词，让运营一眼看懂每个方向在做什么产品。路线命名基于 `route_matrix_confirm.json` 中的 `route_name`。
 - **不自创 CSS。** `<style>` 块必须完整复制 `skills/amazon-product-research/references/report_template.css`，禁止修改任何 CSS 值、类名、变量名。禁止发明新的 CSS 类名或 HTML 结构模式。所有报告的视觉风格必须 100% 一致。
+- **标签和解读必须同向（内部一致性铁律）。** 每个价格带/路线的"机会评级"标签和"运营解读"文字必须逻辑一致。评级说"核心战场"/"主推切入"但解读写"不建议进入"＝自相矛盾→阻断。写每个标签前，回读自己的运营解读，确认两者指向同一个结论。禁止用千篇一律的泛化标签（如全部写"需要关注"）——必须按数据差异化标注（不切入/高壁垒/主推切入/利润探索/长期上探）。
+- **价格带标签体系必须参照已有报告。** 写价格带柱状图和标签前，必须先读至少一份已有成功报告的 HTML 价格带章节（如 `runs/*/analysis/*分析报告.html`），确认标签体系一致：绿色 `#059669`＝推荐切入的段，橙色 `#D97706`＝需关注或有壁垒的段，红色 `#DC2626`＝不切入的段，蓝色 `#2563EB`＝未来探索段。禁止所有段用同一颜色或同一标签。
 
 ## 自检清单（写 HTML 前逐项确认）
 
 - [ ] `report_data.json` 已审阅，判断文字已优化，数据字段未被修改
-- [ ] 数字口径一致：同一个数字在不同板块出现时值相同（如 172,183 在 Hero 和类目全景中一致）
+- [ ] 数字口径一致：同一个数字在不同板块出现时值相同（如类目合计在 Hero 和类目全景中一致）
+- [ ] **类目全景表逐行对齐：表中每个类目的产品数/月销/月销额/均价/代表品牌与 `category_panorama.categories[]` 逐字一致，None → "待补"**
+- [ ] **数字来源合规：HTML 中每个数字均可在 `report_data.json` 中定位到具体 `value` 字段——Hero 数字对 Hero metrics、类目表数字对 categories 数组、竞品数字对 competitors 数组**
+- [ ] **分析段落数字来源：所有分析段落中的数字均取自 `analysis_snippets`，未手写或自行计算**
 - [ ] 细分 TAM 和大类 TAM 已分开，数值不同
 - [ ] Hero 6 指标按契约顺序：目标市场 / 月销(子市场) / 核心词月搜 / 类目均价 / 关注价格带 / 类目均分
 - [ ] 竞品表中所有字段（ASIN/品牌/月销/价格/评论数/评分）都能在证据包中找到
@@ -502,7 +517,9 @@ HTML 是运营决策建议书，不是数据审计页。可以在 Hero、类目�
 - [ ] 路线标签使用业务描述词，无"路线A/B"等抽象代号
 - [ ] HTML 视觉规范：内嵌 `<style>` CSS、绿色 Hero、4 种 tag、价格柱状图、放行条件表
 - [ ] **模板合规：`<style>` 块从 report_template.css 完整复制，未修改任何 CSS 值/类名/变量名**
-- [ ] **类名合规：HTML 中只出现了类名速查表中的类名，未出现自定义类名（如 `.hero-metric-label` `.container` `.section-card` `.insight-cards` 等）**
+- [ ] **类名合规：HTML 中只出现了类名速查表中的类名，未出现自定义类名**
+- [ ] **标签解读一致性：每个价格带/路线的评级标签与运营解读同向，无"核心战场+不建议进入"式矛盾**
+- [ ] **标签差异化：价格带标签按数据区分（不切入/高壁垒/主推切入/利润探索/长期上探），未出现全表统一的泛化标签**
 
 ## 运营必备板块后台溯源表（快速对照用）
 

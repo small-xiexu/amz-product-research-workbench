@@ -70,13 +70,13 @@ def build_artifact_status(run_dir: Path) -> dict[str, dict[str, Any]]:
     paths = {
         "candidate_pool": run_dir / "candidate_pool.json",
         "route_matrix_confirm": run_dir / "route_matrix_confirm.json",
-        "ss_quick_packet": run_dir / "sellersprite_quick_evidence_packet.json",
-        "sf_quick_packet": run_dir / "sorftime_quick_evidence_packet.json",
+        "ss_quick_packet": run_dir / "quick_check" / "sellersprite_quick_evidence_packet.json",
+        "sf_quick_packet": run_dir / "quick_check" / "sorftime_quick_evidence_packet.json",
         "market_structure_packet": run_dir / "market_structure" / "market_structure_evidence_packet.json",
         "search_demand_packet": run_dir / "search_demand" / "search_demand_evidence_packet.json",
         "review_voc_packet": run_dir / "review_voc" / "voc_evidence_packet.json",
-        "evaluation_summary": run_dir / "evaluation_summary.json",
-        "integrated_judgment": run_dir / "integrated_operator_judgment.json",
+        "evaluation_summary": run_dir / "evaluations" / "evaluation_summary.json",
+        "integrated_judgment": run_dir / "analysis" / "integrated_operator_judgment.json",
         "sorftime_verification": run_dir / "mcp" / "sorftime_verification.json",
         "analysis_report_data": run_dir / "analysis" / "report_data.json",
         "analysis_html": _find_analysis_file(run_dir, "_分析报告.html"),
@@ -264,7 +264,7 @@ def _quick_gate_passed(run_path: Path) -> bool:
     progress = load_json(run_path / "progress.json")
     stages = progress.get("stages", {})
     gate = stages.get("stage_3_quick_gate", {})
-    return gate.get("status") == "completed"
+    return gate.get("status") in ("completed", "done")
 
 
 def build_blockers(

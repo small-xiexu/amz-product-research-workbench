@@ -218,7 +218,49 @@ def build_analysis_packet(run_dir: Path, packets: dict[str, Any]) -> dict[str, A
         },
     }
     analysis["run_status_audit"] = audit_run_status(run_dir)
+    _backfill_category_names(analysis)
     return analysis
+
+
+def _backfill_category_names(analysis: dict[str, Any]) -> None:
+    """用 search_validation.derived_metrics 中的 nodeId→category_name 回填 category_opportunity 中缺失的类目名。"""
+    node_name_map: dict[str, str] = {}
+
+    # 从 search_market_validation 的 derived_metrics 中提取
+    sv = analysis.get("search_market_validation") or {}
+    for dm in as_list(sv.get("derived_metrics")):
+        for key in ("category_search_signal", "category_top100_signal"):
+            signal = dm.get(key) or {}
+            raw = signal.get("raw_value")
+            if isinstance(raw, dict):
+                nid = str(raw.get("nodeId", ""))
+                name = raw.get("category_name", "")
+                if nid and name:
+                    node_name_map[nid] = name
+            elif isinstance(raw, list):
+                for item in raw:
+                    if isinstance(item, dict):
+                        nid = str(item.get("nodeId", ""))
+                        name = item.get("category_name", "")
+                        if nid and name:
+                            node_name_map[nid] = name
+
+    if not node_name_map:
+        return
+
+    co = analysis.get("category_opportunity") or {}
+    fixed = 0
+    for cat in as_list(co.get("category_candidates")):
+        name = cat.get("category_name", "")
+        nid = str(cat.get("node_id", ""))
+        if name.startswith("Node ") and nid in node_name_map:
+            cat["category_name"] = node_name_map[nid]
+            cat["category_path"] = node_name_map[nid]
+            fixed += 1
+
+    if fixed:
+        import sys
+        print(f"[backfill] {fixed} 个类目名从 search_validation 回填成功：{sorted(node_name_map.keys())}", file=sys.stderr)
 
 
 def source_packet_row(name: str, path: Path, packet: dict[str, Any]) -> dict[str, Any]:
@@ -547,6 +589,34 @@ def _fill_market_validation_from_excel_if_empty(market_validation: dict[str, Any
         pm["label"] = "目标市场"
 
 
+def _extract_brand_map(market: dict[str, Any]) -> dict[str, str]:
+    """从 evidence_items 中提取 node_id → 代表品牌字符串 的映射。"""
+    brand_map: dict[str, str] = {}
+    for item in as_list(market.get("evidence_items")):
+        if item.get("item_type") != "brand_concentration":
+            continue
+        facts = item.get("facts") or {}
+        for entry in as_list(facts.get("raw_value")):
+            if not isinstance(entry, dict):
+                continue
+            top_brands = entry.get("topBrands") or []
+            if not top_brands:
+                continue
+            nid_path = entry.get("nodeIdPath") or ""
+            node_id = nid_path.split(":")[-1] if ":" in nid_path else nid_path
+            if not node_id:
+                continue
+            parts = []
+            for b in top_brands[:3]:
+                name = b.get("brand", "")
+                share = b.get("share")
+                if name and share is not None:
+                    parts.append(f"{name} ({share * 100:.1f}%)")
+            if parts:
+                brand_map[node_id] = " · ".join(parts)
+    return brand_map
+
+
 def build_category_opportunity(search: dict[str, Any], market: dict[str, Any], run_dir: Path | None = None) -> dict[str, Any]:
     category_candidates = normalize_category_candidates(search, market)
     price_band_opportunity = normalize_price_band_opportunity(market, run_dir)
@@ -565,6 +635,7 @@ def build_category_opportunity(search: dict[str, Any], market: dict[str, Any], r
 
 def normalize_category_candidates(search: dict[str, Any], market: dict[str, Any]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
+    brand_map = _extract_brand_map(market)
     for item in as_list(market.get("category_candidates")) + as_list(search.get("category_candidates")):
         if not isinstance(item, dict):
             continue
@@ -579,6 +650,52 @@ def normalize_category_candidates(search: dict[str, Any], market: dict[str, Any]
                 "evidence_strength": item.get("evidence_strength", item.get("confidence", "")),
                 "recommended_use": item.get("recommended_use", ""),
                 "risk_tags": join_text(item.get("risk_tags")),
+                "representative_brands": item.get("representative_brands") or brand_map.get(
+                    item.get("node_id") or item.get("nodeId") or item.get("nodeid", ""), ""
+                ),
+            }
+        )
+    if rows:
+        return rows
+    # Extract from script-generated category_landscape (built from aggregated market_capacity tool results)
+    for item in as_list(market.get("category_landscape")):
+        if not isinstance(item, dict):
+            continue
+        node_id = item.get("node_id") or item.get("nodeId") or ""
+        total_products = item.get("totalProducts")
+        top100_units = item.get("top100Units")
+        if total_products is not None and top100_units is not None:
+            if total_products > 2000 and top100_units > 200000:
+                role = "primary"
+            elif total_products <= 500 and top100_units is None:
+                role = "marginal"
+            elif total_products is None or total_products <= 500:
+                role = "marginal"
+            else:
+                role = "secondary"
+        elif top100_units is not None and top100_units > 200000:
+            role = "primary"
+        elif total_products is not None and total_products > 2000:
+            role = "secondary"
+        else:
+            role = "marginal"
+        rows.append(
+            {
+                "category_name": item.get("category_name") or item.get("categoryName") or f"Node {node_id}",
+                "node_id": node_id,
+                "node_id_path": item.get("node_id_path") or item.get("nodeIdPath") or "",
+                "category_path": "",
+                "category_role": role,
+                "source_type": "market_structure_deep",
+                "matched_asin_count": item.get("matched_asin_count", ""),
+                "evidence_strength": "medium",
+                "recommended_use": "needs_review",
+                "risk_tags": "",
+                "top100_monthly_sales": item.get("top100Units"),
+                "top100_monthly_revenue": item.get("top100Revenue"),
+                "avg_price": item.get("avgPrice"),
+                "product_count_in_category": item.get("totalProducts"),
+                "representative_brands": brand_map.get(node_id, ""),
             }
         )
     if rows:
@@ -596,6 +713,7 @@ def normalize_category_candidates(search: dict[str, Any], market: dict[str, Any]
                 "evidence_strength": "",
                 "recommended_use": "needs_review",
                 "risk_tags": "",
+                "representative_brands": "",
             }
         )
     return rows
@@ -605,6 +723,30 @@ def normalize_price_band_opportunity(market: dict[str, Any], run_dir: Path | Non
     rows = as_list(market.get("price_band_opportunity"))
     if rows:
         return rows
+    # Extract from evidence_items price_band raw_value (script-generated from MCP)
+    for ei in as_list(market.get("evidence_items")):
+        if ei.get("item_type") != "price_band":
+            continue
+        rv = ei.get("facts", {}).get("raw_value", {})
+        bands = as_list(rv.get("priceBands", rv.get("price_bands")))
+        for band in bands:
+            if not isinstance(band, dict):
+                continue
+            pr = band.get("priceRange", band.get("price_range", ""))
+            rows.append({
+                "category_ref": "primary_market",
+                "price_band": pr,
+                "product_count": band.get("productCount", band.get("product_count", "")),
+                "sales_share": band.get("salesShare", band.get("sales_share", band.get("unit_share", ""))),
+                "revenue_share": band.get("revenueShare", band.get("revenue_share", "")),
+                "median_rating_count": band.get("median_rating_count", ""),
+                "new_release_count": band.get("new_release_count", ""),
+                "low_review_winner_count": band.get("low_review_winner_count", ""),
+                "opportunity_level": "watch",
+                "reason": f"{pr} 价格段机会待结合竞品和关键词复核",
+            })
+        if rows:
+            return rows
     grouped = ((market.get("price_band") or {}).get("primary_market_distribution_grouped") or {})
     normalized: list[dict[str, Any]] = []
     for band, value in grouped.items():

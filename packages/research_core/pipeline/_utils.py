@@ -103,6 +103,8 @@ def _navigate(current: Any, part: str) -> Any:
                     if item.get("id") == idx_str or item.get("name") == idx_str or item.get("keyword") == idx_str:
                         return item
         if isinstance(current, dict):
+            if idx_str in current:
+                return current[idx_str]
             for key, val in current.items():
                 if isinstance(val, list):
                     for item in val:
@@ -402,6 +404,14 @@ def _call_params_for_result(snapshot: dict[str, Any], result: dict[str, Any]) ->
     for call in as_list(snapshot.get("tool_calls")):
         if isinstance(call, dict) and call.get("call_id") == call_id and isinstance(call.get("params"), dict):
             return call["params"]
+    return {}
+
+
+def _call_for_result(snapshot: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    call_id = result.get("call_id") if isinstance(result, dict) else ""
+    for call in as_list(snapshot.get("tool_calls")):
+        if isinstance(call, dict) and call.get("call_id") == call_id:
+            return call
     return {}
 
 

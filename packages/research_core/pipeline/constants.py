@@ -49,6 +49,19 @@ FORBIDDEN_HTML_PATTERNS = [
     (r"conflict_review", "冲突复核过程泄漏，不得出现'conflict_review'"),
     (r"冲突复核", "冲突复核过程泄漏，不得出现'冲突复核'"),
     (r"融合策略", "冲突复核过程泄漏，不得出现'融合策略'"),
+    # 证据溯源泄漏：报告不应暴露内部证据包文件名
+    (r"证据：\s*VOC证据包", "证据溯源泄漏，不得出现'证据：VOC证据包'"),
+    (r"证据：\s*search_demand", "证据溯源泄漏，不得出现'证据：search_demand'"),
+    (r"证据：\s*market_structure", "证据溯源泄漏，不得出现'证据：market_structure'"),
+    (r"证据：\s*data_quality_evaluation", "证据溯源泄漏，不得出现'证据：data_quality_evaluation'"),
+    (r"证据：\s*competition_evaluation", "证据溯源泄漏，不得出现'证据：competition_evaluation'"),
+    (r"证据：\s*市场结构", "证据溯源泄漏，不得出现'证据：市场结构'"),
+    (r"证据：\s*搜索需求", "证据溯源泄漏，不得出现'证据：搜索需求'"),
+    # 内部文件路径泄漏
+    (r"search_demand_evidence_packet", "内部文件名泄漏，不得出现'search_demand_evidence_packet'"),
+    (r"market_structure_evidence_packet", "内部文件名泄漏，不得出现'market_structure_evidence_packet'"),
+    (r"voc_evidence_packet", "内部文件名泄漏，不得出现'voc_evidence_packet'"),
+    (r"mcp_snapshots/", "内部路径泄漏，不得出现'mcp_snapshots/'"),
 ] + list(PUBLIC_FORBIDDEN_TEXT_PATTERNS)
 REQUIRED_SECTION_MARKERS = (
     "类目全景",

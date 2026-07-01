@@ -22,7 +22,7 @@ from packages.research_core.contracts import (
 from packages.research_core.contracts.p0_contracts import P0_SCHEMA_VERSION
 from packages.research_core.pipeline._utils import (
     as_list, first_text, load_json, numeric_value,
-    _base_tool_name, _call_params_for_result, _dedupe_dicts, _field_gaps,
+    _base_tool_name, _call_for_result, _call_params_for_result, _dedupe_dicts, _field_gaps,
     _first_field, _first_metric_value, _nested_first, _normalize_tool_status,
     _now_iso, _packet_confidence, _probe_raw_result, _result_payload,
     _run_id, _unique_texts, _write_json,
@@ -55,6 +55,7 @@ EVIDENCE_SPECS: tuple[dict[str, Any], ...] = (
         "aggregation_unit": "category",
         "sample_scope": "category_market",
         "expected_fields": ("totalUnits", "total_units", "units", "totalAmount", "total_amount", "avgPrice", "avgRatings", "avgRating"),
+        "aggregate": True,
     },
     {
         "item_type": "price_band",
@@ -73,6 +74,24 @@ EVIDENCE_SPECS: tuple[dict[str, Any], ...] = (
         "expected_fields": ("sellerName", "products", "totalUnits", "totalRevenue", "totalUnitsRatio", "totalRevenueRatio"),
     },
     {
+        "item_type": "brand_concentration",
+        "tools": ("market_brand_concentration",),
+        "metric_unit": "percent",
+        "aggregation_unit": "brand",
+        "sample_scope": "category_brand_distribution",
+        "expected_fields": ("brand", "share", "products", "avgPrice", "totalRatings"),
+        "aggregate": True,
+    },
+    {
+        "item_type": "product_concentration",
+        "tools": ("market_product_concentration",),
+        "metric_unit": "percent",
+        "aggregation_unit": "product",
+        "sample_scope": "category_product_distribution",
+        "expected_fields": ("asin", "share", "price", "ratings", "title"),
+        "aggregate": True,
+    },
+    {
         "item_type": "competitor_structure",
         "tools": ("product_research", "competitor_lookup", "market_product_concentration", "market_brand_concentration"),
         "metric_unit": "mixed",
@@ -87,6 +106,7 @@ EVIDENCE_SPECS: tuple[dict[str, Any], ...] = (
         "aggregation_unit": "asin",
         "sample_scope": "representative_asin",
         "expected_fields": ("asin", "price", "rating", "ratings", "reviews", "sellerName", "brand", "nodeIdPath", "parentAsin", "variations", "fulfillment"),
+        "aggregate": True,
     },
     {
         "item_type": "review_threshold",
@@ -351,14 +371,101 @@ def build_market_structure_evidence_packet(
     evidence_items: list[dict[str, Any]] = []
     metric_basis: dict[str, dict[str, Any]] = {}
     derived_metrics: dict[str, dict[str, Any]] = {}
+    category_landscape: list[dict[str, Any]] = []
+
+    reference_asin_pool: list[dict[str, Any]] = []
 
     for spec in EVIDENCE_SPECS:
-        result_index, result = _find_result(results, spec["tools"])
-        result_ref = f"{SNAPSHOT_DIR}/{SELLERSPRITE_SNAPSHOT_NAME}#tool_results[{result_index}]" if result_index >= 0 else f"{SNAPSHOT_DIR}/{SELLERSPRITE_SNAPSHOT_NAME}#tool_results[0]"
-        call_ref = _call_ref(result, call_index_by_id)
+        if spec.get("aggregate"):
+            all_matches = _find_all_results(results, spec["tools"])
+            merged_payload: list[dict[str, Any]] = []
+            all_result_refs: list[str] = []
+            all_call_refs: list[str] = []
+            for ri, r in all_matches:
+                payload = _result_payload(r)
+                call = _call_for_result(snapshot, r)
+                node_path = first_text(
+                    (call.get("params") or {}).get("nodeIdPath"),
+                    (call.get("params") or {}).get("nodeIdPaths"),
+                )
+                if isinstance(payload, list):
+                    for item in payload:
+                        if isinstance(item, dict):
+                            if node_path and "nodeIdPath" not in item:
+                                item["nodeIdPath"] = node_path
+                                item["nodeId"] = node_path.split(":")[-1]
+                            merged_payload.append(item)
+                elif isinstance(payload, dict) and payload:
+                    if node_path and "nodeIdPath" not in payload:
+                        payload["nodeIdPath"] = node_path
+                        payload["nodeId"] = node_path.split(":")[-1]
+                    merged_payload.append(payload)
+                ref = f"{SNAPSHOT_DIR}/{SELLERSPRITE_SNAPSHOT_NAME}#tool_results[{ri}]"
+                all_result_refs.append(ref)
+                all_call_refs.append(_call_ref(r, call_index_by_id))
+            result = all_matches[0][1]
+            result_index = all_matches[0][0]
+            result_ref = all_result_refs[0] if all_result_refs else f"{SNAPSHOT_DIR}/{SELLERSPRITE_SNAPSHOT_NAME}#tool_results[0]"
+            raw_value = merged_payload
+            rows = _extract_rows(merged_payload)
+
+            if spec["item_type"] == "market_capacity":
+                for ri, r in all_matches:
+                    call = _call_for_result(snapshot, r)
+                    node_path = first_text(
+                        (call.get("params") or {}).get("nodeIdPath"),
+                        (call.get("params") or {}).get("nodeIdPaths"),
+                    )
+                    leaf_node = node_path.split(":")[-1] if node_path else ""
+                    entry: dict[str, Any] = {}
+                    if leaf_node:
+                        entry["node_id"] = leaf_node
+                    if node_path:
+                        entry["node_id_path"] = node_path
+                    payload = _result_payload(r)
+                    if isinstance(payload, dict):
+                        entry.update(payload)
+                    elif isinstance(payload, list) and payload:
+                        entry.update(payload[0] if isinstance(payload[0], dict) else {})
+                    if entry:
+                        category_landscape.append(entry)
+
+            if spec["item_type"] == "asin_operating_data":
+                for row in rows:
+                    entry: dict[str, Any] = {}
+                    asin_val = row.get("asin") or row.get("ASIN")
+                    if asin_val and isinstance(asin_val, str) and asin_val.strip():
+                        entry["asin"] = asin_val.strip()
+                        price = row.get("price") or row.get("price_usd")
+                        if price is not None:
+                            entry["price"] = price
+                        monthly = row.get("monthlySales") or row.get("monthly_sales") or row.get("estimated_monthly_sales")
+                        if monthly is not None:
+                            entry["monthly_sales"] = monthly
+                        rating = row.get("ratingValue") or row.get("rating") or row.get("avgRating")
+                        if rating is not None:
+                            entry["rating"] = rating
+                        rc = row.get("ratingCount") or row.get("ratings") or row.get("reviews") or row.get("avgRatings")
+                        if rc is not None:
+                            entry["rating_count"] = rc
+                        brand = row.get("brand") or row.get("sellerName")
+                        if brand:
+                            entry["brand"] = brand
+                        title = row.get("title")
+                        if title:
+                            entry["title"] = title
+                        reference_asin_pool.append(entry)
+        else:
+            result_index, result = _find_result(results, spec["tools"])
+            result_ref = f"{SNAPSHOT_DIR}/{SELLERSPRITE_SNAPSHOT_NAME}#tool_results[{result_index}]" if result_index >= 0 else f"{SNAPSHOT_DIR}/{SELLERSPRITE_SNAPSHOT_NAME}#tool_results[0]"
+            all_result_refs = [result_ref]
+            all_call_refs = [_call_ref(result, call_index_by_id)]
+            raw_value = _result_payload(result)
+            rows = _extract_rows(raw_value)
+
+        call_ref = all_call_refs[0] if all_call_refs else ""
         basis_id = f"sellersprite_{spec['item_type']}_basis"
         tool_name = _base_tool_name(result.get("tool_name") if isinstance(result, dict) else first_text(spec["tools"][0]))
-        rows = _extract_rows(_result_payload(result))
         normalized = _normalize_evidence_value(rows, spec["expected_fields"])
         item_gaps = _field_gaps(spec, result, rows, normalized, result_ref)
         data_gaps.extend(item_gaps)
@@ -383,23 +490,23 @@ def build_market_structure_evidence_packet(
                 "item_type": spec["item_type"],
                 "facts": {
                     "tool_name": tool_name,
-                    "raw_value": _result_payload(result),
+                    "raw_value": raw_value,
                     "normalized_value": normalized,
                     "node_mapping_input": node_lineage,
                     "expected_fields": list(spec["expected_fields"]),
                     "source_status": result.get("status", "missing") if isinstance(result, dict) else "missing",
                 },
                 "metric_basis_ref": basis_id,
-                "evidence_refs": [result_ref],
-                "source_refs": [call_ref],
+                "evidence_refs": all_result_refs,
+                "source_refs": all_call_refs,
             }
         )
         derived_metrics[f"{spec['item_type']}_signal"] = {
             "value": _first_metric_value(normalized),
-            "raw_value": _result_payload(result),
+            "raw_value": raw_value,
             "normalized_value": normalized,
             "metric_basis_ref": basis_id,
-            "evidence_refs": [result_ref],
+            "evidence_refs": all_result_refs,
         }
 
     if errors:
@@ -415,8 +522,10 @@ def build_market_structure_evidence_packet(
         "route_refs": route_refs,
         "selected_routes": selected_routes,
         "evidence_items": evidence_items,
+        "category_landscape": category_landscape,
         "derived_metrics": derived_metrics,
         "metric_basis": metric_basis,
+        "reference_asin_pool": reference_asin_pool,
         "data_gaps": _dedupe_dicts(data_gaps),
         "blocking_gaps": [],
         "confidence": _packet_confidence(data_gaps),
@@ -597,6 +706,30 @@ def _find_result(results: list[dict[str, Any]], tool_names: tuple[str, ...]) -> 
             return index, result
     if results:
         return 0, results[0]
+    raise P4SellerSpriteError("sellersprite deep snapshot must include tool_results")
+
+
+def _find_all_results(results: list[dict[str, Any]], tool_names: tuple[str, ...]) -> list[tuple[int, dict[str, Any]]]:
+    """Return ALL matching results for a spec (not just the first).
+
+    Used when a tool like asin_detail is called once per ASIN and every
+    result contributes rows that must be aggregated.
+    """
+    matches: list[tuple[int, dict[str, Any]]] = []
+    for index, result in enumerate(results):
+        base_name = _base_tool_name(result.get("tool_name"))
+        if base_name in tool_names:
+            matches.append((index, result))
+    if matches:
+        return matches
+    for index, result in enumerate(results):
+        base_name = _base_tool_name(result.get("tool_name"))
+        if any(name in base_name or base_name in name for name in tool_names):
+            matches.append((index, result))
+    if matches:
+        return matches
+    if results:
+        return [(0, results[0])]
     raise P4SellerSpriteError("sellersprite deep snapshot must include tool_results")
 
 

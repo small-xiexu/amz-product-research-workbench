@@ -28,7 +28,7 @@ def main() -> int:
     args = parse_args()
     run_dir = Path(args.run_dir).expanduser().resolve()
     audit = audit_run_status(run_dir)
-    output = Path(args.output).expanduser().resolve() if args.output else run_dir / "run_status_audit.json"
+    output = Path(args.output).expanduser().resolve() if args.output else run_dir / "audit_run_status.json"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(audit, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 

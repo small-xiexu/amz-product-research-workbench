@@ -31,6 +31,19 @@ def _data_sources_from_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _hero_market_value(primary: dict[str, Any], cat_candidates: list[dict[str, Any]], top_cat: dict[str, Any]) -> str:
+    """计算 Hero 区域'目标市场'指标的值，优先用实际数据避免 '目标市场' 占位。"""
+    label = primary.get("label", "")
+    if label and label != "目标市场":
+        return label
+    if cat_candidates:
+        first_name = cat_candidates[0].get("category_name", "")
+        if first_name and not first_name.startswith("Node "):
+            return f"{first_name} 等{len(cat_candidates)}类目"
+        return f"{len(cat_candidates)}个候选类目"
+    return top_cat.get("category_name", "目标市场")
+
+
 def _brand_concentration_from_evidence(
     market_structure: dict[str, Any], node_id: str
 ) -> dict[str, Any] | None:
@@ -39,21 +52,70 @@ def _brand_concentration_from_evidence(
         return None
     for item in as_list(market_structure.get("evidence_items")):
         raw = item.get("facts", {}).get("raw_value", {})
-        if isinstance(raw, dict) and raw.get("nodeIdPath") == node_id:
-            brands = raw.get("topBrands") or []
-            top3 = raw.get("top3_concentration", "")
-            if brands:
-                return {
-                    "brands": [
-                        f"{b.get('brand','')} ({b.get('unitsShare','')})"
-                        for b in brands[:8]
-                        if b.get("brand")
-                    ],
-                    "top3_concentration": top3,
-                    "brand_count": len(brands),
-                    "source_path": "market_structure.evidence_items[*].facts.raw_value.topBrands",
-                }
+        if isinstance(raw, dict):
+            if raw.get("nodeIdPath") == node_id:
+                brands = raw.get("topBrands") or []
+                top3 = raw.get("top3_concentration", "")
+                if brands:
+                    return {
+                        "brands": [
+                            f"{b.get('brand','')} ({b.get('share','')})"
+                            for b in brands[:8]
+                            if b.get("brand")
+                        ],
+                        "top3_concentration": top3 or _top3_share(brands),
+                        "brand_count": len(brands),
+                        "source_path": "market_structure.evidence_items[*].facts.raw_value.topBrands",
+                    }
+        elif isinstance(raw, list):
+            for entry in raw:
+                if isinstance(entry, dict) and (entry.get("nodeIdPath") == node_id or entry.get("nodeId") == node_id):
+                    brands = entry.get("topBrands") or []
+                    top3 = entry.get("top3_concentration", "")
+                    if brands:
+                        return {
+                            "brands": [
+                                f"{b.get('brand','')} ({b.get('share','')})"
+                                for b in brands[:8]
+                                if b.get("brand")
+                            ],
+                            "top3_concentration": top3 or _top3_share(brands),
+                            "brand_count": len(brands),
+                            "source_path": "market_structure.evidence_items[*].facts.raw_value.topBrands",
+                        }
     return None
+
+
+def _top3_share(brands: list[dict[str, Any]]) -> str:
+    """从品牌列表计算 Top3 集中度。"""
+    shares = sorted(
+        [b.get("share", 0) for b in brands if isinstance(b, dict)],
+        reverse=True,
+    )
+    top3 = sum(shares[:3])
+    return f"{top3:.1%}" if top3 else ""
+
+
+def _collect_route_reference_asins(
+    route_matrix: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Collect all unique reference ASINs across all routes in order."""
+    if not route_matrix:
+        return []
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for route in as_list(route_matrix.get("route_options") or route_matrix.get("selected_routes")):
+        for asin in as_list(route.get("reference_asins")):
+            aid = asin.get("asin", "") if isinstance(asin, dict) else str(asin)
+            if aid and aid not in seen:
+                seen.add(aid)
+                result.append({
+                    "asin": aid,
+                    "brand": asin.get("brand", "") if isinstance(asin, dict) else "",
+                    "monthly_sales": str(asin.get("monthly_sales", "")) if isinstance(asin, dict) else "",
+                    "role": asin.get("role", "") if isinstance(asin, dict) else "",
+                })
+    return result
 
 
 def _per_category_asins(
@@ -70,6 +132,7 @@ def _per_category_asins(
         in_route = any(
             (isinstance(c, dict) and str(c.get("nodeIdPath", "")).endswith(node_id))
             or (isinstance(c, dict) and str(c.get("path", "")).find(node_id) != -1)
+            or (isinstance(c, str) and c == node_id)
             for c in cats
         )
         if not in_route:
@@ -211,6 +274,141 @@ def _seasonality_summary(raw: Any) -> dict[str, Any]:
         "peak_trough_ratio": peak_trough_ratio or "待补",
     }
 
+
+
+def _build_analysis_snippets(
+    categories: list[dict[str, Any]],
+    kw_pool: dict[str, Any],
+    search_demand: dict[str, Any] | None,
+    route_matrix: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """预计算报告中常用的数据摘要文本，供 Agent 引用而非手写数字。
+
+    Agent 在写 Hero lead、运营评估、风险分析等段落时，
+    必须从 snippets 中取数字，不得自行计算或搬运。
+    """
+    # ---- 类目全景合计 ----
+    total_sales = 0
+    total_revenue = 0
+    cat_details: list[dict[str, str]] = []
+    for cat in categories:
+        s = numeric_value(cat.get("top100_monthly_sales", {}).get("value", 0)) or 0
+        r = numeric_value(cat.get("top100_monthly_revenue", {}).get("value", 0)) or 0
+        p = numeric_value(cat.get("avg_price", {}).get("value", 0)) or 0
+        name = str(cat.get("category_name", {}).get("value", "")) if isinstance(cat.get("category_name"), dict) else str(cat.get("category_name", ""))
+        total_sales += int(s)
+        total_revenue += int(r)
+        cat_details.append({
+            "name": name,
+            "node_id": str(cat.get("node_id", {}).get("value", "")) if isinstance(cat.get("node_id"), dict) else str(cat.get("node_id", "")),
+            "sales": f"{int(s):,}",
+            "sales_wan": f"{s/10000:.1f}万",
+            "sales_k": f"{int(s/1000)}K",
+            "revenue": f"${int(r):,}",
+            "revenue_wan": f"${r/10000:,.0f}万",
+            "avg_price": f"${p:.2f}",
+        })
+
+    weighted_avg_price = total_revenue / total_sales if total_sales > 0 else 0
+
+    # Top3 体量类目
+    sorted_by_sales = sorted(cat_details, key=lambda c: int(c["sales"].replace(",", "")), reverse=True)
+    top3_text = "、".join(
+        f"{c['name']}（{c['sales_wan']}）" for c in sorted_by_sales[:3]
+    )
+
+    category_panorama_snippets = {
+        "category_count": len(categories),
+        "total_monthly_sales": f"{total_sales/10000:.1f}万",
+        "total_monthly_sales_raw": total_sales,
+        "total_monthly_revenue": f"${total_revenue/10000:,.0f}万",
+        "total_monthly_revenue_raw": total_revenue,
+        "weighted_avg_price": f"${weighted_avg_price:.2f}",
+        "overview_text": (
+            f"{len(categories)}个候选类目TOP100月销合计约{total_sales/10000:.1f}万件、"
+            f"月销额约${total_revenue/10000:,.0f}万，加权均价${weighted_avg_price:.2f}"
+        ),
+        "top3_categories_text": f"{top3_text}为体量最大的三个子类目",
+        "per_category": {c["name"]: c for c in cat_details},
+    }
+
+    # ---- 搜索趋势摘要 ----
+    trend_signals: list[str] = []
+    if search_demand:
+        sd_trend = search_demand.get("trend_signal", {})
+        if isinstance(sd_trend, dict):
+            for item in as_list(sd_trend.get("items", sd_trend.get("signals", []))):
+                if isinstance(item, dict):
+                    kw = item.get("keyword", "")
+                    change = item.get("change_pct", item.get("change", ""))
+                    if kw and change:
+                        trend_signals.append(f"{kw} {change}")
+        # 从 facts 中提取趋势
+        for fact in as_list(search_demand.get("facts", [])):
+            if not isinstance(fact, dict):
+                continue
+            metric = str(fact.get("metric", "")).lower()
+            if "trend" in metric or "趋势" in metric:
+                subject = fact.get("subject", "")
+                value = fact.get("value", "")
+                if subject and value:
+                    trend_signals.append(f"{subject} {value}")
+
+    trend_text = "、".join(trend_signals[:6]) if trend_signals else "待补"
+
+    search_trend_snippets = {
+        "decline_summary": trend_text,
+        "data_source": "Sorftime关键词趋势（时间范围以证据包采集时间为准）",
+    }
+
+    # ---- 路线-类目映射 ----
+    mapping_lines: list[str] = []
+    for route in as_list((route_matrix or {}).get("route_options", (route_matrix or {}).get("selected_routes", []))):
+        if not isinstance(route, dict):
+            continue
+        route_name = route.get("route_name", "")
+        cats = as_list(route.get("candidate_categories", []))
+        cat_refs = []
+        for c in cats:
+            if isinstance(c, dict):
+                cname = c.get("category_name", c.get("name", ""))
+                nid = c.get("nodeIdPath", c.get("node_id", ""))
+                if cname and nid:
+                    cat_refs.append(f"{cname} ({nid})")
+        if route_name and cat_refs:
+            mapping_lines.append(f"{route_name}→{'、'.join(cat_refs)}")
+
+    mapping_text = "；".join(mapping_lines) if mapping_lines else "待补"
+
+    route_mapping_snippet = {
+        "text": mapping_text,
+    }
+
+    # ---- 路线级关键数字（供运营评估段落使用） ----
+    route_snippets: dict[str, dict[str, str]] = {}
+    for cat in cat_details:
+        name = cat["name"]
+        route_snippets[name] = {
+            "monthly_sales_k": cat["sales_k"],
+            "monthly_sales_wan": cat["sales_wan"],
+            "avg_price": cat["avg_price"],
+            "node_id": cat["node_id"],
+        }
+
+    # ---- 核心搜索量估计 ----
+    core_sv = _core_search_volume_estimate(kw_pool)
+
+    return {
+        "category_panorama": category_panorama_snippets,
+        "search_trends": search_trend_snippets,
+        "route_category_mapping": route_mapping_snippet,
+        "per_category": route_snippets,
+        "core_search_volume": core_sv,
+        "usage_rule": (
+            "Agent 在 HTML 分析段落中引用数字时，必须取自此 snippets。"
+            "禁止手写数字或自行计算。可改写周围措辞，但不得改数字本身。"
+        ),
+    }
 
 
 def seed_report_data_from_analysis(analysis: dict[str, Any], packets: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -357,7 +555,7 @@ def seed_report_data_from_analysis(analysis: dict[str, Any], packets: dict[str, 
 
     # Hero metrics
     metrics = {
-        "target_market": {"label": "目标市场", "value": primary.get("label", top_cat.get("category_name", "")), "source_path": "analysis.seller_sprite_validation.primary_market.label"},
+        "target_market": {"label": _hero_market_value(primary, cat_candidates, top_cat), "value": _hero_market_value(primary, cat_candidates, top_cat), "source_path": "analysis.seller_sprite_validation.primary_market.label"},
         "monthly_demand": {"label": "月销", "value": f"{primary.get('avg_monthly_units', '')} units", "source_path": "analysis.seller_sprite_validation.primary_market.avg_monthly_units"},
         "core_search_volume": {"label": "核心词月搜", "value": derived["core_search_volume"], "source_path": "analysis._derived.core_search_volume"},
         "avg_price": {"label": "均价", "value": f"${primary.get('avg_price_usd', '')}", "source_path": "analysis.seller_sprite_validation.primary_market.avg_price_usd"},
@@ -371,7 +569,7 @@ def seed_report_data_from_analysis(analysis: dict[str, Any], packets: dict[str, 
 
     categories = []
     category_rows = cat_candidates or [top_cat]
-    for index, category in enumerate(category_rows[:8]):
+    for index, category in enumerate(category_rows[:12]):
         source_base = f"analysis.category_opportunity.category_candidates[{index}]"
         has_candidate = bool(cat_candidates)
         category_name = category.get("category_name") or primary.get("label", "")
@@ -380,16 +578,13 @@ def seed_report_data_from_analysis(analysis: dict[str, Any], packets: dict[str, 
         # Brand concentration from evidence
         brand_concentration = _brand_concentration_from_evidence(market_structure, node_id)
 
-        # Per-category ASINs (fall back to generic pool if packets not available)
+        # Per-category ASINs (fall back to route-level ASIN pool, cycled by index)
         per_asins = _per_category_asins(route_matrix, node_id) if packets else []
         if not per_asins:
-            for asin_index, asin in enumerate((analysis.get("reference_asin_pool") or [])[:5]):
-                per_asins.append({
-                    "asin": asin.get("asin", ""),
-                    "brand": asin.get("brand", ""),
-                    "monthly_sales": str(asin.get("monthly_sales", "")),
-                    "role": asin.get("asin_role", ""),
-                })
+            all_route_asins = _collect_route_reference_asins(route_matrix)
+            window = 5
+            start = (index * window) % max(len(all_route_asins), 1)
+            per_asins = all_route_asins[start : start + window]
 
         categories.append({
             "category_name": {
@@ -436,6 +631,12 @@ def seed_report_data_from_analysis(analysis: dict[str, Any], packets: dict[str, 
             "lineage": [source_base if has_candidate else "analysis.seller_sprite_validation.primary_market"],
         })
 
+    # ---- Build analysis snippets (pre-computed text for Agent reference) ----
+    search_demand_packet = (packets or {}).get("search_demand")
+    analysis_snippets = _build_analysis_snippets(
+        categories, kw_pool, search_demand_packet, route_matrix,
+    )
+
     return {
         "schema_version": "report-data-v1",
         "packet_id": "report_data",
@@ -443,6 +644,7 @@ def seed_report_data_from_analysis(analysis: dict[str, Any], packets: dict[str, 
         "generated_at": analysis.get("created_at", ""),
         "snapshot_date": analysis.get("created_at", ""),
         "evidence_sources": _evidence_sources_from_analysis(analysis),
+        "analysis_snippets": analysis_snippets,
         "hero": {
             "verdict": report_verdict,
             "lead_analysis": lead_analysis,

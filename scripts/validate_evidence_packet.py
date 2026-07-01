@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Stage 6 产出后契约校验：检查 evidence packet 的数据结构完整性。
+"""Stage 6 产出后契约校验：检查 evidence packet 的数据结构完整性 + 逐类目工具覆盖度。
 
 在 Agent 产出 evidence packet 后立即运行，确保：
   - evidence_items[].facts 元素全是 dict（无裸 string）
   - route_refs 覆盖 route_matrix_confirm.json 中的所有保留路线
   - 必填顶层字段齐全
+  - 逐类目工具覆盖度：market_structure 的 #1-#4、#6-#7 工具必须对每个候选类目单独调用
 
 校验失败 → 打回 Stage 6 Agent 修复，不进入 Stage 7。
 
@@ -193,6 +194,128 @@ def _check_route_coverage(
     return []
 
 
+# Agent prompt 中要求“按类目逐调”的工具组（market-structure-agent.md line 116-122）
+# 每组至少 1 个工具被调用即视为覆盖
+_PER_NODE_TOOL_GROUPS: tuple[tuple[str, ...], ...] = (
+    # #1  market_capacity
+    ("market_research", "market_research_statistics"),
+    # #2  price_band
+    ("market_price_distribution",),
+    # #3  brand / seller / product concentration
+    ("market_brand_concentration", "market_seller_concentration", "market_product_concentration"),
+    # #4  competitor_structure
+    ("market_listing_date_distribution", "market_rating_distribution", "market_ebc_distribution"),
+    # #6  review_threshold
+    ("market_ratings_count_distribution",),
+    # #7  category_boundary
+    ("product_node",),
+)
+
+_GROUP_LABELS = ("#1 market_capacity", "#2 price_band", "#3 concentration",
+                 "#4 competitor_structure", "#6 review_threshold", "#7 category_boundary")
+
+
+def _extract_node_ids_from_snapshot(snapshot: dict[str, Any]) -> set[str]:
+    """从 MCP snapshot 的 market_research 调用中提取所有被查询的 node_id。"""
+    node_ids: set[str] = set()
+    for tc in snapshot.get("tool_calls") or []:
+        tn = tc.get("tool_name", "")
+        if tn not in ("market_research", "market_research_statistics"):
+            continue
+        nid_path = (tc.get("params") or {}).get("nodeIdPath", "")
+        if not nid_path:
+            continue
+        # nodeIdPath 格式: "xxx:yyy:zzz:nodeId"，取最后一段
+        node_id = nid_path.split(":")[-1].strip()
+        if node_id:
+            node_ids.add(node_id)
+    return node_ids
+
+
+def _check_tool_coverage_per_node(
+    run_dir: Path, packet_name: str
+) -> list[ValidatorError]:
+    """检查 market_structure evidence packet 的逐类目工具覆盖度。
+
+    从 MCP snapshot 中提取每个候选类目的工具调用情况，
+    验证 #1-#4 和 #6-#7 工具组对每个类目都有至少 1 次调用。
+    """
+    if packet_name != "market_structure":
+        return []
+
+    snapshot_path = run_dir / "mcp_snapshots" / "sellersprite_deep_snapshot.json"
+    if not snapshot_path.exists():
+        return [ValidatorError(
+            code="NO_SNAPSHOT",
+            field_path="mcp_snapshots/sellersprite_deep_snapshot.json",
+            message="缺少 MCP 快照，无法验证逐类目工具覆盖度",
+            severity="WARN",
+            fix_hint="确保 Market Structure Agent 用 Write 工具写入了 MCP 快照",
+        )]
+
+    try:
+        snapshot = load_json(snapshot_path)
+    except Exception as e:
+        return [ValidatorError(
+            code="SNAPSHOT_PARSE_ERROR",
+            field_path=str(snapshot_path),
+            message=f"MCP 快照解析失败: {e}",
+            severity="WARN",
+        )]
+
+    node_ids = _extract_node_ids_from_snapshot(snapshot)
+    if not node_ids:
+        return [ValidatorError(
+            code="NO_NODES_IN_SNAPSHOT",
+            field_path="mcp_snapshots/sellersprite_deep_snapshot.json",
+            message="MCP 快照中未找到 market_research 调用，无法提取候选类目列表",
+            severity="WARN",
+        )]
+
+    # 构建 node_id → {tool: count} 的调用矩阵
+    node_tool_map: dict[str, dict[str, int]] = {nid: {} for nid in node_ids}
+    for tc in snapshot.get("tool_calls") or []:
+        tn = tc.get("tool_name", "")
+        nid_path = (tc.get("params") or {}).get("nodeIdPath", "")
+        node_id = nid_path.split(":")[-1].strip() if nid_path else ""
+        if node_id and node_id in node_tool_map:
+            node_tool_map[node_id][tn] = node_tool_map[node_id].get(tn, 0) + 1
+
+    errors: list[ValidatorError] = []
+    gap_count = 0
+    for node_id in sorted(node_tool_map.keys()):
+        called = node_tool_map[node_id]
+        missing_groups: list[str] = []
+        for tools, label in zip(_PER_NODE_TOOL_GROUPS, _GROUP_LABELS):
+            if not any(called.get(t, 0) > 0 for t in tools):
+                missing_groups.append(label)
+        if missing_groups:
+            gap_count += 1
+            errors.append(ValidatorError(
+                code="TOOL_COVERAGE_GAP",
+                field_path=f"mcp_snapshots/sellersprite_deep_snapshot.json → node_id={node_id}",
+                message=f"类目 {node_id} 缺少 {len(missing_groups)} 组工具调用: {', '.join(missing_groups)}",
+                expected="全部 6 组工具均有调用",
+                actual=f"已调用 {sorted(set(called.keys()))}, 缺失 {missing_groups}",
+                contract_ref="skills/amazon-product-research/agents/market-structure-agent.md#stage-6-深扫最低要求",
+                fix_hint=f"对 node_id={node_id} 补调缺失的工具: {', '.join(missing_groups)}",
+            ))
+
+    if gap_count > 0:
+        total_nodes = len(node_tool_map)
+        errors.insert(0, ValidatorError(
+            code="TOOL_COVERAGE_SUMMARY",
+            field_path="mcp_snapshots/sellersprite_deep_snapshot.json",
+            message=f"逐类目工具覆盖度不足: {gap_count}/{total_nodes} 个类目缺少工具调用",
+            expected=f"每个类目都有 #1-#4, #6-#7 共 6 组工具的至少 1 次调用",
+            actual=f"{total_nodes - gap_count}/{total_nodes} 个类目覆盖完整",
+            contract_ref="skills/amazon-product-research/agents/market-structure-agent.md#stage-6-深扫最低要求",
+            severity="WARN",
+        ))
+
+    return errors
+
+
 def validate_evidence_packet(
     run_dir: Path, packet_name: str
 ) -> tuple[bool, list[ValidatorError]]:
@@ -240,6 +363,7 @@ def validate_evidence_packet(
         _check_facts_structure(packet.get("evidence_items") or [], packet_name)
     )
     all_errors.extend(_check_route_coverage(packet, run_dir, packet_name))
+    all_errors.extend(_check_tool_coverage_per_node(run_dir, packet_name))
 
     return len(all_errors) == 0, all_errors
 

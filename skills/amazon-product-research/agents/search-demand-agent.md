@@ -117,7 +117,7 @@
 
 完成 evidence packet 写入后，**必须使用 Write 工具**将完整快照写入 `mcp_snapshots/sorftime_deep_snapshot.json`。
 
-**为什么必须用 Write 工具**：你在子 Agent 模式下运行，MCP tool_calls 无法被主线程自动捕获序列化。唯一可靠的方式是：每调用一个 MCP 工具后，立即将 call 元信息（call_id、tool_name、params、status、started_at、finished_at）和 result（raw_result 或 normalized_preview）记录到内存中，全部调用完成后用 Write 工具一次性写入快照 JSON。
+**为什么必须用 Write 工具**：你在子 Agent 模式下运行，MCP tool_calls 无法被主线程自动捕获序列化。唯一可靠的方式是：每调用一个 MCP 工具后，立即将 call 元信息（call_id、tool_name、params、status、started_at、finished_at）和 result（**必须**包含 `raw_result` 结构化数据；`normalized_preview` 仅作补充）记录到内存中，全部调用完成后用 Write 工具一次性写入快照 JSON。
 
 快照缺失 → Stage 13 QA 硬阻断。不可用 `snapshot_unavailable` 降级绕过。
 
@@ -166,22 +166,48 @@
 }
 ```
 
-`tool_calls[].status` 取 `success` / `empty` / `error`。`tool_results[].status` 同样取这三者之一。每个 result 必须包含 `raw_result`（MCP 返回数据）或 `normalized_preview`（摘要）。
+`tool_calls[].status` 取 `success` / `empty` / `error`。`tool_results[].status` 同样取这三者之一。每个 result **必须**包含 `raw_result`（MCP 返回的完整结构化数据，dict/list 格式）。`raw_result` 是下游 build 脚本提取结构化数据的唯一依据。`normalized_preview` 文本摘要**仅作补充说明，不得替代** `raw_result`。缺少 `raw_result` 的 tool_result 视为采集失败，Stage 13 QA 将直接阻断。
 
 ## Stage 6 深扫最低要求
 
-不以节省积分为主要约束。对每条保留路线至少执行或复用：
+不以节省积分为主要约束。以下 12 种工具类型对应下游 `build_sorftime_deep_dive.py` 的 `EVIDENCE_SPECS`，**每条保留路线都必须执行**。未执行 → `raw_result` 缺失 → 下游脚本无法提取结构化数据 → 该路线深挖失败。
 
-- `category_report`：读取候选类目 Top100 体量、价格带、集中度、新品和代表 ASIN。
-- `category_trend` / `category_report_from_history`：记录类目淡旺季；与关键词热度分开展示。
-- `keyword_search_results`：看关键词首页自然位是否被相似产品覆盖，识别混池。
-- `keyword_detail`：覆盖主查词、补查词、场景词、精准长尾词。
-- `keyword_extends`：发现长尾词、场景词、混池词和可切入词。
-- `product_traffic_terms`：覆盖每条保留路线 Top5/Top10 参考 ASIN。
-- `competitor_product_keywords`：覆盖参考 ASIN 的自然位关键词。
-- `similar_product_feature`：覆盖最终入围路线，用于主 Agent 写产品规格建议。
+| # | MCP 工具 | EVIDENCE_SPECS item_type | 用途 |
+|---|---|---|---|
+| 1 | `category_name_search` / `search_categories_broadly` / `category_search_from_product_name` | `category_search` | 发现候选类目、获取 nodeId |
+| 2 | `category_report` | `category_top100` | 类目 Top100 体量、价格带、集中度、新品和代表 ASIN |
+| 3 | `category_trend` | `category_trend` | 类目淡旺季；与关键词热度分开展示 |
+| 4 | `keyword_detail` | `keyword_detail` | 主查词、补查词、场景词的搜索量/CPC/竞争度 |
+| 5 | `keyword_trend` | `keyword_trend` | 关键词搜索趋势 |
+| 6 | `keyword_extends` | `keyword_expansion` | 长尾词、场景词、混池词和可切入词 |
+| 7 | `keyword_search_results` | `keyword_search_results` | 关键词首页自然位是否被相似产品覆盖，识别混池 |
+| 8 | `product_traffic_terms` | `asin_traffic_terms` | 每条保留路线 ≥5 个参考 ASIN 的流量词 |
+| 9 | `competitor_product_keywords` | `competitor_keywords` | 参考 ASIN 的自然位关键词 |
+| 10 | `similar_product_feature` | `hot_product_features` | 热销品共同特征，用于主 Agent 写产品规格建议 |
+| 11 | `product_detail` | `product_detail` | 参考 ASIN 的详情（价格/评分/月销/排名/上架日期） |
+| 12 | `product_reviews` | `product_reviews` | 参考 ASIN 的评论概要（评分分布/高频词） |
 
-如果某个工具未执行，必须写入 `data_gaps` 并说明对报告的影响。
+**硬约束**：
+- 以上 12 种工具类型**缺一不可**。未调用的工具类型必须写入 `data_gaps` 并标记为 `blocking`，说明对报告的影响和补数计划。
+- 每个 tool_result **必须**包含 `raw_result`（MCP 返回的完整结构化 dict/list），不得仅写 `normalized_preview` 文本摘要。
+- 未执行或仅有 `normalized_preview` 的工具类型 → `data_gaps` 中标记 `severity: blocking`。
+
+**数据完整性自检（写入 evidence packet 前必须执行）**：
+
+以下两类数据的空值需要区分处理：
+
+| 数据类型 | 空值含义 | 处理方式 |
+|---|---|---|
+| 关键词搜索量 | 0 = 需求弱，是有效信号 | 正常保留，不标记 gap |
+| 类目趋势 `category_trend` | 返回 null = 数据缺失 | 重试 1 次，仍空则写入 `data_gaps`（severity: `blocking`） |
+| 类目报告 `category_report` | Top100 数据全部为 0 | 重试 1 次，仍空则写入 `data_gaps`（severity: `blocking`） |
+| ASIN 流量词 | 返回空列表 = 该 ASIN 无流量词数据 | 记录到 `data_unavailable`，注明 ASIN |
+
+自检流程：
+1. 列出所有候选类目，检查 `category_trend` 和 `category_report` 是否返回有效数据
+2. 任一为空 → 重试 1 次
+3. 重试后仍空 → 写入 `data_gaps`，`severity: blocking`
+4. 关键词搜索量为 0 属于正常市场信号，不触发重试
 
 ## 分层规则
 
@@ -224,7 +250,7 @@
 | 你写什么 | 脚本怎么读 | 常见错误 |
 |----------|-----------|---------|
 | 快照 `tool_calls[]` | `p4_contracts.validate_deep_snapshot` 校验 `call_id/status/started_at/finished_at` | 用简化 `tool_summaries` 代替完整 `tool_calls` |
-| 快照 `tool_results[]` | 同上，校验 `result_id/call_id/status/raw_result` | 缺少 `raw_result` 或 `normalized_preview` |
+| 快照 `tool_results[]` | 同上，校验 `result_id/call_id/status/raw_result` | 缺少 `raw_result`（仅有 `normalized_preview` 视为缺失） |
 | Evidence `facts.normalized_value` | `build_conflict_review._find_normalized_value` 读 `field_values` / `numeric_values` | 展平到 facts 顶层，未包在 `normalized_value` 内 |
 | `selected_routes[]` | `build_conflict_review._route_lineage` 读 `route_id` | 用中文名代替 kebab-case `route_id` |
 | `route_refs[]` | `validate_evidence_packet._check_route_coverage` 按 `route_id` 比对 | 遗漏某条保留路线 |

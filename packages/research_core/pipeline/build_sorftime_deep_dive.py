@@ -64,6 +64,7 @@ EVIDENCE_SPECS: tuple[dict[str, Any], ...] = (
         "aggregation_unit": "category",
         "sample_scope": "category_top100",
         "expected_fields": ("Top100产品.ASIN", "Top100产品.价格", "Top100产品.月销量", "Top100产品.月销额", "Top100产品.评论数", "Top100产品.星级", "Top100产品.卖家", "类目统计报告.nodeid", "类目统计报告.top100产品月销量", "类目统计报告.top100产品月销额", "类目统计报告.top3_product_sales_volume_share", "类目统计报告.top3_brands_sales_volume_share", "类目统计报告.top3_seller_sales_volume_share", "类目统计报告.amazonOwned_sales_volume_share", "类目统计报告.average_price", "类目统计报告.median_price"),
+        "aggregate": True,
     },
     {
         "item_type": "category_trend",
@@ -72,6 +73,7 @@ EVIDENCE_SPECS: tuple[dict[str, Any], ...] = (
         "aggregation_unit": "category",
         "sample_scope": "category_trend",
         "expected_fields": ("类目月销量趋势", "series_sample", "trend_points"),
+        "aggregate": True,
     },
     {
         "item_type": "keyword_detail",
@@ -80,6 +82,7 @@ EVIDENCE_SPECS: tuple[dict[str, Any], ...] = (
         "aggregation_unit": "keyword",
         "sample_scope": "keyword_demand",
         "expected_fields": ("关键词", "周搜索量", "周搜索排名", "月搜索量", "推荐cpc竞价", "词搜索量旺季", "搜索结果竞品数量"),
+        "aggregate": True,
     },
     {
         "item_type": "keyword_trend",
@@ -88,6 +91,7 @@ EVIDENCE_SPECS: tuple[dict[str, Any], ...] = (
         "aggregation_unit": "keyword",
         "sample_scope": "keyword_trend",
         "expected_fields": ("搜索量趋势", "搜索量趋势_sample", "搜索排名趋势", "推荐竞价趋势"),
+        "aggregate": True,
     },
     {
         "item_type": "keyword_expansion",
@@ -96,6 +100,7 @@ EVIDENCE_SPECS: tuple[dict[str, Any], ...] = (
         "aggregation_unit": "keyword",
         "sample_scope": "keyword_expansion",
         "expected_fields": ("关键词", "周搜索量", "周搜索排名", "月搜索量", "cpc推荐竞价", "季节性"),
+        "aggregate": True,
     },
     {
         "item_type": "keyword_search_results",
@@ -104,6 +109,7 @@ EVIDENCE_SPECS: tuple[dict[str, Any], ...] = (
         "aggregation_unit": "serp",
         "sample_scope": "serp_result",
         "expected_fields": ("ASIN", "标题", "价格", "月销量", "品牌", "卖家", "排名", "月搜索量", "自然位"),
+        "aggregate": True,
     },
     {
         "item_type": "asin_traffic_terms",
@@ -112,6 +118,7 @@ EVIDENCE_SPECS: tuple[dict[str, Any], ...] = (
         "aggregation_unit": "asin",
         "sample_scope": "asin_traffic",
         "expected_fields": ("关键词", "ASIN", "自然位", "广告位", "曝光时间", "搜索量"),
+        "aggregate": True,
     },
     {
         "item_type": "competitor_keywords",
@@ -120,6 +127,7 @@ EVIDENCE_SPECS: tuple[dict[str, Any], ...] = (
         "aggregation_unit": "asin",
         "sample_scope": "competitor_keyword",
         "expected_fields": ("关键词", "ASIN", "自然位", "搜索量", "销量"),
+        "aggregate": True,
     },
     {
         "item_type": "hot_product_features",
@@ -128,6 +136,7 @@ EVIDENCE_SPECS: tuple[dict[str, Any], ...] = (
         "aggregation_unit": "product",
         "sample_scope": "hot_feature",
         "expected_fields": ("特征", "占比", "热销特征", "产品", "ASIN"),
+        "aggregate": True,
     },
     {
         "item_type": "product_detail",
@@ -136,6 +145,7 @@ EVIDENCE_SPECS: tuple[dict[str, Any], ...] = (
         "aggregation_unit": "asin",
         "sample_scope": "representative_asin",
         "expected_fields": ("asin", "price", "monthly_sales", "monthly_revenue", "rating", "ratings", "seller", "brand", "category", "nodeId"),
+        "aggregate": True,
     },
     {
         "item_type": "product_reviews",
@@ -144,6 +154,7 @@ EVIDENCE_SPECS: tuple[dict[str, Any], ...] = (
         "aggregation_unit": "asin",
         "sample_scope": "light_voc_readiness",
         "expected_fields": ("review", "rating", "title", "date", "content", "asin"),
+        "aggregate": True,
     },
 )
 
@@ -394,13 +405,64 @@ def build_search_demand_evidence_packet(
     metric_basis: dict[str, dict[str, Any]] = {}
     derived_metrics: dict[str, dict[str, Any]] = {}
 
+    reference_asin_pool: list[dict[str, Any]] = []
+
     for spec in EVIDENCE_SPECS:
-        result_index, result = _find_result(results, spec["tools"])
-        result_ref = f"{SNAPSHOT_DIR}/{SORFTIME_SNAPSHOT_NAME}#tool_results[{result_index}]" if result_index >= 0 else f"{SNAPSHOT_DIR}/{SORFTIME_SNAPSHOT_NAME}#tool_results[0]"
-        call_ref = _call_ref(result, call_index_by_id)
+        if spec.get("aggregate"):
+            all_matches = _find_all_results(results, spec["tools"])
+            merged_payload: list[dict[str, Any]] = []
+            all_result_refs: list[str] = []
+            all_call_refs: list[str] = []
+            for ri, r in all_matches:
+                payload = _result_payload(r)
+                if isinstance(payload, list):
+                    merged_payload.extend(item for item in payload if isinstance(item, dict))
+                elif isinstance(payload, dict) and payload:
+                    merged_payload.append(payload)
+                ref = f"{SNAPSHOT_DIR}/{SORFTIME_SNAPSHOT_NAME}#tool_results[{ri}]"
+                all_result_refs.append(ref)
+                all_call_refs.append(_call_ref(r, call_index_by_id))
+            result = all_matches[0][1]
+            result_index = all_matches[0][0]
+            result_ref = all_result_refs[0] if all_result_refs else f"{SNAPSHOT_DIR}/{SORFTIME_SNAPSHOT_NAME}#tool_results[0]"
+            raw_value = merged_payload
+            rows = _extract_rows(merged_payload)
+            if spec["item_type"] in ("asin_traffic_terms", "product_detail"):
+                for row in rows:
+                    entry: dict[str, Any] = {}
+                    asin_val = row.get("asin") or row.get("ASIN")
+                    if asin_val and isinstance(asin_val, str) and asin_val.strip():
+                        entry["asin"] = asin_val.strip()
+                        price = row.get("price")
+                        if price is not None:
+                            entry["price"] = price
+                        monthly = row.get("monthly_sales") or row.get("monthlySales")
+                        if monthly is not None:
+                            entry["monthly_sales"] = monthly
+                        rating = row.get("rating") or row.get("ratingValue")
+                        if rating is not None:
+                            entry["rating"] = rating
+                        rc = row.get("ratings") or row.get("ratingCount") or row.get("reviews")
+                        if rc is not None:
+                            entry["rating_count"] = rc
+                        brand = row.get("brand") or row.get("seller")
+                        if brand:
+                            entry["brand"] = brand
+                        title = row.get("title") or row.get("标题")
+                        if title:
+                            entry["title"] = title
+                        reference_asin_pool.append(entry)
+        else:
+            result_index, result = _find_result(results, spec["tools"])
+            result_ref = f"{SNAPSHOT_DIR}/{SORFTIME_SNAPSHOT_NAME}#tool_results[{result_index}]" if result_index >= 0 else f"{SNAPSHOT_DIR}/{SORFTIME_SNAPSHOT_NAME}#tool_results[0]"
+            all_result_refs = [result_ref]
+            all_call_refs = [_call_ref(result, call_index_by_id)]
+            raw_value = _result_payload(result)
+            rows = _extract_rows(raw_value)
+
+        call_ref = all_call_refs[0] if all_call_refs else ""
         basis_id = f"sorftime_{spec['item_type']}_basis"
         tool_name = _base_tool_name(result.get("tool_name") if isinstance(result, dict) else first_text(spec["tools"][0]))
-        rows = _extract_rows(_result_payload(result))
         normalized = _normalize_evidence_value(rows, spec["expected_fields"])
         item_gaps = _field_gaps(spec, result, rows, normalized, result_ref)
         data_gaps.extend(item_gaps)
@@ -425,23 +487,23 @@ def build_search_demand_evidence_packet(
                 "item_type": spec["item_type"],
                 "facts": {
                     "tool_name": tool_name,
-                    "raw_value": _result_payload(result),
+                    "raw_value": raw_value,
                     "normalized_value": normalized,
                     "node_mapping_input": lineage,
                     "expected_fields": list(spec["expected_fields"]),
                     "source_status": result.get("status", "missing") if isinstance(result, dict) else "missing",
                 },
                 "metric_basis_ref": basis_id,
-                "evidence_refs": [result_ref],
-                "source_refs": [call_ref],
+                "evidence_refs": all_result_refs,
+                "source_refs": all_call_refs,
             }
         )
         derived_metrics[f"{spec['item_type']}_signal"] = {
             "value": _first_metric_value(normalized),
-            "raw_value": _result_payload(result),
+            "raw_value": raw_value,
             "normalized_value": normalized,
             "metric_basis_ref": basis_id,
-            "evidence_refs": [result_ref],
+            "evidence_refs": all_result_refs,
         }
 
     if errors:
@@ -459,6 +521,7 @@ def build_search_demand_evidence_packet(
         "evidence_items": evidence_items,
         "derived_metrics": derived_metrics,
         "metric_basis": metric_basis,
+        "reference_asin_pool": reference_asin_pool,
         "data_gaps": _dedupe_dicts(data_gaps),
         "blocking_gaps": [],
         "confidence": _packet_confidence(data_gaps),
@@ -639,6 +702,30 @@ def _find_result(results: list[dict[str, Any]], tool_names: tuple[str, ...]) -> 
             return index, result
     if results:
         return 0, results[0]
+    raise P4SorftimeError("sorftime deep snapshot must include tool_results")
+
+
+def _find_all_results(results: list[dict[str, Any]], tool_names: tuple[str, ...]) -> list[tuple[int, dict[str, Any]]]:
+    """Return ALL matching results for a spec (not just the first).
+
+    Used when a tool like product_traffic_terms is called once per ASIN and every
+    result contributes rows that must be aggregated.
+    """
+    matches: list[tuple[int, dict[str, Any]]] = []
+    for index, result in enumerate(results):
+        base_name = _base_tool_name(result.get("tool_name"))
+        if base_name in tool_names:
+            matches.append((index, result))
+    if matches:
+        return matches
+    for index, result in enumerate(results):
+        base_name = _base_tool_name(result.get("tool_name"))
+        if any(name in base_name or base_name in name for name in tool_names):
+            matches.append((index, result))
+    if matches:
+        return matches
+    if results:
+        return [(0, results[0])]
     raise P4SorftimeError("sorftime deep snapshot must include tool_results")
 
 
