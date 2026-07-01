@@ -133,7 +133,164 @@
 
 ---
 
-## 1. 引用方式（强制）
+## 1. 战场分级与类目卡片（候选类目展示）
+
+### 1.1 战场分级结构
+
+候选类目按战场层级分类展示，使用三级分级：
+
+**HTML结构**:
+```html
+<!-- 主战场 -->
+<div class="tier-block tier-main">
+  <div class="tier-head">
+    <span class="tier-badge">主战场</span>
+    <span class="tier-note">核心必争 · 体量最大 / 差异化最强，优先落地</span>
+  </div>
+  <div class="cat-nav">
+    <!-- 类目卡片列表 -->
+  </div>
+</div>
+
+<!-- 次要战场 -->
+<div class="tier-block tier-second">
+  <div class="tier-head">
+    <span class="tier-badge">次要战场</span>
+    <span class="tier-note">机会验证 · 差异化可攻但需交叉验证</span>
+  </div>
+  <div class="cat-nav">
+    <!-- 类目卡片列表 -->
+  </div>
+</div>
+
+<!-- 边缘战场 -->
+<div class="tier-block tier-edge">
+  <div class="tier-head">
+    <span class="tier-badge">边缘战场</span>
+    <span class="tier-note">观望待定 · 风险较高或数据不足</span>
+  </div>
+  <div class="cat-nav">
+    <!-- 类目卡片列表 -->
+  </div>
+</div>
+```
+
+**战场分级标准**:
+- **主战场（tier-main）**: 绿色徽章，月销量高 + 差异化强 + 竞争格局好
+- **次要战场（tier-second）**: 黄色徽章，有机会但需要进一步验证
+- **边缘战场（tier-edge）**: 灰色徽章，月销量低或竞争过于激烈
+
+**数据字段要求**:
+- `report_data.json` 中的 `category_panorama.categories[].tier` 字段
+- 取值：`"main"` | `"second"` | `"edge"`
+- 如果字段缺失，默认按月销量排序，前3个为主战场，中间3个为次要，后3个为边缘
+
+---
+
+### 1.2 类目卡片样式
+
+每个候选类目使用卡片展示，包含产品图片、类目信息、关键指标。
+
+**HTML结构**:
+```html
+<a class="cat-card" href="https://www.amazon.com/b?node={node_id}" target="_blank" rel="noopener">
+  <div class="cc-top">
+    <img src="{image_url}" alt="{category_name}" loading="lazy">
+    <div>
+      <div class="cc-name">{category_name} <span class="ext-ico">↗</span></div>
+      <div class="cc-cn">{chinese_name} · Node {node_id}</div>
+    </div>
+  </div>
+  <div class="cc-route">
+    <span class="pill">{route_name}</span>
+  </div>
+  <div class="cc-meta">
+    <span>Top100月销 <b>{monthly_sales}</b></span>
+    <span>均价 <b>${avg_price}</b></span>
+  </div>
+  <div class="cc-meta">
+    <span>头部品牌 {top_brand} {concentration}%</span>
+  </div>
+  <div class="cc-cta">点击卡片 → 跳转 Amazon 类目前台</div>
+</a>
+```
+
+**数据字段映射**:
+- `{image_url}`: `category.image_url` - 类目代表产品图片URL
+- `{category_name}`: `category.category_name` - 类目英文名
+- `{chinese_name}`: 从 `category.category_path` 或 `category_role` 提取中文名
+- `{node_id}`: `category.node_id` - Amazon类目节点ID
+- `{route_name}`: 从 `category.category_role` 或路线映射表获取
+- `{monthly_sales}`: `category.top100_monthly_sales` - 格式化显示（如 219,100）
+- `{avg_price}`: `category.avg_price` - 格式化显示（如 $23.83）
+- `{top_brand}`: 从 `category.representative_asins` 或品牌数据提取
+- `{concentration}`: `category.brand_concentration` - 头部品牌集中度
+
+**图片缺失处理**:
+```html
+<!-- 如果 image_url 为空或未定义 -->
+<img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='62' height='62'%3E%3Crect fill='%23f5f0eb' width='62' height='62'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='24'%3E📦%3C/text%3E%3C/svg%3E" 
+     alt="占位符" 
+     loading="lazy">
+```
+或者使用CSS伪元素显示占位符（已在CSS中定义）。
+
+---
+
+### 1.3 产品缩略图（竞品表格）
+
+在核心竞品表格的ASIN列显示产品缩略图。
+
+**HTML结构**:
+```html
+<td class="asin-cell">
+  <a href="https://www.amazon.com/dp/{asin}" target="_blank" rel="noopener">
+    <img class="prod-thumb" src="{image_url}" alt="{brand} {asin}" loading="lazy">
+    <span class="asin-link">{asin} <span class="ext-ico">↗</span></span>
+  </a>
+</td>
+```
+
+**数据字段映射**:
+- `{asin}`: `competitor.asin`
+- `{image_url}`: `competitor.image_url` - 竞品ASIN主图URL
+- `{brand}`: `competitor.brand`
+
+**图片缺失处理**:
+```html
+<!-- 如果 image_url 为空，显示纯文本 -->
+<td class="asin-cell">
+  <a href="https://www.amazon.com/dp/{asin}" target="_blank" rel="noopener">
+    <span class="asin-link">{asin} <span class="ext-ico">↗</span></span>
+  </a>
+</td>
+```
+
+---
+
+### 1.4 路线对比表中的缩略图
+
+在"产品路线对比"表格中，路线列可以显示代表产品的缩略图。
+
+**HTML结构**:
+```html
+<td>
+  <a class="cat-inline" href="https://www.amazon.com/b?node={node_id}" target="_blank" rel="noopener">
+    <img class="cat-thumb" src="{image_url}" alt="{route_name}" loading="lazy">
+    <span class="route-name">{route_name}（{chinese_name}）<span class="ext-ico">↗</span></span>
+  </a>
+</td>
+```
+
+**数据字段映射**:
+- `{route_name}`: 路线英文名
+- `{chinese_name}`: 路线中文名
+- `{node_id}`: 类目节点ID
+- `{image_url}`: 路线代表产品图片URL
+
+---
+
+## 2. 引用方式（强制）
 
 HTML 放在 `runs/<run_id>/analysis/` 下。**必须内嵌 CSS，禁止使用外部 `<link>` 引用。** 运营拿到的是单个 HTML 文件，不能依赖项目目录里的 CSS 文件。
 

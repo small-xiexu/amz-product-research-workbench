@@ -706,3 +706,224 @@ button:focus-visible,
   .dash-nav { display: none; }
   .dash-page { display: block !important; page-break-before: auto; }
 }
+
+/* ============ 战场分级样式 ============ */
+.tier-block {
+  margin-bottom: 32px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+.tier-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+.tier-badge {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.02em;
+}
+.tier-main .tier-badge {
+  background: #D1FAE5;
+  color: #065F46;
+}
+.tier-second .tier-badge {
+  background: #FEF3C7;
+  color: #92400E;
+}
+.tier-edge .tier-badge {
+  background: #F0EDEA;
+  color: #78716C;
+}
+.tier-note {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* ============ 类目卡片样式 ============ */
+.cat-nav {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 14px;
+}
+.cat-card {
+  display: block;
+  background: var(--card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  text-decoration: none;
+  color: inherit;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+.cat-card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+.tier-main .cat-card {
+  border-left: 4px solid var(--success);
+}
+.tier-second .cat-card {
+  border-left: 4px solid var(--accent);
+}
+.tier-edge .cat-card {
+  border-left: 4px solid var(--border);
+}
+.cat-card .cc-top {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.cat-card img {
+  width: 62px;
+  height: 62px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.cat-card .cc-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+.cat-card .cc-cn {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+.cat-card .cc-route {
+  margin-bottom: 8px;
+}
+.cat-card .cc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.cat-card .cc-meta span {
+  display: inline-block;
+}
+.cat-card .cc-meta b {
+  color: var(--ink);
+  font-weight: 700;
+}
+.cat-card .cc-cta {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.cat-card:hover .cc-cta {
+  opacity: 1;
+}
+.ext-ico {
+  font-size: 14px;
+  opacity: 0.6;
+  margin-left: 4px;
+}
+.cat-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--accent);
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+.cat-inline:hover {
+  background: var(--accent-soft);
+}
+.cat-thumb {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+/* ============ 产品缩略图样式 ============ */
+.asin-cell {
+  min-width: 140px;
+}
+.asin-cell a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--accent);
+  font-weight: 600;
+}
+.asin-cell a:hover {
+  text-decoration: underline;
+}
+.prod-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.asin-link {
+  font-family: "Fira Code", monospace;
+  font-size: 13px;
+}
+
+/* 响应式适配 */
+@media (max-width: 768px) {
+  .cat-nav {
+    grid-template-columns: 1fr;
+  }
+  .cat-card img {
+    width: 48px;
+    height: 48px;
+  }
+  .prod-thumb {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* 图片加载状态 */
+.cat-card img:not([src]),
+.prod-thumb:not([src]),
+.cat-thumb:not([src]) {
+  background: var(--border-light);
+  position: relative;
+}
+.cat-card img:not([src])::after,
+.prod-thumb:not([src])::after,
+.cat-thumb:not([src])::after {
+  content: '📦';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 24px;
+  opacity: 0.3;
+}
