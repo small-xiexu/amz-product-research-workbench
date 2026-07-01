@@ -2,6 +2,135 @@
 
 本文件规定 `<中文品名>_分析报告.html` 的视觉标准。**CSS 源码唯一事实源：`references/report_template.css`。** AI 手写 HTML 时必须把该文件全部内容复制到 `<style>` 块中，生成自包含的单文件，运营收到后直接双击打开即可看到完整样式。
 
+**最新更新**：2026-07-01 增加看板式导航模式，提供更好的用户体验。
+
+---
+
+## 0. 看板式导航结构（必须使用）
+
+报告必须使用看板式导航，结构如下：
+
+```html
+<div class="page">
+  <!-- Hero：始终可见 -->
+  <section class="hero">...</section>
+
+  <!-- 看板导航：6个标签页 -->
+  <nav class="dash-nav" role="tablist" aria-label="看板导航">
+    <button class="dash-tab active" role="tab" data-target="pg-overview" aria-selected="true">
+      <span class="tab-ico">①</span><span class="tab-label">总览研判</span>
+    </button>
+    <button class="dash-tab" role="tab" data-target="pg-category" aria-selected="false">
+      <span class="tab-ico">②</span><span class="tab-label">候选类目</span>
+    </button>
+    <button class="dash-tab" role="tab" data-target="pg-rival" aria-selected="false">
+      <span class="tab-ico">③</span><span class="tab-label">核心竞品</span>
+    </button>
+    <button class="dash-tab" role="tab" data-target="pg-route" aria-selected="false">
+      <span class="tab-ico">④</span><span class="tab-label">路线定价</span>
+    </button>
+    <button class="dash-tab" role="tab" data-target="pg-traffic" aria-selected="false">
+      <span class="tab-ico">⑤</span><span class="tab-label">关键词流量</span>
+    </button>
+    <button class="dash-tab" role="tab" data-target="pg-execute" aria-selected="false">
+      <span class="tab-ico">⑥</span><span class="tab-label">落地风险</span>
+    </button>
+  </nav>
+
+  <!-- 分页内容 -->
+  <main class="dash-main">
+    <div class="dash-page active" id="pg-overview" role="tabpanel" aria-label="总览研判">
+      <!-- 资深运营评估 + 产品路线对比 -->
+    </div>
+    <div class="dash-page" id="pg-category" role="tabpanel" aria-label="候选类目">
+      <!-- 类目全景 -->
+    </div>
+    <div class="dash-page" id="pg-rival" role="tabpanel" aria-label="核心竞品">
+      <!-- 核心竞品 -->
+    </div>
+    <div class="dash-page" id="pg-route" role="tabpanel" aria-label="路线定价">
+      <!-- 用户痛点 → 产品规格 + 价格带分布 -->
+    </div>
+    <div class="dash-page" id="pg-traffic" role="tabpanel" aria-label="关键词流量">
+      <!-- 关键词与流量策略 -->
+    </div>
+    <div class="dash-page" id="pg-execute" role="tabpanel" aria-label="落地风险">
+      <!-- 当前市场判断结论 + 进入落地阶段后的验证路线图 + 风险与下一步 -->
+    </div>
+  </main>
+
+  <!-- JavaScript 交互逻辑 -->
+  <script>...</script>
+</div>
+```
+
+### 标签页内容分组
+
+| 标签页 | 包含的 section | 说明 |
+|---|---|---|
+| ①总览研判 | 资深运营评估、产品路线对比 | 首页，市场机会判断 |
+| ②候选类目 | 类目全景 | 9个候选类目分级展示 |
+| ③核心竞品 | 核心竞品 | 竞品分析表格 |
+| ④路线定价 | 用户痛点→产品规格、价格带分布 | 痛点+定价策略 |
+| ⑤关键词流量 | 关键词与流量策略 | 关键词分析 |
+| ⑥落地风险 | 当前市场判断结论、进入落地阶段后的验证路线图、风险与下一步 | 决策支持 |
+
+### JavaScript 交互逻辑（必须添加）
+
+在 `</body>` 前必须添加以下 JavaScript：
+
+```javascript
+<script>
+(function(){
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.dash-tab'));
+  var pages = Array.prototype.slice.call(document.querySelectorAll('.dash-page'));
+
+  function activate(id, push){
+    var found = false;
+    pages.forEach(function(p){
+      var on = p.id === id;
+      p.classList.toggle('active', on);
+      if(on) found = true;
+    });
+    tabs.forEach(function(t){
+      var on = t.getAttribute('data-target') === id;
+      t.classList.toggle('active', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    if(found){
+      if(push && history.replaceState){
+        history.replaceState(null, '', '#' + id);
+      }
+      var nav = document.querySelector('.dash-nav');
+      if(nav){
+        var y = nav.getBoundingClientRect().top + window.pageYOffset - 8;
+        window.scrollTo({top: y < 0 ? 0 : y, behavior: 'smooth'});
+      }
+    }
+  }
+
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){
+      activate(t.getAttribute('data-target'), true);
+    });
+    t.addEventListener('keydown', function(e){
+      var idx = tabs.indexOf(t);
+      if(e.key === 'ArrowLeft' && idx > 0){ tabs[idx - 1].click(); e.preventDefault(); }
+      if(e.key === 'ArrowRight' && idx < tabs.length - 1){ tabs[idx + 1].click(); e.preventDefault(); }
+    });
+  });
+
+  // 从URL恢复状态
+  if(window.location.hash){
+    var target = window.location.hash.substring(1);
+    if(document.getElementById(target)){
+      activate(target, false);
+    }
+  }
+})();
+</script>
+```
+
 ---
 
 ## 1. 引用方式（强制）

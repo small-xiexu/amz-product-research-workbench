@@ -156,13 +156,15 @@ body {
   color: #A8A29E;
 }
 .hero-metric .value {
-  font-size: 28px;
-  font-weight: 800;
+  font-size: 36px;
+  font-weight: 900;
   line-height: 1.15;
   overflow-wrap: anywhere;
   font-family: "Fira Code", "Fira Sans", monospace;
   font-variant-numeric: tabular-nums;
   color: #FAFAF9;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  letter-spacing: -0.02em;
 }
 
 /* ============ Section Cards ============ */
@@ -383,13 +385,39 @@ tbody tr:last-child td { border-bottom: 0; }
   letter-spacing: 0.02em;
   line-height: 1.5;
   white-space: nowrap;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  border: 1px solid transparent;
+  transition: all var(--transition-fast);
 }
-.tag-green  { background: #D1FAE5; color: #065F46; }
-.tag-amber  { background: #FEF3C7; color: #92400E; }
-.tag-red    { background: #FEE2E2; color: #B91C1C; }
-.tag-blue   { background: #F5F0EB; color: #6B5E4A; }
-.tag-gray   { background: #F0EDEA; color: #78716C; }
+.tag:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+}
+.tag-green  {
+  background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+  color: #065F46;
+  border-color: #6EE7B7;
+}
+.tag-amber  {
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+  color: #92400E;
+  border-color: #FCD34D;
+}
+.tag-red    {
+  background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
+  color: #B91C1C;
+  border-color: #FCA5A5;
+}
+.tag-blue   {
+  background: linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 100%);
+  color: #1E40AF;
+  border-color: #93C5FD;
+}
+.tag-gray   {
+  background: linear-gradient(135deg, #F0EDEA 0%, #E7E5E4 100%);
+  color: #78716C;
+  border-color: #D6D3D1;
+}
 
 /* ============ Price Band Bar Chart ============ */
 .price-band {
@@ -637,4 +665,44 @@ button:focus-visible,
   .price-band { grid-template-columns: 1fr; }
   .next-step { padding: 18px; }
   .roadmap-phase { padding: 14px 16px; }
+}
+
+/* ============ 看板：粘性标签导航 + 分页 ============ */
+.dash-nav {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; gap: 6px; flex-wrap: wrap;
+  background: rgba(250,250,249,0.92);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border-light); border-radius: var(--radius-md);
+  padding: 8px; margin-bottom: 20px; box-shadow: var(--shadow-sm);
+}
+.dash-tab {
+  flex: 1 1 auto; min-width: 120px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: inherit; font-size: 14px; font-weight: 600; color: var(--ink-light);
+  background: transparent; border: 1px solid transparent; border-radius: var(--radius-sm);
+  padding: 10px 14px; cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.dash-tab .tab-ico { font-size: 15px; opacity: 0.7; font-family: "Fira Code", monospace; }
+.dash-tab:hover { background: var(--primary-soft); color: var(--ink); }
+.dash-tab.active {
+  background: linear-gradient(135deg, #1C1917 0%, #44403C 100%);
+  color: #F5F0EB; border-color: #2D2824; box-shadow: var(--shadow-sm);
+}
+.dash-tab.active .tab-ico { color: #D4A23A; opacity: 1; }
+.dash-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dash-page { display: none; animation: dashFade 0.28s ease; }
+.dash-page.active { display: block; }
+@keyframes dashFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.dash-main .section:first-child { margin-top: 0; }
+@media (prefers-reduced-motion: reduce) { .dash-page { animation: none; } }
+@media (max-width: 768px) {
+  .dash-nav { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .dash-tab { min-width: max-content; flex: 0 0 auto; }
+}
+/* 打印时显示所有页面 */
+@media print {
+  .dash-nav { display: none; }
+  .dash-page { display: block !important; page-break-before: auto; }
 }

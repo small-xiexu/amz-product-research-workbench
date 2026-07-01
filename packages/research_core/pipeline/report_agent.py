@@ -1,6 +1,23 @@
 #!/usr/bin/env python3
 """Report Generation Agent local serial fallback.
 
+⚠️  重要：这是本地调试/回退工具，不是正式流程
+═══════════════════════════════════════════════════════════
+
+正式流程：Report Generation Agent 手写 HTML
+  • Agent 读取 report_template.css（完整复制到 <style>）
+  • Agent 参考 report_design_spec.md（生成看板导航结构）
+  • Agent 手写 analysis/<品名>_分析报告.html
+
+本脚本用途：
+  • 本地开发调试（快速预览报告效果）
+  • 回归测试（验证数据完整性）
+  • 紧急回退（Agent 失败时的备用方案）
+
+正式交付时，必须使用 Report Generation Agent 生成的报告。
+
+═══════════════════════════════════════════════════════════
+
 Reads report_data.seed.json, integrated_operator_judgment.json, and evidence
 packets, then enhances the seed into report_data.json and generates an
 operator-facing HTML report.
@@ -483,6 +500,87 @@ def enhance_seed_to_report_data(
     return rd
 
 
+# ── Dashboard Navigation & Layout ─────────────────────────────────────────
+
+def _build_dashboard_nav() -> str:
+    """构建看板式导航栏HTML"""
+    return """<nav class="dash-nav" role="tablist" aria-label="看板导航">
+    <button class="dash-tab active" role="tab" data-target="pg-overview" aria-selected="true">
+        <span class="tab-ico">①</span><span class="tab-label">总览研判</span>
+    </button>
+    <button class="dash-tab" role="tab" data-target="pg-category" aria-selected="false">
+        <span class="tab-ico">②</span><span class="tab-label">候选类目</span>
+    </button>
+    <button class="dash-tab" role="tab" data-target="pg-rival" aria-selected="false">
+        <span class="tab-ico">③</span><span class="tab-label">核心竞品</span>
+    </button>
+    <button class="dash-tab" role="tab" data-target="pg-route" aria-selected="false">
+        <span class="tab-ico">④</span><span class="tab-label">路线定价</span>
+    </button>
+    <button class="dash-tab" role="tab" data-target="pg-traffic" aria-selected="false">
+        <span class="tab-ico">⑤</span><span class="tab-label">关键词流量</span>
+    </button>
+    <button class="dash-tab" role="tab" data-target="pg-execute" aria-selected="false">
+        <span class="tab-ico">⑥</span><span class="tab-label">落地风险</span>
+    </button>
+</nav>
+"""
+
+
+def _build_dashboard_script() -> str:
+    """生成看板导航的JavaScript交互逻辑"""
+    return """<script>
+(function(){
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.dash-tab'));
+  var pages = Array.prototype.slice.call(document.querySelectorAll('.dash-page'));
+
+  function activate(id, push){
+    var found = false;
+    pages.forEach(function(p){
+      var on = p.id === id;
+      p.classList.toggle('active', on);
+      if(on) found = true;
+    });
+    tabs.forEach(function(t){
+      var on = t.getAttribute('data-target') === id;
+      t.classList.toggle('active', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    if(found){
+      if(push && history.replaceState){
+        history.replaceState(null, '', '#' + id);
+      }
+      var nav = document.querySelector('.dash-nav');
+      if(nav){
+        var y = nav.getBoundingClientRect().top + window.pageYOffset - 8;
+        window.scrollTo({top: y < 0 ? 0 : y, behavior: 'smooth'});
+      }
+    }
+  }
+
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){
+      activate(t.getAttribute('data-target'), true);
+    });
+    t.addEventListener('keydown', function(e){
+      var idx = tabs.indexOf(t);
+      if(e.key === 'ArrowLeft' && idx > 0){ tabs[idx - 1].click(); e.preventDefault(); }
+      if(e.key === 'ArrowRight' && idx < tabs.length - 1){ tabs[idx + 1].click(); e.preventDefault(); }
+    });
+  });
+
+  // 从URL恢复状态
+  if(window.location.hash){
+    var target = window.location.hash.substring(1);
+    if(document.getElementById(target)){
+      activate(target, false);
+    }
+  }
+})();
+</script>
+"""
+
+
 # ── HTML Section Builders ─────────────────────────────────────────────────
 
 def _build_hero_html(hero: dict[str, Any], run_id: str) -> str:
@@ -890,7 +988,7 @@ def _build_risks_next_html(
 
 # ── Main HTML Generator ──────────────────────────────────────────────────
 
-def generate_operator_html(report_data: dict[str, Any]) -> str:
+def generate_operator_html(report_data: dict[str, Any], enable_dashboard: bool = True) -> str:
     """Generate operator-facing HTML report from report_data.json.
 
     Follows the Report Generation Agent specification exactly:
@@ -900,6 +998,10 @@ def generate_operator_html(report_data: dict[str, Any]) -> str:
       evidence_packet, source_path) in output
     - Every number comes from report_data.json
     - Expert operator narrative style
+
+    Args:
+        report_data: report_data.json内容
+        enable_dashboard: 是否启用看板式导航（默认True），数据完全一样，只改变展示方式
     """
     css = _load_template_css()
     run_id = report_data.get("run_id", "")
@@ -915,17 +1017,79 @@ def generate_operator_html(report_data: dict[str, Any]) -> str:
     gonogo = _as_list(report_data.get("gonogo_conditions"))
     next_steps = _as_list(report_data.get("next_steps"))
 
-    sections = [
-        _build_hero_html(hero, run_id),
-        _build_category_html(cp),
-        _build_competitors_html(competitors),
-        _build_pain_points_html(pain_points),
-        _build_price_bands_html(price_bands),
-        _build_keywords_html(keywords),
-        _build_risks_next_html(risks, advantages, gonogo, next_steps),
-    ]
+    # 构建各个section的HTML（数据完全一样）
+    hero_html = _build_hero_html(hero, run_id)
+    category_html = _build_category_html(cp)
+    competitors_html = _build_competitors_html(competitors)
+    pain_html = _build_pain_points_html(pain_points)
+    price_html = _build_price_bands_html(price_bands)
+    keywords_html = _build_keywords_html(keywords)
+    risks_html = _build_risks_next_html(risks, advantages, gonogo, next_steps)
 
-    body = "\n\n".join(sections)
+    if enable_dashboard:
+        # 看板模式：带导航和分页，Hero始终可见在导航前
+        nav_html = _build_dashboard_nav()
+
+        # 按照别人的版本重新组织标签页
+        # ①总览研判 = 暂时放置市场判断概述（可以从hero.lead_analysis提取）
+        # ②候选类目 = category
+        # ③核心竞品 = competitors
+        # ④路线定价 = pain_points + price_bands
+        # ⑤关键词流量 = keywords
+        # ⑥落地风险 = risks完整版
+
+        # 构建总览研判页面（简化版，主要展示市场机会判断）
+        lead_analysis = hero.get('lead_analysis', '基于 Top100 样本数据和竞品分析的市场判断。')
+        overview_html = f"""<section class="section">
+  <h2>资深运营评估</h2>
+  <p class="subtitle">基于 Top100 样本数据和竞品分析的市场判断</p>
+  <div class="insight-row">
+    <div class="insight-card good">
+      <h4>市场机会</h4>
+      <p>{_esc(str(lead_analysis))}</p>
+    </div>
+  </div>
+</section>"""
+
+        body = f"""
+<main class="dash-main">
+  <div class="dash-page active" id="pg-overview" role="tabpanel" aria-label="总览研判">
+{overview_html}
+  </div>
+  <div class="dash-page" id="pg-category" role="tabpanel" aria-label="候选类目">
+{category_html}
+  </div>
+  <div class="dash-page" id="pg-rival" role="tabpanel" aria-label="核心竞品">
+{competitors_html}
+  </div>
+  <div class="dash-page" id="pg-route" role="tabpanel" aria-label="路线定价">
+{pain_html}
+{price_html}
+  </div>
+  <div class="dash-page" id="pg-traffic" role="tabpanel" aria-label="关键词流量">
+{keywords_html}
+  </div>
+  <div class="dash-page" id="pg-execute" role="tabpanel" aria-label="落地风险">
+{risks_html}
+  </div>
+</main>
+"""
+        script = _build_dashboard_script()
+        hero_output = hero_html  # Hero独立显示
+    else:
+        # 传统模式：线性滚动，Hero包含在body中
+        sections = [
+            category_html,
+            competitors_html,
+            pain_html,
+            price_html,
+            keywords_html,
+            risks_html,
+        ]
+        body = "\n\n".join(sections)
+        nav_html = ""
+        script = ""
+        hero_output = hero_html  # Hero也独立显示
 
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -939,8 +1103,11 @@ def generate_operator_html(report_data: dict[str, Any]) -> str:
 </head>
 <body>
 <div class="page">
+{hero_output}
+{nav_html}
 {body}
 </div>
+{script}
 </body>
 </html>
 """
